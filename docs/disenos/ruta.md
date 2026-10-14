@@ -2,7 +2,7 @@
 
 **Issue:** #9
 **Requerimientos:** RC-1, RC-2, RC-3, RC-4, RC-5, RC-6, RC-7, RC-12
-**Estado:** opciones presentadas
+**Estado:** decidido
 
 ## Investigación
 
@@ -131,7 +131,13 @@ El generador sortea, con la semilla, piezas como recta, curva abierta, curva cer
 Con E1 la ruta avanza siempre en una dirección. Ejemplo de cálculo [A]: a una velocidad media de 60 studs/s, en 30 minutos son unos 108.000 studs, cerca del tope de ±128.000 del Terrain. La arquitectura tiene que incluir un **recentrado del mundo** (mover el origen cuando el auto se aleja), o arrancar en −120.000 para tener 240.000 studs de margen. Se confirma con un experimento: precisión y tope lejos del origen.
 
 ## Decisión
-Pendiente: decide Beni (área de Calles infinitas). Si toca los contratos de superficie o del punto más cercano, se suma Nico.
+Beni eligió el 2026-10-14, en la sesión con el Agente B, las tres recomendaciones:
+
+1. **Eje y trazado: E1**, piezas con curvatura definida (rectas, arcos y transiciones), con el rumbo a menos de 90° de una dirección media.
+2. **Dónde se genera: G1**, todo en el cliente a partir de la semilla.
+3. **Malla y colisión de la ruta: T1** (ver `terreno.md`): la ruta va plana dentro del Terrain, sin malla propia.
+
+No toca contratos: la superficie (#17) se sigue calculando con los datos de la ruta.
 
 ## Arquitectura
 Pendiente: se escribe cuando esté la decisión.

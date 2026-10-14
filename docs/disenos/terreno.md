@@ -2,7 +2,7 @@
 
 **Issue:** #10
 **Requerimientos:** RC-6, RC-8, RC-9, RC-10, RC-11, RN-1
-**Estado:** opciones presentadas
+**Estado:** decidido
 
 ## Investigación
 
@@ -113,7 +113,7 @@ Rectas y arcos modelados en Blender o Studio, clonados de una pool.
 **Recomendación del agente:** **T1 para arrancar**, con **T2 como mejora visual** si el borde serruchado molesta en las pruebas de juego. T1 es la única opción medida que es rápida, plana y sin APIs especiales. T2 se suma encima sin rehacer nada.
 
 ## Decisión
-Pendiente: decide Beni (área de Calles infinitas).
+Beni eligió el 2026-10-14, en la sesión con el Agente B: **T1, todo con Terrain** (suelo y ruta), generado en el cliente (G1 de `ruta.md`). T2 (malla visual de la ruta encima) queda como mejora posible si el borde serruchado molesta en las pruebas de juego.
 
 ## Arquitectura
 Pendiente: se escribe cuando esté la decisión.
