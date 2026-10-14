@@ -329,7 +329,7 @@ Nada de esto llega a un PR:
 | Diseño de cada problema | `docs/disenos/` |
 | Decisiones tomadas | `docs/decisiones.md` |
 | Nombres del proyecto | `docs/nombres.md` |
-| Bugs | `docs/bugs/` |
+| Bugs | `docs/bugs/` (proceso en `docs/resolucion-de-bugs.md`) |
 | Hallazgos e ideas | Notas (ver coordinación) |
 | Razonamiento de cada sesión | Diario (ver coordinación) |
 
@@ -343,48 +343,7 @@ Toda decisión o enfoque se documenta con:
 
 ## 7. Bugs
 
-Ningún bug se arregla probando cosas. Se sigue este proceso, y cada paso queda escrito:
-
-1. **Analizar:** qué se esperaba y qué pasó.
-2. **Replicar:** lograr que el bug pase a voluntad, con pasos exactos. **Si es posible, la réplica queda como prueba automática que falla.**
-3. **Aislar:** reducir las condiciones al mínimo que lo sigue provocando.
-4. **Hipótesis:** una causa concreta, con una predicción ("si la causa es X, al cambiar Y debería pasar Z").
-5. **Probar:** un solo cambio por hipótesis.
-6. **Confirmar o descartar:**
-    - Confirmada: se corrige la causa, no el síntoma. La prueba del paso 2 pasa y todas las demás también.
-    - Descartada: **se revierte todo el cambio** y se vuelve al paso 4 con otra hipótesis.
-    - Tres hipótesis descartadas seguidas: se vuelve al paso 3, porque probablemente el aislamiento estuvo mal.
-7. **Documentar** el resultado.
-
-Cada bug tiene su archivo en `docs/bugs/<AAAA-MM-DD>-<tema>.md`:
-
-```markdown
-# Bug: título
-
-**Issue:** #N
-**Estado:** abierto | replicado | aislado | resuelto
-
-## Esperado y observado
-
-## Cómo replicarlo
-1.
-
-## Prueba que lo reproduce
-Nombre de la prueba, o por qué no se pudo automatizar.
-
-## Condiciones mínimas
-
-## Hipótesis
-### H1 — causa
-- **Predicción:**
-- **Cambio probado:**
-- **Resultado:** confirmada | descartada (revertida)
-
-## Causa y corrección
-
-## Verificación
-Qué se probó para confirmar que no se rompió nada más.
-```
+Ningún bug se arregla probando cosas. El proceso es obligatorio y está en [`docs/resolucion-de-bugs.md`](resolucion-de-bugs.md).
 
 ## 8. Revertibilidad
 
