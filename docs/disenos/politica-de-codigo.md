@@ -2,7 +2,7 @@
 
 **Issue:** #6
 **Requerimientos:** transversal (reglas de pruebas y cobertura de `docs/reglas-de-trabajo.md`, sección 5)
-**Estado:** opciones presentadas
+**Estado:** decidido
 
 ## Investigación
 
@@ -155,7 +155,15 @@ Por ejemplo, el generador pseudoaleatorio o funciones de vectores. Pregunta abie
 
 ## Decisión
 
-Pendiente: deciden Nico y Beni (toca a los dos agentes).
+Decidieron Nico y Beni el 2026-10-14 ([Nico](https://github.com/Nicodoou/Jijogame/issues/6#issuecomment-6180689707), [Beni](https://github.com/Nicodoou/Jijogame/issues/6), a través de su agente). Los dos eligieron las recomendaciones:
+
+1. **Pruebas y cobertura:** Opción 1, núcleo puro medido con `luau`. El 87% de cobertura de líneas se exige sobre `*/core/**`. Los adaptadores al motor se mantienen delgados y se prueban a mano en Studio.
+2. **Estructura de `src/`:** Opción A, primero el área. Cada área tiene `core/` y crea `server/`, `client/` y `shared/` cuando su diseño las necesita.
+3. **Utilidades puras compartidas:** opción a, cada área tiene las suyas en su `core/`.
+
+**Por qué:** es la única combinación en la que la regla de cobertura se puede cumplir y verificar hoy, y mantiene la tabla de áreas de la coordinación sin cambios.
+
+Antes de la arquitectura se hace el experimento `exp/toolchain` (puntos pendientes 1, 2 y 6).
 
 ## Arquitectura
 
