@@ -22,7 +22,7 @@ Hecha por el subagente `investigador` el 2026-10-14. Marcas: **[V]** verificado 
 | Herramienta | Estado | Fuente |
 | --- | --- | --- |
 | Rojo 7.7.1 | Mantenido. Corrige rutas en Windows. Sincroniza repo → Studio; la sincronización inversa es experimental. Terrain y CSG no sincronizan en vivo. | [releases](https://github.com/rojo-rbx/rojo/releases), [formato](https://rojo.space/docs/v7/project-format/) [V] |
-| Rokit 1.2.0 | Mantenido. Lee también `aftman.toml` y `foreman.toml`. Uso en Windows 10 [NC]. | [releases](https://github.com/rojo-rbx/rokit/releases) [V] |
+| Rokit 1.2.0 | Mantenido. Lee también `aftman.toml` y `foreman.toml`. Uso en Windows [NC], se confirma en el experimento. | [releases](https://github.com/rojo-rbx/rokit/releases) [V] |
 | Aftman | **Archivado** | [V] |
 | StyLua 2.6.0 | Mantenido, soporta Luau | [V] |
 | Selene 0.32.0 | Mantenido, `std = "roblox"` | [V] |
@@ -51,11 +51,11 @@ Agregado por la revisión del Agente B (#15), verificado en [luau.org](https://l
 ### Pendiente de confirmar con un experimento (`exp/toolchain`)
 
 1. Que Rokit instale y corra todas las herramientas en Windows. Nico usa Windows 10 y Beni, Windows 11 Home.
-2. Que `luau --coverage` funcione con módulos que se hacen `require` entre sí y entregue un reporte usable. También, encontrar una forma de `require` que funcione igual en el CLI (`require("./X")`) y en Roblox (`require(script.Parent.X)`). Si no la hay, el núcleo no se puede probar tal como corre en el juego.
+2. Que `luau --coverage` funcione con módulos que se hacen `require` entre sí y entregue un reporte usable. También, encontrar una forma de `require` que funcione igual en el CLI (`require("./X")`) y en Roblox (`require(script.Parent.X)`). Si no la hay, el núcleo no se puede probar tal como corre en el juego. Desde el MCP no se pudo probar (`execute_luau` no corre dentro de un script), así que hace falta un ModuleScript real sincronizado con Rojo.
 3. Qué Jest instala bien (el de Roblox o el de jsdotlua) y si tiene mocks y tiempo falso. Solo si se elige una opción con Jest.
 4. Si Jest corre completo a través del MCP de Studio. Solo si se elige una opción con Jest.
-5. Si en Roblox el tipo `vector` es el mismo que `Vector3`. Si es así, los contratos pueden usar `vector` y la lógica pura los puede importar desde el CLI.
-6. **Determinismo entre el CLI y Studio:** el mismo módulo con la misma semilla tiene que dar el mismo resultado (comparado con un hash), `math.noise` incluido. El Agente B se ofreció a hacer la parte de Studio con el MCP.
+5. ~~Si en Roblox el tipo `vector` es el mismo que `Vector3`.~~ **Confirmado [V]** por el Agente B con el MCP de Studio (2026-10-14): `vector.create(1, 2, 3)` da `typeof == "Vector3"`, es igual a `Vector3.new(1, 2, 3)` y tiene la API de `Vector3`. Los contratos pueden usar `vector`.
+6. **Determinismo entre el CLI y Studio:** el mismo módulo con la misma semilla tiene que dar el mismo resultado (comparado con un hash), `math.noise` incluido. El Agente B hace la parte de Studio con el MCP. Primera referencia de Studio: `math.noise(0.5, 1.25, 2.75) = -0.46653938293457031`; el CLI tiene que dar lo mismo.
 
 ## Opciones
 
