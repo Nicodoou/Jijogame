@@ -1,0 +1,10 @@
+# Archivos de lugar de Roblox: la fuente de verdad es el repo, no el .rbxl
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+sourcemap.json
+
+# Sistema
+.DS_Store
+Thumbs.db
