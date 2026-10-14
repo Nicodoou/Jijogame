@@ -2,7 +2,7 @@
 
 **Issue:** #6
 **Requerimientos:** transversal (reglas de pruebas y cobertura de `docs/reglas-de-trabajo.md`, sección 5)
-**Estado:** decidido
+**Estado:** arquitectura propuesta
 
 ## Investigación
 
@@ -65,9 +65,9 @@ Rama [`exp/toolchain`](https://github.com/Nicodoou/Jijogame/tree/exp/toolchain) 
 | --- | --- |
 | 1. Toolchain en Windows | **Sí.** Rokit 1.2.0 instala Rojo 7.7.1, StyLua 2.6.0, Selene 0.32.0, luau-lsp 1.70.1 y Luau 0.742.0. En modo no interactivo hace falta `rokit trust <herramienta>`. Los binarios son proxies que solo resuelven dentro de un directorio con `rokit.toml`. Windows 11: falta probarlo. |
 | 2. Cobertura con `require` | **Sí.** `luau --coverage` genera `coverage.out` con `SF:` y `DA:` para el módulo que se corre y para los que requiere, y las líneas sin ejecutar salen con conteo 0. Las rutas son relativas al directorio desde donde se corre. Un script (`scripts/coverage.sh` en la rama) filtra `src/*/core/**` y calcula el porcentaje. **Ojo:** un módulo de `core/` que ninguna prueba carga no aparece en el reporte; el script de CI tiene que sumarlo como 0%. |
-| 2b. `require` en el CLI | `require("./Clamp")`, sin extensión y relativo al archivo que hace el `require`, independiente del directorio de trabajo. `@self/...` no funciona. **En Roblox: pendiente** (#16, a cargo del Agente B). |
+| 2b. `require` en el CLI y en Roblox | `require("./Clamp")`, sin extensión y relativo al archivo que hace el `require`, independiente del directorio de trabajo. `@self/...` no funciona. **En Roblox también funciona [V]** (Agente B, #16): en Edit y en Play, en el servidor y en el cliente, con los módulos creados a mano. Falta confirmarlo con Rojo sincronizando y con un `require` que suba carpetas (`../`). |
 | 5. `vector` = `Vector3` | Confirmado antes por el Agente B en Studio. |
-| 6. Determinismo | **Sí, primera señal:** `math.noise(0.5, 1.25, 2.75)` da `-0.46653938293457031` en el CLI y en Studio. Faltan más valores y un hash de un módulo real. |
+| 6. Determinismo | **Sí [V]:** `math.noise` da los mismos valores en el CLI y en Studio en 5 de 5 llamadas (`%.17g`), con 1, 2 y 3 argumentos (Agente B, #16). Falta el hash de un módulo real, que queda para el primer WP con lógica. |
 | CI local | `stylua --check`, `selene` (`std = "roblox"`, sin generar nada), `rojo sourcemap` y `rojo build` corren. `luau-lsp analyze` corre solo con `--platform=standard`, que no conoce los globales de Roblox: alcanza para `core/`, pero para analizar los adaptadores hace falta un archivo de definiciones de Roblox (pendiente). |
 
 Observaciones para la arquitectura:
@@ -184,7 +184,118 @@ Antes de la arquitectura se hace el experimento `exp/toolchain` (puntos pendient
 
 ## Arquitectura
 
-Pendiente: se escribe cuando esté la decisión.
+Propuesta del Agente A, 2026-10-14. La aprueban Nico y Beni, porque toca a los dos.
+
+### Visión general
+
+El código de cada área se divide en capas, con dependencias en una sola dirección:
+
+```
+arranque (src/app/)  ──arma──▶  adaptadores (client/, server/)  ──usan──▶  núcleo (core/)  ──usa tipos de──▶  contratos (src/shared/contracts/)
+```
+
+| Capa | Dónde | Qué hace | Qué no hace |
+| --- | --- | --- | --- |
+| **Contratos** | `src/shared/contracts/` | Tipos y firmas que se pasan las áreas. Se cambian por acuerdo (coordinación, sección 5). | No tiene lógica. |
+| **Núcleo** | `src/<área>/core/` | Toda la lógica del área: cálculos, generación y estado del modelo. Es determinista: el azar viene de un generador con semilla y el tiempo llega como parámetro (`dt`). | No usa nada de Roblox (`game`, `workspace`, `script`, `Instance`, `Enum`, `Random`, `task`, `Vector3`, `CFrame`, servicios ni `os.clock`). No cede el control (`task.wait`). No requiere el núcleo de otra área, solo contratos. |
+| **Adaptadores** | `src/<área>/client/`, `src/<área>/server/`, `src/<área>/shared/` | Traducen entre el motor y el núcleo: leen el input, la física y las instancias, llaman al núcleo y aplican el resultado (mover partes, crear tramos, sonidos). Son delgados. | No tienen lógica de juego. Si un adaptador necesita un `if` que decide algo del juego, ese `if` va al núcleo. |
+| **Arranque** | `src/app/client/` y `src/app/server/` | Único punto donde se crean los módulos y se les pasan sus dependencias (reglas, sección 3). Un script por lado. | No tiene lógica, solo arma. |
+
+**Patrones y por qué:**
+- **Puertos y adaptadores (arquitectura hexagonal):** el núcleo no conoce el motor, y los adaptadores lo conectan. Resuelve que la cobertura solo se pueda medir sobre Luau puro: todo lo que importa probar queda en el núcleo.
+- **Raíz de composición con inyección de dependencias:** cada módulo recibe lo que necesita al construirse, y todo se arma en `src/app/`. Es lo que piden las reglas ("sin estado global") y permite pasarle al núcleo un generador con semilla fija y un `dt` falso en las pruebas.
+- **Los contratos como puertos:** las áreas se hablan solo por tipos de `src/shared/contracts/`. Las implementaciones se inyectan en el arranque. Así un área nunca requiere a la otra.
+
+### Estructura del repo
+
+```
+rokit.toml                versiones fijas de las herramientas
+default.project.json      mapeo de Rojo
+selene.toml               lint de adaptadores (std roblox)
+selene-core.toml          lint del núcleo (std luau: rechaza globales de Roblox)
+stylua.toml               formato (line_endings Unix)
+.gitattributes            fin de línea LF en todo el repo
+src/
+  shared/contracts/       contratos (ambos, por acuerdo)
+  app/client/             arranque del cliente (ambos, por acuerdo)
+  app/server/             arranque del servidor (ambos, por acuerdo)
+  vehicle/ input/ camera/ Agente A, cada una con core/ y client/ (y server/ si hace falta)
+  world/                  Agente B, con core/ y lo que necesite su diseño
+tests/
+  Runner.luau             corredor mínimo compartido
+  <área>/*.test.luau      pruebas del núcleo de cada área
+scripts/
+  test.sh                 corre todas las pruebas con cobertura
+  coverage.sh             calcula la cobertura de src/*/core/** y exige el 87%
+  check-core.sh           revisa las reglas del núcleo que Selene no ve
+docs/guia-de-desarrollo.md  cómo instalar, sincronizar y probar
+.github/workflows/ci.yml  CI
+```
+
+Las pruebas van en `tests/` y no al lado del código, para que Rojo no las sincronice al juego y para que la cobertura no las cuente.
+
+### Mapeo de Rojo
+
+La jerarquía del juego **copia la del repo**, con los mismos nombres de carpeta. Así, un `require("../../shared/contracts/Surface")` desde un núcleo resuelve igual en el CLI y en Roblox.
+
+| Repo | Roblox |
+| --- | --- |
+| `src/shared/` | `ReplicatedStorage.shared` |
+| `src/<área>/core/` y `src/<área>/shared/` | `ReplicatedStorage.<área>.core` y `ReplicatedStorage.<área>.shared` |
+| `src/<área>/client/` | `StarterPlayer.StarterPlayerScripts.<área>` |
+| `src/<área>/server/` | `ServerScriptService.<área>` |
+| `src/app/client/` | `StarterPlayer.StarterPlayerScripts.app` |
+| `src/app/server/` | `ServerScriptService.app` |
+
+**Forma de `require`:**
+- En el núcleo y los contratos, siempre por string relativo (`require("./X")` o `require("../../shared/contracts/X")`), que funciona en el CLI y en Roblox (#16).
+- En los adaptadores y el arranque, que no corren en el CLI, se permite `require(ReplicatedStorage.vehicle.core.X)`.
+
+### Pruebas y cobertura
+
+- **Corredor:** `tests/Runner.luau`, mínimo y compartido. Funciones: `test(nombre, fn)`, `expectEqual`, `expectNear` (con tolerancia, para flotantes), `expectError` y un resumen final que termina con código distinto de 0 si algo falla. Cambiarlo es por acuerdo, como los contratos.
+- **Deterministas:** el azar viene del generador con semilla de cada núcleo y el tiempo, de un `dt` que pasa la prueba. Nada de `os.clock` en el núcleo.
+- **`scripts/test.sh`:** corre todos los `tests/**/*.test.luau` con `luau --coverage` y junta los reportes.
+- **`scripts/coverage.sh`:** cuenta las líneas `DA:` de `src/*/core/**`. **Los archivos de `core/` que ninguna prueba carga cuentan como 0%** (el experimento mostró que si no, quedan afuera). Falla si el total queda por debajo del 87% y lista las líneas sin cubrir.
+- **Adaptadores:** sin pruebas automáticas. Cada PR que los toque lista sus pruebas manuales en Studio, como piden las reglas.
+
+### Chequeos estáticos
+
+| Chequeo | Sobre qué | Comando |
+| --- | --- | --- |
+| Formato | todo `src/`, `tests/` y `scripts/` | `stylua --check` |
+| Lint del núcleo | `src/*/core/`, `src/shared/contracts/` | `selene --config selene-core.toml` (std `luau`: falla con globales de Roblox) |
+| Lint de adaptadores | el resto de `src/` | `selene` (std `roblox`) |
+| Reglas del núcleo | `src/*/core/` | `scripts/check-core.sh`: sin `require` a otra área, sin `Vector3`/`CFrame` y con `--!strict` en cada archivo |
+| Tipos del núcleo | núcleo, contratos y pruebas | `luau-lsp analyze --platform=standard` |
+| Tipos de adaptadores | el resto de `src/` | `luau-lsp analyze --platform=roblox` con el sourcemap y el archivo de definiciones de Roblox que publica luau-lsp, fijado a la misma versión que `rokit.toml` |
+
+Todos los archivos llevan `--!strict`.
+
+### CI (GitHub Actions)
+
+Un workflow en `ubuntu-latest`, en cada PR y en cada push a `main`:
+1. Instala Rokit desde su release oficial, corre `rokit trust` sobre las herramientas de `rokit.toml` y después `rokit install`.
+2. Formato, lints, reglas del núcleo y tipos (tabla de arriba).
+3. `rojo build`, para validar el mapeo.
+4. `scripts/test.sh` y `scripts/coverage.sh` (87%).
+
+Que el CI sea obligatorio para mergear es una configuración de GitHub (protección de `main`). Se pide a Nico con un issue `necesita-humano` cuando el CI exista.
+
+### Desarrollo local
+
+`docs/guia-de-desarrollo.md` explica: instalar Rokit (con lo aprendido en #16), `rokit install`, el plugin de Rojo (`rojo plugin install`), `rojo serve` y conectarse desde Studio, y correr los mismos chequeos que el CI con `scripts/`.
+
+### Riesgos que el WP tiene que confirmar primero
+
+1. Que un `require` que sube carpetas (`../../shared/contracts/X`) funcione en Roblox con el mapeo de arriba. En #16 solo se probó `./`. Si no funciona, se frena y se vuelve a este paso.
+2. Que `luau --coverage` con varios archivos dé un solo reporte, o cómo se juntan varios.
+3. Que Selene tenga la std `luau` y que con ella rechace `game`, `Instance` y los demás globales de Roblox.
+4. De dónde sale exactamente el archivo de definiciones de Roblox para luau-lsp, y que funcione en CI.
+
+### Qué no cubre esta arquitectura
+
+El diseño interno de cada área (cómo es el núcleo de la ruta o del auto) va en el diseño de cada área (#7 a #10).
 
 ## Aprobación
 
