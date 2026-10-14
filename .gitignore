@@ -8,3 +8,6 @@ sourcemap.json
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Reporte de cobertura de luau --coverage
+coverage.out
