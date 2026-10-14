@@ -57,6 +57,23 @@ Agregado por la revisión del Agente B (#15), verificado en [luau.org](https://l
 5. ~~Si en Roblox el tipo `vector` es el mismo que `Vector3`.~~ **Confirmado [V]** por el Agente B con el MCP de Studio (2026-10-14): `vector.create(1, 2, 3)` da `typeof == "Vector3"`, es igual a `Vector3.new(1, 2, 3)` y tiene la API de `Vector3`. Los contratos pueden usar `vector`.
 6. **Determinismo entre el CLI y Studio:** el mismo módulo con la misma semilla tiene que dar el mismo resultado (comparado con un hash), `math.noise` incluido. El Agente B hace la parte de Studio con el MCP. Primera referencia de Studio: `math.noise(0.5, 1.25, 2.75) = -0.46653938293457031`; el CLI tiene que dar lo mismo.
 
+### Resultados del experimento `exp/toolchain` (#16)
+
+Rama [`exp/toolchain`](https://github.com/Nicodoou/Jijogame/tree/exp/toolchain) (commit `d0706da`), corrida por el subagente `experimentador` en Windows 10 el 2026-10-14. El orquestador repitió las pruebas, la cobertura, el ruido y el análisis de tipos.
+
+| Punto | Resultado |
+| --- | --- |
+| 1. Toolchain en Windows | **Sí.** Rokit 1.2.0 instala Rojo 7.7.1, StyLua 2.6.0, Selene 0.32.0, luau-lsp 1.70.1 y Luau 0.742.0. En modo no interactivo hace falta `rokit trust <herramienta>`. Los binarios son proxies que solo resuelven dentro de un directorio con `rokit.toml`. Windows 11: falta probarlo. |
+| 2. Cobertura con `require` | **Sí.** `luau --coverage` genera `coverage.out` con `SF:` y `DA:` para el módulo que se corre y para los que requiere, y las líneas sin ejecutar salen con conteo 0. Las rutas son relativas al directorio desde donde se corre. Un script (`scripts/coverage.sh` en la rama) filtra `src/*/core/**` y calcula el porcentaje. **Ojo:** un módulo de `core/` que ninguna prueba carga no aparece en el reporte; el script de CI tiene que sumarlo como 0%. |
+| 2b. `require` en el CLI | `require("./Clamp")`, sin extensión y relativo al archivo que hace el `require`, independiente del directorio de trabajo. `@self/...` no funciona. **En Roblox: pendiente** (#16, a cargo del Agente B). |
+| 5. `vector` = `Vector3` | Confirmado antes por el Agente B en Studio. |
+| 6. Determinismo | **Sí, primera señal:** `math.noise(0.5, 1.25, 2.75)` da `-0.46653938293457031` en el CLI y en Studio. Faltan más valores y un hash de un módulo real. |
+| CI local | `stylua --check`, `selene` (`std = "roblox"`, sin generar nada), `rojo sourcemap` y `rojo build` corren. `luau-lsp analyze` corre solo con `--platform=standard`, que no conoce los globales de Roblox: alcanza para `core/`, pero para analizar los adaptadores hace falta un archivo de definiciones de Roblox (pendiente). |
+
+Observaciones para la arquitectura:
+- Hay que agregar `coverage.out` al `.gitignore`.
+- Fin de línea: git convierte LF a CRLF en Windows. Conviene fijarlo con `.gitattributes` o con `line_endings` de StyLua para que `stylua --check` dé lo mismo en todas las máquinas y en CI.
+
 ## Opciones
 
 Hay tres decisiones: **cómo se prueba y se mide la cobertura**, **cómo se reparten las carpetas de `src/`** y **dónde viven las utilidades puras que usan las dos áreas**. Las herramientas base van en todas las opciones: Rokit, Rojo, StyLua, Selene, luau-lsp con `--!strict` y CI en GitHub Actions.
