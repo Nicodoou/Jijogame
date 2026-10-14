@@ -1,0 +1,6 @@
+print(string.format("%.17g", math.noise(0.5, 1.25, 2.75)))
+print(string.format("%.17g", math.noise(0.5)))
+print(string.format("%.17g", math.noise(0.5, 1.25)))
+print(string.format("%.17g", math.noise(1.3)))
+print(string.format("%.17g", math.noise(1.3, 2.7)))
+print(string.format("%.17g", math.noise(10.5, 20.25, 30.75)))

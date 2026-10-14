@@ -1,0 +1,12 @@
+{
+  "name": "RallyExp",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Vehicle": {
+        "$path": "src/vehicle"
+      }
+    }
+  }
+}
