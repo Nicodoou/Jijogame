@@ -1,0 +1,140 @@
+# Ruta: representación y malla
+
+**Issue:** #9
+**Requerimientos:** RC-1, RC-2, RC-3, RC-4, RC-5, RC-6, RC-7, RC-12
+**Estado:** opciones presentadas
+
+## Investigación
+
+La hizo el subagente `investigador` el 2026-10-14. Las marcas significan: **[V]** verificado en una fuente primaria, **[S]** fuente secundaria (DevForum o blogs), **[A]** análisis propio sin fuente, **[NC]** no confirmado y **[E]** medido por el Agente B en Studio con el MCP.
+
+El problema tiene tres capas, que se pueden decidir por separado:
+
+1. **Eje:** la curva que sigue el centro de la ruta.
+2. **Consultas:** responder rápido el punto más cercano y la distancia al eje. Las usan los contratos de superficie (#17) y de reset (RC-12).
+3. **Malla y colisión:** lo que se ve y lo que pisa el auto.
+
+### Eje
+
+- **Splines (Catmull-Rom, Bézier, Hermite):**
+  - dan continuidad C1 o G1 entre tramos;
+  - la curvatura máxima no se conoce de antemano, así que para cumplir RC-5 hay que muestrear y corregir;
+  - la longitud de arco no tiene fórmula y hay que armarla con una tabla.
+
+  Fuentes: [Catmull-Rom centrípeta](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline) [V], [Yuksel et al. 2011](https://cemyuksel.com/research/catmullrom_param/) [V], [Pomax](https://pomax.github.io/bezierinfo/) [S].
+- **Rectas, arcos y clotoides** (como se diseñan las rutas reales):
+  - la curvatura es un dato de diseño, así que RC-5 se cumple por construcción (radio mínimo, con aceleración lateral v²/R);
+  - con clotoides la curvatura también es continua (G2) [V] ([clotoide](https://en.wikipedia.org/wiki/Euler_spiral)).
+
+  Si se integran el rumbo y la pendiente en pasos fijos de 1 a 2 studs, el resultado es una **poligonal ya parametrizada por longitud de arco**, que sirve a la vez de eje, de base de la malla y de índice para las consultas [A].
+- **Límite geométrico:** el semiancho de la ruta más la banquina tiene que ser menor que el radio mínimo. Si no, el borde interno de las curvas se pliega y "el punto más cercano" salta de lado [A].
+
+### Trazado
+
+- **Gramática de piezas** (recta, curva abierta, curva cerrada, S) con parámetros sorteados por un generador pseudoaleatorio propio. RC-5 se cumple por construcción. El riesgo es que se vea repetitivo [A].
+- **Ruido sobre la curvatura o el rumbo** (`math.noise`): da un trazado más orgánico.
+  - `math.noise` no tiene semilla, da 0 en coordenadas enteras y se repite cada 256 unidades [V] ([math](https://create.roblox.com/docs/reference/engine/libraries/math)). La semilla se usa como desplazamiento.
+- **Para que no se cruce:** si el rumbo se mantiene a menos de 90° de una dirección media, la ruta es el gráfico de una función y no puede cruzarse ni volver sobre sí. No cuesta nada, pero no permite curvas de 180° [A]. La alternativa es comprobar contra una grilla de las muestras ya generadas y volver a sortear.
+- **Determinismo de `sin` y `cos`** entre PC y celular: **[NC]**. Solo importa si la ruta se genera por separado en más de un lugar (por ejemplo, en el cliente y en el servidor).
+
+### Consultas
+
+- **Cursor con ventana:** se recuerda la última muestra más cercana y se busca en ±k muestras. Es tiempo constante y alcanza para la superficie por rueda y por frame. No sirve después de un teletransporte [A].
+- **Grilla hash de muestras:** sirve para el reset (RC-12), cuando el auto puede estar lejos de la ruta. Hay que mantenerla al generar y liberar tramos [A].
+
+### Malla y colisión
+
+- **`EditableMesh`** ([clase](https://create.roblox.com/docs/reference/engine/classes/EditableMesh), [AssetService](https://create.roblox.com/docs/reference/engine/classes/AssetService)):
+  - **Límites:** 60.000 vértices y 20.000 triángulos por malla [V].
+  - **Memoria en el cliente:** tiene presupuesto estricto; si se agota, crear un editable devuelve `nil` [V]. Se reporta un tope de 8 editables vivos a la vez en el cliente [S].
+  - **Requisito para publicar:** hay que activar las APIs de Mesh/Image en la configuración de la experiencia [V]. Si además pide verificación de edad, está [NC].
+  - **Replicación:** no se replica del servidor al cliente [S].
+- **La colisión no se actualiza al editar.** Hay que crear la pieza con `AssetService:CreateMeshPartAsync`, que bloquea y no se puede paralelizar [V]/[S]. Medición en Studio (PC) [E]:
+
+  | Triángulos | `Box` | `Default` | `PreciseConvexDecomposition` |
+  | --- | --- | --- | --- |
+  | 504 | 0,2 ms | 14,0 ms | 15,2 ms |
+  | 1016 | 0,2 ms | 14,7 ms | 32,1 ms |
+
+  - Con colisión útil, crear la malla de un tramo cuesta casi un frame a 60 FPS (16,7 ms). En celular es [NC], pero seguro cuesta más.
+  - `Box` es casi gratis, pero envuelve el tramo en una caja, así que no sirve para una ruta con curvas.
+  - Un tramo de unos 2.560 studs de largo falló. Probable causa: el tamaño máximo de una pieza (2.048 studs) [NC].
+- **`CreateDataModelContentAsync`** "hornea" la malla en contenido estático, que sale del presupuesto de editables. Lo creado en el servidor se replica [S] ([anuncio](https://devforum.roblox.com/t/4541898)).
+- **Terrain para la ruta:** tiene celdas de 4 studs, así que los bordes de un ancho fijo quedan dentados. El mundo de Terrain tiene un tope de ±128.000 studs [V] ([Terrain](https://create.roblox.com/docs/reference/engine/classes/Terrain)).
+- **Uniones sin costuras (RC-4):**
+  - el anillo de vértices del borde se calcula una sola vez y se comparte entre los dos tramos;
+  - las normales salen del marco del eje;
+  - las UV usan la longitud de arco;
+  - conviene un solape mínimo en la colisión [A].
+
+### Riesgo nuevo: distancia al origen
+
+La ruta es infinita hacia adelante, y en 30 minutos el auto puede alejarse cientos de miles de studs. El Terrain tiene un tope de ±128.000 studs [V]. La precisión de la física y del render lejos del origen está [NC]. Puede hacer falta recentrar el mundo.
+
+## Opciones
+
+Hay tres decisiones. La de la malla y la colisión de la ruta está en `terreno.md` (opciones T1 a T4), porque se decide junto con el terreno.
+
+### Decisión 1: eje y trazado
+
+#### Opción E1: piezas con curvatura definida (rectas, arcos y transiciones)
+
+El generador sortea, con la semilla, piezas como recta, curva abierta, curva cerrada y S. Cada pieza tiene un largo y una curvatura que no supera el máximo. Se integran el rumbo y la pendiente en pasos fijos, y el resultado es una poligonal parametrizada por longitud de arco. El rumbo se mantiene a menos de 90° de una dirección media, así que la ruta no puede cruzarse.
+
+- **Bueno:**
+  - RC-5 se cumple por construcción (radio mínimo garantizado);
+  - la continuidad (RC-4) se cumple porque cada pieza arranca con el rumbo, la curvatura y la altura de la anterior;
+  - la poligonal sirve a la vez para la malla, la superficie (#17) y el reset (RC-12);
+  - es fácil de probar en el CLI con semilla fija.
+- **Malo:** sin curvas de 180° ni vueltas.
+- **Riesgoso:** que se vea repetitivo si la tabla de piezas es corta. Se mitiga variando los parámetros con ruido.
+- **Funciona bien cuando:** la ruta avanza "hacia adelante", como en un rally de etapa.
+- **Deja de funcionar cuando:** se quieren horquillas cerradas que vuelven sobre sí.
+
+#### Opción E2: spline (Catmull-Rom centrípeta) sobre puntos de control sorteados
+
+- **Bueno:** trazado orgánico y la técnica más conocida.
+- **Malo:**
+  - la curvatura máxima no se conoce de antemano, así que hay que muestrear y corregir para cumplir RC-5;
+  - la longitud de arco necesita una tabla aparte;
+  - el punto más cercano es más caro.
+- **Riesgoso:** que se cuelen curvas imposibles si el chequeo por muestreo falla.
+- **Funciona bien cuando:** se acepta revisar cada tramo después de generarlo.
+- **Deja de funcionar cuando:** se exige la garantía de RC-5 por construcción.
+
+**Recomendación del agente:** **E1.** Garantiza RC-4 y RC-5 por construcción y da gratis lo que necesitan los dos contratos.
+
+### Decisión 2: dónde se genera el mundo
+
+#### Opción G1: todo en el cliente, a partir de la semilla
+- **Bueno:**
+  - sin replicación;
+  - la física del auto ya corre en el cliente (RN-2);
+  - el contrato de superficie se consulta en el cliente;
+  - el contenido creado en el cliente no sale por streaming [V].
+- **Malo:** el servidor no ve el terreno, así que nada que simule el servidor puede apoyarse en él.
+- **Riesgoso:** para multijugador (afuera del MVP) habría que repensarlo.
+- **Funciona bien cuando:** el juego es de un jugador, como el MVP.
+
+#### Opción G2: en el servidor, replicado
+- **Bueno:** una sola fuente de verdad.
+- **Malo:**
+  - replicación continua de terreno infinito;
+  - el cliente espera los datos;
+  - con mallas, no se replican.
+- **Riesgoso:** latencia y tirones en la red.
+
+**Recomendación del agente:** **G1.**
+
+### Riesgo a resolver en la arquitectura: distancia al origen
+
+Con E1 la ruta avanza siempre en una dirección. Ejemplo de cálculo [A]: a una velocidad media de 60 studs/s, en 30 minutos son unos 108.000 studs, cerca del tope de ±128.000 del Terrain. La arquitectura tiene que incluir un **recentrado del mundo** (mover el origen cuando el auto se aleja), o arrancar en −120.000 para tener 240.000 studs de margen. Se confirma con un experimento: precisión y tope lejos del origen.
+
+## Decisión
+Pendiente: decide Beni (área de Calles infinitas). Si toca los contratos de superficie o del punto más cercano, se suma Nico.
+
+## Arquitectura
+Pendiente: se escribe cuando esté la decisión.
+
+## Aprobación
+Pendiente.
