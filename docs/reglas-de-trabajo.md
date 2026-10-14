@@ -133,7 +133,7 @@ Una o dos líneas.
 - [ ] Qué se prueba a mano y qué se intenta romper.
 ```
 
-- El WP lo redacta el agente y lo aprueba su persona. **Aprobar un WP es mergearlo a `main`.** Sin WP en `main`, no se empieza.
+- El WP lo redacta el agente y lo aprueba su persona. **Con esa aprobación, el agente mergea el WP a `main`** (ver el paso Merge en `docs/coordinacion-agentes.md`). Sin WP en `main`, no se empieza.
 - Si durante el trabajo aparece algo que el WP no cubre, se frena y se pide actualizar el WP. No se resuelve por cuenta propia.
 
 ## 2. Proceso antes de escribir código

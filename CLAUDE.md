@@ -12,7 +12,8 @@ Al empezar cada sesión, seguí la lista "Antes de empezar cada sesión" de la c
 
 Resumen de lo que no se negocia:
 
-- GitHub y `docs/` son la única fuente de verdad. Ningún agente mergea a `main`.
+- GitHub y `docs/` son la única fuente de verdad.
+- Los agentes mergean a `main` solo con aprobación explícita de su persona (de las dos si toca un contrato o el área del otro).
 - Cada agente escribe solo en su área (sección 3 de la coordinación).
 - No se escribe código sin diseño aprobado y WP mergeado en `main`.
 - El orquestador trabaja por subagentes (`.claude/agents/`).

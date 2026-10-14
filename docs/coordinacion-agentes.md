@@ -9,7 +9,7 @@ Leé este archivo entero antes de cualquier tarea.
 1. **GitHub es la única fuente de verdad.** Si no está en un issue, un PR o `docs/`, no existe. No se asume nada de una conversación que el otro agente no vio.
 2. **Un dueño por área.** Cada agente modifica solo sus carpetas. Para tocar algo del otro, se pide por issue.
 3. **Los contratos se cambian por acuerdo, nunca en silencio.** Las interfaces compartidas tienen su propio proceso (sección 5).
-4. **Los humanos deciden y mergean.** Ningún agente mergea a `main`.
+4. **Los humanos deciden; los agentes mergean con su aprobación.** Ningún agente mergea a `main` sin la aprobación explícita de su persona (sección 4, paso Merge).
 5. **Ante la duda, frená y preguntá.** Un issue con pregunta es más barato que un día de trabajo en la dirección equivocada.
 
 ## 2. Herramientas del repositorio
@@ -46,7 +46,7 @@ Cada agente puede **leer** todo el repo. Solo **escribe** en sus carpetas, en `d
 3. **Commits.** En español, en presente, con el ID: `RC-3: devuelve tramos liberados a la pool`.
 4. **PR.** Usa la plantilla de la sección 8. Linkea el issue con `Closes #N`.
 5. **Revisión.** Si el PR toca un contrato o algo que el otro agente usa, se lo asigna como revisor y espera su comentario.
-6. **Merge.** Lo hace el humano después de probarlo en Studio.
+6. **Merge.** Lo hace el agente dueño del PR, solo después de que su persona lo pruebe en Studio (si aplica) y le apruebe el merge de forma explícita. Si el PR toca un contrato o el área del otro, hace falta la aprobación de las dos personas. Antes de mergear, el agente deja un comentario en el PR con quién aprobó.
 
 ### Antes de empezar cada sesión
 
