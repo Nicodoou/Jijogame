@@ -27,8 +27,8 @@ El código de Roblox no vive en git por defecto (vive dentro del archivo del lug
 
 | Área | Dueño | Carpetas | Requerimientos del MVP |
 | --- | --- | --- | --- |
-| Calles infinitas (ruta, terreno, chunks, obstáculos) | Agente A | `src/world/` | RC-1 a RC-12 |
-| Conducción (auto, controles, cámara, feedback) | Agente B | `src/vehicle/`, `src/input/`, `src/camera/` | CP-1 a CP-16 |
+| Calles infinitas (ruta, terreno, chunks, obstáculos) | Agente B | `src/world/` | RC-1 a RC-12 |
+| Conducción (auto, controles, cámara, feedback) | Agente A | `src/vehicle/`, `src/input/`, `src/camera/` | CP-1 a CP-16 |
 | Contratos compartidos | Ambos (por acuerdo) | `src/shared/contracts/` | — |
 | Rendimiento | Ambos | — | RN-1, RN-2 |
 
@@ -42,7 +42,7 @@ Cada agente puede **leer** todo el repo. Solo **escribe** en sus carpetas, en `d
 
 1. **Issue.** Toda tarea arranca como issue, con los IDs de requerimiento que cubre (ej.: `RC-3`). Si la tarea no tiene requerimiento, se pregunta antes de empezar.
 1. **Diseño y WP.** Antes de programar, se sigue el proceso de `docs/reglas-de-trabajo.md` (investigación, opciones, decisión, arquitectura, aprobación). Termina con el WP mergeado en `main`. El trabajo cubre lo que dice el WP y nada más.
-2. **Rama.** `a/<id>-<descripcion-corta>` o `b/<id>-<descripcion-corta>`. Ejemplo: `a/RC-3-pool-de-tramos`.
+2. **Rama.** `a/<id>-<descripcion-corta>` o `b/<id>-<descripcion-corta>`. Ejemplo: `b/RC-3-pool-de-tramos`.
 3. **Commits.** En español, en presente, con el ID: `RC-3: devuelve tramos liberados a la pool`.
 4. **PR.** Usa la plantilla de la sección 8. Linkea el issue con `Closes #N`.
 5. **Revisión.** Si el PR toca un contrato o algo que el otro agente usa, se lo asigna como revisor y espera su comentario.
@@ -79,9 +79,9 @@ Contratos previstos para el MVP:
 
 | Contrato | Lo provee | Lo usa | Para qué |
 | --- | --- | --- | --- |
-| Punto de ruta más cercano (posición y dirección) | Agente A | Agente B | Reset del auto (RC-12) |
-| Tipo de superficie en una posición | Agente A | Agente B | Agarre en ruta y fuera de ruta (CP-3) |
-| Posición del jugador o del auto | Agente B | Agente A | Generar y liberar tramos (RC-2, RC-3) |
+| Punto de ruta más cercano (posición y dirección) | Agente B | Agente A | Reset del auto (RC-12) |
+| Tipo de superficie en una posición | Agente B | Agente A | Agarre en ruta y fuera de ruta (CP-3) |
+| Posición del jugador o del auto | Agente A | Agente B | Generar y liberar tramos (RC-2, RC-3) |
 
 **Para cambiar un contrato:**
 
@@ -247,13 +247,13 @@ Nada que esté en este registro se reabre sin un issue nuevo que explique por qu
 Una o pocas líneas. Van todas en `docs/notas/rapidas.md`, la más nueva arriba:
 
 ```markdown
-- **AAAA-MM-DD · Agente A:** la generación de tramos tarda más en curvas cerradas; revisar cuando se mida rendimiento (RC-2).
+- **AAAA-MM-DD · Agente B:** la generación de tramos tarda más en curvas cerradas; revisar cuando se mida rendimiento (RC-2).
 - **AAAA-MM-DD · Nico:** con gamepad el derrape se siente mucho mejor que con teclado.
 ```
 
 ### Notas largas
 
-Un archivo por nota en `docs/notas/`, con el nombre `AAAA-MM-DD-autor-tema.md` (ej.: `2026-10-20-agente-b-modelos-de-derrape.md`):
+Un archivo por nota en `docs/notas/`, con el nombre `AAAA-MM-DD-autor-tema.md` (ej.: `2026-10-20-agente-a-modelos-de-derrape.md`):
 
 ```markdown
 # Título

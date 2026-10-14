@@ -70,6 +70,7 @@ El auto default de Roblox se descarta; el MVP usa un modelo propio pensado para 
 **Controles**
 
 - **CP-7** Teclado: volante, acelerador y freno con suavizado (rampa de subida y de retorno, ajustables por separado).
+- **CP-8** Eliminado.
 - **CP-9** Freno de mano en tecla y botón propios, como herramienta principal para iniciar derrapes.
 - **CP-10** La dirección se vuelve menos sensible a alta velocidad, para que el auto no sea nervioso en rectas.
 
@@ -120,4 +121,4 @@ Hay que resolverlas antes de programar; cada una cambia cómo se construye.
 2. **Representación de la ruta:** spline o puntos de control, y cómo se arma la malla a partir de eso.
 3. **Cómo se genera el terreno:** Terrain de Roblox o mallas propias. Afecta rendimiento y cómo la ruta esculpe el suelo.
 4. **Tipo de auto:** rally liviano tracción total, o trasera (derrapa más fácil, es más difícil de controlar).
-5. **Reparto con Ariel:** quién toma calles infinitas y quién conducción, ya que se pueden trabajar en paralelo.
+5. **Reparto con Beni:** quién toma calles infinitas y quién conducción, ya que se pueden trabajar en paralelo. Resuelta el 2026-10-14 (ver `docs/decisiones.md`).
