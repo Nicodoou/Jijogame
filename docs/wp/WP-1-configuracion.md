@@ -55,7 +55,7 @@ Dejar el repo listo para que cualquier WP con código tenga, desde el primer com
    - `expectError(fn)`;
    - un resumen final que termina el proceso con error si alguna prueba falló.
 
-   Los mensajes de falla dicen qué se esperaba, qué se obtuvo y en qué prueba. El corredor tiene sus propias pruebas en `tests/runner/`, incluidas las que comprueban que detecta fallas.
+   Los mensajes de falla dicen qué se esperaba, qué se obtuvo y en qué prueba. El corredor tiene sus propias pruebas en `tests/runner-tests/`, incluidas las que comprueban que detecta fallas. (Iba a ser `tests/runner/`, pero en Windows choca con `tests/Runner.luau`, porque las rutas no distinguen mayúsculas.)
 6. **Scripts** (bash, que corran igual en Git Bash de Windows y en Linux):
    - `scripts/test.sh`: corre todos los `tests/**/*.test.luau` con cobertura y deja un solo reporte combinado (riesgo 2). Falla si falla alguna prueba.
    - `scripts/coverage.sh [umbral]`: con el reporte combinado, calcula el porcentaje de líneas cubiertas de `src/*/core/**`. Umbral por defecto: 87. **Los archivos de `src/*/core/**` que no aparecen en el reporte cuentan con todas sus líneas ejecutables sin cubrir.** Lista las líneas sin cubrir. Si no hay ningún archivo de núcleo, termina bien e informa que no hay nada que medir. Falla si queda por debajo del umbral.
