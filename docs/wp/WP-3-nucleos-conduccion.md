@@ -116,10 +116,10 @@ Los nombres y las responsabilidades son los de la tabla "Núcleo del auto" del d
 | Grupo | Valores |
 | --- | --- |
 | Ruedas | `WHEELS`: FL `(-2.5, -1, -4)`, FR `(2.5, -1, -4)`, RL `(-2.5, -1, 4)`, RR `(2.5, -1, 4)`, con `isFront` y `isLeft`. `WHEEL_RADIUS_STUDS` 1,2 |
-| Suspensión | `SUSPENSION_FREQUENCY_HZ` 2,5 (**como máximo 4**, #32); `SUSPENSION_DAMPING_RATIO` 0,6; `SUSPENSION_REST_LENGTH_STUDS` 2,5; `SUSPENSION_MAX_COMPRESSION_STUDS` 2; `SUSPENSION_MAX_FORCE_PER_STATIC_LOAD` 4 (tope por rueda, en múltiplos de su carga estática); `BOTTOM_OUT_FRACTION` 0,8; `COMPRESSION_SPEED_FILTER_RATE` 30 |
+| Suspensión | `SUSPENSION_FREQUENCY_HZ` 2,5 (**como máximo 4**, #32); `SUSPENSION_DAMPING_RATIO` 0,6; `SUSPENSION_REST_LENGTH_STUDS` 2,5; `SUSPENSION_MAX_COMPRESSION_STUDS` 2; `SUSPENSION_MAX_FORCE_PER_STATIC_LOAD` 4 (tope por rueda, en múltiplos de su carga estática); `BOTTOM_OUT_FRACTION` 0,8; `BOTTOM_OUT_MAX_MISSED_STEPS` 3; `COMPRESSION_SPEED_FILTER_RATE` 30 |
 | Neumático | `TIRE_FRICTION` 1,0; `TIRE_CORNERING_STIFFNESS_PER_RADIAN` 8 (fuerza lateral por unidad de carga y por radián); `TIRE_SLIDE_FRICTION_RATIO` 1,0 (1 = sin caída después del pico); `LOW_SPEED_REGULARIZATION_STUDS_PER_SECOND` 3 |
 | Superficie | `SURFACE_GRIP`: Road 1,0, Shoulder 0,85, Grass 0,7, Mud 0,5. `SURFACE_ROLLING_RESISTANCE`: Road 0,015, Shoulder 0,03, Grass 0,06, Mud 0,12 (por unidad de carga). `SURFACE_BLEND_RATE` 8 |
-| Motor | `TORQUE_CURVE`: puntos (rpm, fracción del pico) `(1000, 0.6)`, `(3000, 0.9)`, `(4500, 1.0)`, `(6500, 0.85)`, `(7000, 0.7)`; `IDLE_RPM` 1000; `REDLINE_RPM` 7000; `FIRST_GEAR_PEAK_ACCELERATION` 60 studs/s² |
+| Motor | `TORQUE_CURVE`: puntos (rpm, fracción del pico) `(1000, 0.6)`, `(3000, 0.9)`, `(4500, 1.0)`, `(6500, 0.85)`, `(7000, 0.7)`; `IDLE_RPM` 1000; `REDLINE_RPM` 7000; `FIRST_GEAR_PEAK_ACCELERATION` 110 studs/s² (0,56 g: el acelerador tiene que poder soltar la cola en 1ra y 2da) |
 | Caja | `GEAR_RATIOS` 3,5, 2,3, 1,65, 1,25, 1,0; `REVERSE_RATIO` 3,5; `FINAL_DRIVE` 5,9; `UPSHIFT_RPM` 6200; `DOWNSHIFT_RPM` 3000; `SHIFT_DURATION_SECONDS` 0,25; `SHIFT_TORQUE_FRACTION` 0; `REVERSE_ENGAGE_SPEED` 1 studs/s |
 | Tracción | `REAR_BIAS` 0,7 |
 | Frenos | `BRAKE_DECELERATION` 250 studs/s² (el neumático lo recorta); `BRAKE_FRONT_BIAS` 0,6; `HANDBRAKE_FORCE_PER_LOAD` 1,5; `BRAKE_REGULARIZATION_SPEED` 1 studs/s |
@@ -133,7 +133,7 @@ La velocidad máxima en la marcha más alta, al corte, da unos 150 studs/s. Hay 
 **`Suspension.luau`:**
 - `staticLoad(mass, gravity, wheelCount)`, `springRate(...)` y `damperRate(...)`: la carga estática es `masa · g / 4`. La rigidez es `(masa / 4) · (2π · f)²`. La amortiguación es `2 · ζ · √(rigidez · masa / 4)`.
 - `step(wheel, contact, compressionSpeedRaw, ...)`: con contacto, `compresión = REST_LENGTH + RADIUS − distancia`, recortada a `[0, MAX_COMPRESSION]`. La velocidad de compresión es la de la rueda en el mundo proyectada sobre el "arriba" del contacto, con el signo cambiado; la calcula el simulador y llega filtrada con `COMPRESSION_SPEED_FILTER_RATE`. La fuerza es `rigidez · compresión + amortiguación · velocidad`, recortada a `[0, MAX_FORCE_PER_STATIC_LOAD · cargaEstática]`.
-- **Suspensión a tope (#31):** si no hay contacto y la compresión anterior era ≥ `BOTTOM_OUT_FRACTION · MAX_COMPRESSION`, se toma compresión máxima y la rueda sigue apoyada. Si no, la rueda está en el aire: compresión 0 y fuerza 0.
+- **Suspensión a tope (#31):** si no hay contacto y la compresión anterior era ≥ `BOTTOM_OUT_FRACTION · MAX_COMPRESSION`, se toma compresión máxima y la rueda sigue apoyada, **como máximo durante `BOTTOM_OUT_MAX_MISSED_STEPS` pasos seguidos sin contacto** (el estado de la rueda lleva la cuenta). Pasados esos pasos, o si la compresión anterior era menor, la rueda está en el aire: compresión 0 y fuerza 0.
 - Una distancia negativa o NaN cuenta como compresión máxima.
 
 **`ContactPlane.luau`:**
@@ -147,7 +147,7 @@ La velocidad máxima en la marcha más alta, al corte, da unos 150 studs/s. Hay 
 **`Tire.luau`:**
 - `lateralForce(slipAngle, load, grip)`: lineal, `−CORNERING_STIFFNESS · load · slipAngle`, con tope `TIRE_FRICTION · grip · load`. Por encima del ángulo del pico, la fuerza baja linealmente hasta `SLIDE_FRICTION_RATIO · tope` cuando el ángulo llega a dos veces el del pico, y se queda ahí.
 - `slipAngle(lateralSpeed, longitudinalSpeed)`: `atan2(lateral, max(|longitudinal|, LOW_SPEED_REGULARIZATION))`. A baja velocidad el neumático actúa como un amortiguador lateral en vez de temblar.
-- `combine(longitudinal, lateral, load, grip)`: el **círculo de fricción**. Si `√(Fx² + Fy²)` supera `TIRE_FRICTION · grip · load`, escala las dos para quedar en el círculo. Devuelve también `slipRatio = pedida / disponible` (0 si la carga es 0) e `isSliding = slipRatio > 1`.
+- `combine(longitudinal, lateral, load, grip)`: el **círculo de fricción**. Si `√(Fx² + Fy²)` supera `TIRE_FRICTION · grip · load`, escala las dos para quedar en el círculo. Devuelve también `slipRatio = pedida / disponible` (0 si la carga es 0). **"Pedida" es antes de cualquier tope:** la lateral es la lineal (`CORNERING_STIFFNESS · load · |slipAngle|`), así un derrape en curva pura da `slipRatio` > 1 e `isSliding = slipRatio > 1`.
 
 **`SurfaceGrip.luau`:**
 - `step(wheel, surface: SurfaceKind?, dt)`: lleva `gripMultiplier` y `rollingResistance` hacia los valores de la superficie con `SURFACE_BLEND_RATE`. Un `nil` mantiene los valores anteriores. El estado inicial es el de `Road`.
@@ -160,6 +160,7 @@ La velocidad máxima en la marcha más alta, al corte, da unos 150 studs/s. Hay 
 - `driveForce(state, controls, rpm, mass)`: `masa · FIRST_GEAR_PEAK_ACCELERATION · torqueFraction(rpm) · relación / relación de 1ra · pedal`. Durante un cambio se multiplica por `SHIFT_TORQUE_FRACTION`. Al corte, la fuerza es 0.
 - `split(force)`: devuelve la fuerza por rueda (`(1 − REAR_BIAS) / 2` a cada delantera y `REAR_BIAS / 2` a cada trasera).
 - `brakeForce(...)`: con regularización. La fuerza es `−clamp(velocidadLongitudinal / BRAKE_REGULARIZATION_SPEED, −1, 1) · fuerzaMáxima`, así no oscila cerca de 0. La fuerza máxima del freno sale de `masa · BRAKE_DECELERATION` repartida con `BRAKE_FRONT_BIAS`. El freno de mano actúa **solo atrás**, con `HANDBRAKE_FORCE_PER_LOAD · carga` por rueda.
+- **Tope por paso (vale para toda fuerza que se opone al movimiento de la rueda: lateral, freno, freno de mano y resistencia al rodar):** su módulo no supera `(masa / 4) · |velocidad en ese eje| / dt`, así no puede invertir la velocidad en un solo paso. Las fuerzas quedan fijas durante el frame y, sin este tope, la ganancia del neumático y del freno a baja velocidad hace oscilar el auto (medido en la primera ejecución de este WP).
 - **Sin inercia de rueda:** `spinRadiansPerSecond` es la velocidad longitudinal / `RADIUS`, solo para las ruedas visuales.
 
 **`Steering.luau`:**
@@ -187,11 +188,12 @@ La velocidad máxima en la marcha más alta, al corte, da unos 150 studs/s. Hay 
 
 En `tests/vehicle/`, `tests/input/` y `tests/camera/`, una por módulo, con bordes. Además, estas **pruebas de propiedades** sobre el simulador completo. Hace falta un "mundo de juguete" de prueba (`tests/vehicle/ToyWorld.luau`) que integre el chasis como cuerpo rígido con Euler semiimplícito a 240 Hz: posición, velocidad, orientación y velocidad angular, con un tensor de inercia de caja (6 × 2 × 10). Calcula los contactos contra un plano (con pendiente opcional) y la superficie por una función que se le pasa. **Solo es para las pruebas, no es parte del núcleo.** Cada propiedad corre el simulador a 30 FPS, con las fuerzas fijas entre frames como en Roblox:
 
-1. **Reposo:** sobre un plano horizontal, sin input, 10 s. Asienta en menos de 2 s y después la deriva horizontal es < 0,05 studs y la velocidad < 0,05 studs/s.
-2. **Estabilidad a 30 y 60 FPS:** con la suspensión entre 1,5 y 4 Hz y la amortiguación entre 0,3 y 1, el auto apoyado no diverge.
+1. **Reposo:** sobre un plano horizontal, sin input, 10 s, **también con una perturbación inicial** (0,3 studs/s de costado y 0,01 rad/s de giro). Asienta en menos de 2 s y después la deriva horizontal es < 0,05 studs y la velocidad < 0,05 studs/s.
+2. **Estabilidad a 30 y 60 FPS:** con la suspensión entre 2 y 4 Hz y la amortiguación entre 0,45 y 1, el auto apoyado no diverge. A 60 FPS, también con amortiguación 0,3.
+   - **Además:** una prueba de `VehicleConfig` exige que la compresión estática (`g / (2π · f)²`) no pase del 60% de `SUSPENSION_MAX_COMPRESSION_STUDS`, así una configuración que no sostiene el auto falla antes de probarla.
 3. **Peso (CP-2):** al frenar fuerte, la carga de las delanteras sube por encima de la de las traseras. Al acelerar, al revés. En una curva, las ruedas de afuera cargan más.
 4. **Freno de mano (CP-9):** a 60 studs/s, con la dirección a fondo y el freno de mano, la cola se suelta: el ángulo de deriva pasa los 20° en menos de 1,5 s. Sin freno de mano, la misma maniobra queda por debajo.
-5. **`REAR_BIAS` (T1):** a la salida de una curva con el acelerador a fondo, con `REAR_BIAS` 1,0 el ángulo de deriva máximo es mayor que con 0,5.
+5. **`REAR_BIAS` (T1):** a la salida de una curva con el acelerador a fondo, con `REAR_BIAS` 1,0 el ángulo de deriva máximo es mayor que con 0,5, en 1ra o 2da marcha.
 6. **Superficie (CP-3):** frenando en `Mud`, la distancia de frenado es mayor que en `Road`. Al cruzar un borde, el agarre no salta en un solo paso.
 7. **Caja (CP-4):** acelerando a fondo desde 0, pasa por todas las marchas en orden y nunca hay dos cambios seguidos en menos de `SHIFT_DURATION_SECONDS`. La velocidad máxima da 150 ± 15 studs/s.
 8. **Dirección (CP-10):** el ángulo máximo a 120 studs/s es menor que a 20 studs/s.
@@ -211,6 +213,15 @@ Agregar:
 - carga (`load`);
 - reparto trasero (`REAR_BIAS`);
 - y el orden de las ruedas (FL, FR, RL, RR).
+
+## Cambios después de la primera ejecución
+
+Los aprobó Nico el 2026-10-15, después del informe del subagente:
+- **Tope por paso** de las fuerzas que se oponen al movimiento (en `Drivetrain` y en las fuerzas de cada rueda): resuelve el temblor lateral en reposo y la reversa a 60 FPS.
+- **Rango de la propiedad 2:** de 2 a 4 Hz y amortiguación ≥ 0,45 a 30 FPS, más la prueba de compresión estática de `VehicleConfig`. 1,5 Hz con 2 studs de recorrido no sostiene el auto.
+- **`FIRST_GEAR_PEAK_ACCELERATION`** de 60 a 110: con 0,3 g el motor nunca saturaba el neumático trasero y `REAR_BIAS` no cambiaba nada.
+- **Resueltos por el orquestador, porque estaban en el WP:** `slipRatio` usa la fuerza pedida antes del tope, y la suspensión a tope dura como máximo `BOTTOM_OUT_MAX_MISSED_STEPS` pasos.
+- **Aceptadas del informe:** configuración inyectable (`config?` como último parámetro), los módulos `VehicleMath` y `WheelForces`, `ContactPlane` antes de la suspensión y el filtro de la velocidad de compresión dentro de `Suspension.step`.
 
 ## Fuera de alcance
 - Todo lo que toca Roblox: adaptadores, `src/app/`, Rojo y las pruebas en Studio (son del WP-4).
