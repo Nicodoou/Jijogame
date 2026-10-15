@@ -2,7 +2,7 @@
 
 **Issue:** #7 (modelo de física), #8 (tipo de auto)
 **Requerimientos:** CP-1 a CP-16, RN-2
-**Estado:** arquitectura propuesta
+**Estado:** aprobado
 
 ## Investigación
 
@@ -343,4 +343,5 @@ Se crea en este diseño:
 3. Cuánto cuesta en un celular de gama media: prueba manual.
 
 ## Aprobación
-Pendiente.
+
+Arquitectura aprobada por **Nico** (2026-10-15, PR #34) y, en la parte de `src/app/`, por **Beni** (2026-10-15, PR #34). Revisada por el Agente B.
