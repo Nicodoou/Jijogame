@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-15 — Ruta de rally con guía grande y tamaño de las pruebas largas
+**Decidió:** Beni
+**Issue:** #37 (PR #46; experimento en la rama `exp/ruta-guia`)
+**Decisión:** (1) la ruta de rally se arma con una guía grande (puntos de paso con retroceso) y piezas locales que la siguen dentro de un túnel, con rumbo relativo acotado, retroceso de la ruta, horquillas de a pares y un anti-cruce corregido (vecinas hasta 1.200 studs de arco, distancia libre de 200). (2) Las pruebas de propiedades de la ruta corren con 40 semillas × 400 tramos en el CI, y la corrida completa de 200 × 400 se hace a mano antes de cada PR que toque la ruta, con la salida pegada en el PR.
+**Por qué:** la versión 1 (generar y probar pieza por pieza) tenía una regla anti-cruce imposible y se encerraba. La guía da 0 encierros y 0 cruces en 200 semillas × 400 tramos en el prototipo. Correr 200 × 400 en cada CI tardaría varios minutos.
+**Descartado:** relajar la garantía con memoria corta; seguir explorando sin guía (mirar varias piezas adelante); correr siempre 200 semillas en el CI.
+
 ## 2026-10-15 — Auto: tracción trasera y freno de mano que suelta la cola
 **Decidió:** Nico (después de manejar el experimento `exp/manejo`)
 **Issue:** #8 (cambia el valor inicial de la decisión "Auto: raycast con fuerzas, neumático con tope y AWD con sesgo trasero")

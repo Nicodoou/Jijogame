@@ -2,7 +2,7 @@
 
 **Issue:** #9
 **Requerimientos:** RC-1, RC-2, RC-3, RC-4, RC-5, RC-6, RC-7, RC-12
-**Estado:** aprobado (revisión #37)
+**Estado:** aprobado (revisión #37, versión 2)
 
 > **Revisión del 2026-10-15 (#37).** Después de probar la ruta en Studio, Beni decidió que sea más de rally:
 > - trazado libre en un área acotada cerca del origen;
@@ -268,53 +268,91 @@ Recentrar el mundo queda descartado para el MVP.
 3. **WP del decorado:** árboles y rocas (RC-9 y RC-10). Lleva un diseño corto aparte. Ya queda fijado un requisito, por pedido de A para CP-5 (choques sin frustración): **los colisionadores son formas simples**, un cilindro o una cápsula para el tronco y una esfera o una caja para la roca, nunca la colisión exacta de la malla, que engancha o despide al auto.
 Cada WP depende del anterior. Los proveedores de contratos (`SurfaceProvider` y `RoadResetProvider`) entran en el WP 2.
 
-### Revisión de la arquitectura por la ruta de rally (#37)
+### Revisión de la arquitectura por la ruta de rally (#37), versión 2: guía grande
 
-Propuesta del Agente B, 2026-10-15. Reemplaza lo que contradiga de arriba, sobre todo "Distancia al origen" y el corredor de rumbo. Las capas, los contratos y `RoadQuery`, `SurfaceClassifier` y `SeededRandom` no cambian.
+Propuesta del Agente B, 2026-10-15. Reemplaza lo que contradiga de arriba, sobre todo "Distancia al origen" y el corredor de rumbo. Las capas y los contratos no cambian, y tampoco `RoadQuery`, `SurfaceClassifier` ni `SeededRandom`.
 
-**Valores nuevos o cambiados en `WorldConfig`** (iniciales, se ajustan jugando):
+**Por qué hay una versión 2.** La versión 1 (generar y probar pieza por pieza contra la ruta viva) no cerraba, y el subagente lo demostró antes de escribir código (rama `exp/ruta-guia`):
+
+1. **La regla anti-cruce era imposible.** Usaba el mismo valor (400) para la distancia libre y para el umbral de "vecina". La cuerda de un arco de 401 studs solo llega a 400 con radio ≥ 1.638, así que ninguna curva del catálogo cumplía la regla.
+2. **Aun corrigiendo la regla, la ruta se encerraba sola** en casi todas las semillas: la cabeza quedaba frente a una parte propia, sin lugar para girar.
+
+El enfoque que eligió Beni, una guía grande con curvas locales, se probó en un prototipo con las salidas necesarias, y con la configuración de abajo da **0 encerradas y 0 cruces en 200 semillas × 400 tramos** (~100 km cada una).
+
+#### Cómo funciona
+
+- **Guía (escala grande):** una secuencia de puntos de paso separados 1.200 studs, sorteados con la semilla. Cada punto nuevo cambia el rumbo de la guía hasta ±70°.
+  - Las alternativas van en un orden fijo: el sorteado, y después ±30°, ±60° y ±90°. Sin ±120°, porque deja esquinas demasiado cerradas.
+  - Cerca del borde del círculo, el cambio se inclina hacia el centro, y un punto de paso nunca va más allá de `AREA_RADIUS − 1.000`.
+  - Un candidato se acepta solo si sus segmentos quedan a ≥ `GUIDE_CLEARANCE` de los segmentos vivos de la guía. Se compara segmento contra segmento, no solo puntos.
+  - Si ningún candidato sirve, la guía retrocede, con una profundidad que crece con las fallas seguidas. En el prototipo hizo falta como mucho 3 puntos de una vez.
+  - La guía va al menos 4 puntos (unos 4.800 studs) por delante de lo que usa la ruta.
+- **Ruta (escala local):** son las piezas del catálogo, con horquillas.
+  - El secuenciador elige sentido y curvatura para seguir un punto objetivo unos 600 studs adelante sobre la guía, con variación aleatoria.
+  - Una pieza se **acepta** solo si cumple todo esto:
+    1. todas sus muestras quedan dentro del círculo y dentro de ±`LOCAL_DEVIATION_MAX` de la guía (el "túnel");
+    2. cumple la regla anti-cruce corregida;
+    3. su rumbo relativo a la guía es ≤ 100° en todas sus muestras;
+    4. desde su final cabe una salida de emergencia, es decir, un giro cerrado de radio mínimo hacia la guía.
+  - Las alternativas van en un orden fijo. Si ninguna sirve, la ruta **retrocede**: vuelve a sortear las últimas 1 a 3 piezas, con una profundidad que crece con las fallas seguidas.
+  - Para poder retroceder, las piezas se generan en un **buffer** y los tramos se publican recién cuando ya no se puede retroceder sobre ellos (unos 10 tramos de retraso). Hacia afuera no cambia nada: `generateNextSegment` sigue devolviendo tramos definitivos.
+- **Horquillas solo de a pares (switchback):** horquilla para un lado, recta corta y horquilla para el otro, con rumbo neto de 0°. Las patas quedan a 2R entre sí, pero son vecinas sobre el eje, así que no cuentan como cruce. Mientras dura el par, el límite de rumbo relativo no aplica.
+- **Regla anti-cruce corregida:** dos muestras cuya diferencia de `arcLength` está en (`LIVE_NEIGHBOR_ARC_STUDS`, `LIVE_LOOKBACK_STUDS`] tienen que estar a ≥ `LIVE_CLEARANCE_STUDS` en el plano.
+  - Con un radio de 60, un círculo completo mide 377 studs y una horquilla doble ~780, así que todo lo local queda dentro de las vecinas (1.200).
+- **Altura (`HillProfile`):** sin cambios respecto de la versión 1. Es un perfil de lomas con ruido sobre `arcLength`, con la pendiente acotada y dentro de una franja.
+
+#### Valores en `WorldConfig` (los de la configuración G del prototipo)
 
 | Valor | Antes | Ahora |
 | --- | --- | --- |
 | `ROAD_WIDTH_STUDS` | 24 | **16** |
 | `START_POSITION` | (−120.000, 50, 0) | **(0, 50, 0)** |
-| `START_HEADING_DEGREES` | (rumbo medio +x) | **0** (+x), solo como rumbo inicial |
-| `AREA_RADIUS_STUDS` | — | **8.000**: la ruta nunca sale de este círculo alrededor del origen |
-| `AREA_STEERING_MARGIN_STUDS` | — | **2.000**: a partir de acá el sorteo del sentido de las curvas se inclina hacia el centro |
-| `LIVE_CLEARANCE_STUDS` | — | **400**: distancia mínima entre partes vivas de la ruta que no son vecinas |
-| `LIVE_LOOKBACK_STUDS` | — | **4.000**: cuánta ruta hacia atrás se considera viva para el anti-cruce. El WP del terreno tiene que liberar todo lo que quede más atrás |
+| `START_HEADING_DEGREES` | — | **0** (+x) |
+| `AREA_RADIUS_STUDS` | — | **8.000** |
+| `AREA_STEERING_MARGIN_STUDS` | — | **2.000** |
+| `GUIDE_STEP_STUDS` | — | **1.200** |
+| `GUIDE_MAX_TURN_DEGREES` | — | **70** (alternativas hasta ±90) |
+| `GUIDE_CLEARANCE_STUDS` | — | **1.000** (≥ `LIVE_CLEARANCE` + 2·`LOCAL_DEVIATION_MAX` + margen) |
+| `GUIDE_TARGET_AHEAD_STUDS` | — | **600** |
+| `LOCAL_DEVIATION_MAX_STUDS` | — | **350** |
+| `MAX_RELATIVE_HEADING_DEGREES` | — | **100** |
+| `LIVE_CLEARANCE_STUDS` | 400 | **200** |
+| `LIVE_NEIGHBOR_ARC_STUDS` | — | **1.200** |
+| `LIVE_LOOKBACK_STUDS` | — | **4.000** (el índice guarda unos 3.500 más, para el retroceso) |
+| `ROAD_BACKTRACK_MAX_PIECES` | — | **3** |
 | `MAX_SLOPE_DEGREES` | 8 | **12** (se confirma con el experimento de rampas de 15° y 20°) |
-| `HILL_*` | — | perfil de cerros: amplitud, longitud de onda, octavas, franja de altura y cambio máximo de pendiente por paso |
+| `HILL_*` | — | perfil de cerros (como en la versión 1) |
 | `MEAN_HEADING`, `MAX_HEADING_DEVIATION_DEGREES`, `MAX_LATERAL_DRIFT_STUDS`, `STEERING_*` | — | **se borran** |
 
-**Módulos que cambian:**
+#### Módulos
 
-| Módulo | Cambio |
+| Módulo | Qué hace |
 | --- | --- |
-| `RoadIntegrator` (nuevo) | Saca de `RoadPath` la integración de un paso (rumbo, posición y curvatura), para que el secuenciador pueda **previsualizar** una pieza con exactamente las mismas cuentas que `RoadPath`. |
-| `HillProfile` (nuevo) | Altura objetivo en función de `arcLength`: ruido con semilla (varias octavas de `math.noise`) dentro de la franja de altura. Da la **pendiente de cada paso**: sigue al objetivo con la pendiente limitada a `MAX_SLOPE_DEGREES` y con un cambio de pendiente por paso acotado (RC-4, sin quiebres). Reemplaza la pendiente por pieza del catálogo. |
-| `LiveRoadIndex` (nuevo) | Grilla de las muestras de los últimos `LIVE_LOOKBACK_STUDS`. Responde "¿este punto queda a menos de `LIVE_CLEARANCE_STUDS` de alguna muestra viva que no sea vecina?". Las vecinas son las que están a menos de `LIVE_CLEARANCE_STUDS` de distancia sobre el eje. Puede reutilizar `RoadSampleGrid`. |
-| `RoadPieceSequencer` | Sin corredor de rumbo. Sortea pieza, sentido, largo y radio. **Previsualiza** la pieza con `RoadIntegrator` y la acepta solo si todas sus muestras quedan adentro del área y lejos de la ruta viva (`LiveRoadIndex`). Si no, prueba en un orden fijo: el otro sentido, más corta, una curva cerrada para el lado libre y una recta corta. Cerca del borde del área, el sentido se inclina hacia el centro. Todo se consume del mismo `SeededRandom`, así que sigue siendo determinista. |
-| `RoadPieceCatalog` | Se le saca la pendiente (ahora la da `HillProfile`). Se suma la **horquilla** (`hairpin`: un lóbulo de radio cerca del mínimo que gira entre 120° y 180°), y los pesos se ajustan para que haya más curvas. |
-| `RoadFrame` | Se le saca el rumbo medio y el desvío lateral. Queda lo que sigue sirviendo (pasos por tramo y envoltura de ángulos), o se elimina si queda vacío. |
-| `RoadPath` | Usa `RoadIntegrator` y `HillProfile`, y le da al secuenciador acceso de solo lectura a `LiveRoadIndex`. La API pública no cambia. |
+| `RoadIntegrator` (nuevo) | Un paso de integración, compartido. La previsualización y `RoadPath` dan resultados idénticos bit a bit. |
+| `HillProfile` (nuevo) | Altura objetivo y pendiente por paso (versión 1). |
+| `RoadGuide` (nuevo) | Puntos de paso con retroceso, distancia segmento a segmento, área y tirón al centro. Responde el punto objetivo, el rumbo y la distancia lateral a la guía en un `arcLength` dado. |
+| `LiveRoadIndex` (nuevo) | Grilla de muestras vivas con su `arcLength`. Responde `isClear(position, arcLength)` con la regla corregida. Guarda la memoria extra para el retroceso. |
+| `RoadPieceSequencer` | Sortea y previsualiza piezas, aplica las cuatro condiciones de aceptación, recorre las alternativas en orden fijo y hace el retroceso. |
+| `RoadPieceCatalog` | Sin pendiente por pieza. Suma la horquilla doble (`hairpinPair`), definida por giro (120° a 180°) y radio (60 a 84). |
+| `RoadPath` | Buffer de piezas y publicación diferida de tramos. Usa `RoadIntegrator`, `HillProfile`, `RoadGuide` y `LiveRoadIndex`. **Su API pública no cambia.** |
+| `RoadFrame` | Se le saca lo que ya no aplica, o se elimina si queda vacío. |
 
-**Por qué estos patrones:**
-- **Previsualizar y aceptar o rechazar** (generar y probar): es la forma más simple de garantizar el anti-cruce y el área sin geometría analítica. Como el secuenciador usa las mismas cuentas que `RoadPath` (`RoadIntegrator`), lo que se previsualiza es exactamente lo que después se genera.
-- **Altura separada de las curvas** (`HillProfile`): las lomas no dependen de qué pieza toque, y la franja de altura se cumple por construcción.
-- **Orden fijo de alternativas:** sin eso, el determinismo dependería de cuántos intentos haga falta.
+**Patrones:** generar y probar con previsualización exacta (`RoadIntegrator`); dos escalas (la guía da la forma grande y el secuenciador da el carácter); retroceso determinista (orden fijo de alternativas, con el mismo `SeededRandom`); y altura separada de las curvas.
 
-**Riesgo principal:** que la ruta se "encierre" (todas las alternativas rechazadas). Se mitiga con un área grande (8.000 de radio contra 400 de distancia libre), con el tirón hacia el centro y con la horquilla como salida. Lo verifica una prueba de propiedades de 200 semillas × 400 tramos (~100 km cada una). Si igual pasara, hay un último recurso documentado: la curva más cerrada hacia el lado con más espacio libre, y la prueba tiene que demostrar que nunca hace falta pasar de ahí.
+**Riesgo restante:** el prototipo no modeló la altura ni `vector`. Si al implementarlo aparece un encierro, el subagente frena. El último recurso (la curva más cerrada hacia la guía) queda documentado, y las pruebas cuentan cuántas veces se usa.
 
-**Relación con el WP del terreno:** como la ruta puede volver por una zona vieja, el terreno de cada chunk sale **solo de la ruta viva** (más el ruido de las colinas). El WP del terreno tiene que liberar los chunks de la ruta que quedó a más de `LIVE_LOOKBACK_STUDS` y reescribirlos si la ruta vuelve.
+**Tiempo de las pruebas:** en el prototipo, generar 200 × 400 tramos tarda unos 75 s, y el código real probablemente 2 o 3 veces más. Por eso se propone que **el CI corra 40 semillas × 400 tramos** y que **la corrida completa de 200 × 400 se haga a mano antes de cada PR que toque la ruta**, anotada en el PR. Es una decisión que se registra en `docs/decisiones.md`.
+
+**Relación con el WP del terreno:** el terreno de cada chunk sale solo de la ruta viva. Los chunks de la ruta que quedó a más de `LIVE_LOOKBACK_STUDS` se liberan, y se reescriben si la ruta vuelve. Por el buffer, la ruta publicada va unos 10 tramos por detrás de la generada, y el WP del terreno tiene que generar con margen suficiente para eso.
 
 **División en WPs (actualizada):**
 1. ~~WP de la ruta~~ (WP-2, en `main`).
-2. **WP-5, rediseño de la ruta de rally:** todo lo de la tabla de arriba, con sus pruebas.
+2. **WP-5, rediseño de la ruta de rally** (versión 2).
 3. WP del terreno.
 4. WP del decorado.
 
 ## Aprobación
-Revisión #37: aprobó Beni el 2026-10-15 ([#37](https://github.com/Nicodoou/Jijogame/issues/37#issuecomment-6183216378)).
+Revisión #37: aprobó Beni el 2026-10-15 ([#37](https://github.com/Nicodoou/Jijogame/issues/37#issuecomment-6183216378)). Esa versión 1 no se implementó.
+Revisión #37, versión 2 (guía grande): aprobó Beni el 2026-10-15 ([#37](https://github.com/Nicodoou/Jijogame/issues/37#issuecomment-6191803451)).
 
 Aprobó Beni el 2026-10-14, en la sesión con el Agente B: [#9](https://github.com/Nicodoou/Jijogame/issues/9#issuecomment-6181254772) y [#10](https://github.com/Nicodoou/Jijogame/issues/10#issuecomment-6181255081). Revisión del Agente A en el PR #21.
