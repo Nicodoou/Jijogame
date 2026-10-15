@@ -212,21 +212,60 @@ Runner.test("the steering angle gets smaller with the speed", function()
 	Runner.expectEqual(fast[1].steerAngleRadians < slow[1].steerAngleRadians, true)
 end)
 
-Runner.test("the counter steer reduces the angle when the car is drifting", function()
+Runner.test("with the assist on, the counter steer turns the wheels toward the drift", function()
 	local velocity = vector.create(15, 0, -40)
-	local _, withDrift = stepAtRest(controlsWith(0, 0, 0), chassisWith(velocity))
-	Runner.expectEqual(withDrift[1].steerAngleRadians > 0, true)
-	local off = table.clone(VehicleConfig)
-	off.COUNTER_STEER_STRENGTH = 0
+	local assisted = table.clone(VehicleConfig)
+	assisted.COUNTER_STEER_STRENGTH = 0.3
 	local _, outputs = VehicleSimulator.step(
-		VehicleSimulator.newState(off),
+		VehicleSimulator.newState(assisted),
 		controlsWith(0, 0, 0),
 		chassisWith(velocity),
 		restingContacts(),
 		FRAME_SECONDS,
-		off
+		assisted
 	)
+	Runner.expectEqual(outputs[1].steerAngleRadians > 0, true)
+end)
+
+Runner.test("the assist is off in the default configuration", function()
+	local _, outputs = stepAtRest(controlsWith(0, 0, 0), chassisWith(vector.create(15, 0, -40)))
 	Runner.expectEqual(outputs[1].steerAngleRadians, 0)
+end)
+
+Runner.test("the handbrake lowers the rear grip factor and the rear wheels lose lateral force", function()
+	local sliding = chassisWith(vector.create(4, 0, -40))
+	local freeState, freeOutputs = stepAtRest(controlsWith(0, 0, 0), sliding)
+	local heldState, heldOutputs = stepAtRest(controlsWith(0, 0, 0, true), sliding)
+	Runner.expectEqual(freeState.rearGripFactor, 1)
+	Runner.expectEqual(heldState.rearGripFactor, VehicleConfig.HANDBRAKE_REAR_GRIP_MULTIPLIER)
+	Runner.expectEqual(math.abs(heldOutputs[3].force.x) < math.abs(freeOutputs[3].force.x), true)
+	Runner.expectNear(heldOutputs[1].force.x, freeOutputs[1].force.x, 1e-6)
+end)
+
+Runner.test("the rear grip factor recovers over the steps after the handbrake is released", function()
+	local state = VehicleSimulator.newState()
+	local chassis = chassisWith(vector.create(0, 0, -30))
+	state = VehicleSimulator.step(state, controlsWith(0, 0, 0, true), chassis, restingContacts(), FRAME_SECONDS)
+	local previous = state.rearGripFactor
+	for _ = 1, 90 do
+		state = VehicleSimulator.step(state, controlsWith(0, 0, 0), chassis, restingContacts(), FRAME_SECONDS)
+		Runner.expectEqual(state.rearGripFactor >= previous and state.rearGripFactor <= 1, true)
+		previous = state.rearGripFactor
+	end
+	Runner.expectEqual(state.rearGripFactor > 0.95, true)
+end)
+
+Runner.test("an unusable dt keeps the rear grip factor", function()
+	local state = VehicleSimulator.newState()
+	state.rearGripFactor = 0.6
+	local nextState = VehicleSimulator.step(state, controlsWith(0, 0, 0), chassisWith(), restingContacts(), 0)
+	Runner.expectEqual(nextState.rearGripFactor, 0.6)
+end)
+
+Runner.test("the rear axle has less grip than the front axle in a slide", function()
+	local sliding = chassisWith(vector.create(12, 0, -2))
+	local _, outputs = stepAtRest(controlsWith(0, 0, 0), sliding)
+	Runner.expectEqual(math.abs(outputs[3].force.x) < math.abs(outputs[1].force.x), true)
 end)
 
 Runner.test("the total steering never goes over the maximum for that speed", function()

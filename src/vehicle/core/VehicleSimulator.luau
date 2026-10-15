@@ -14,6 +14,7 @@ local ContactPlane = require("./ContactPlane")
 local Drivetrain = require("./Drivetrain")
 local Steering = require("./Steering")
 local SurfaceGrip = require("./SurfaceGrip")
+local StepOutputs = require("./StepOutputs")
 local Suspension = require("./Suspension")
 local Tire = require("./Tire")
 local VehicleConfig = require("./VehicleConfig")
@@ -34,8 +35,6 @@ type SurfaceKind = VehicleTypes.SurfaceKind
 
 local VehicleSimulator = {}
 
-local NO_FORCE = vector.create(0, 0, 0)
-
 local function sanitizeControls(controls: VehicleControls): VehicleControls
 	return {
 		steer = math.clamp(VehicleMath.finiteOr(controls.steer, 0), -1, 1),
@@ -50,12 +49,13 @@ local function buildContext(
 	chassis: ChassisSample,
 	contacts: { WheelContact? },
 	settings: VehicleSettings,
-	stepSeconds: number
+	stepSeconds: number,
+	rearGripFactor: number
 ): WheelForces.StepContext
 	local forwardSpeed = vector.dot(chassis.linearVelocity, chassis.forward)
 	local driftAngle = Tire.slipAngle(vector.dot(chassis.linearVelocity, chassis.right), forwardSpeed, settings)
 	local speed = vector.magnitude(chassis.linearVelocity)
-	local maxSteer = Steering.maxAngle(speed, settings)
+	local maxSteer = Steering.maxAngleWhileDrifting(speed, driftAngle, settings)
 	local requestedSteer = Steering.angle(controls.steer, speed, settings)
 		+ Assists.counterSteer(driftAngle, forwardSpeed, settings)
 	local offsets, velocities = WheelForces.describeMounts(chassis, settings)
@@ -72,6 +72,7 @@ local function buildContext(
 		offsets = offsets,
 		velocities = velocities,
 		stepSeconds = stepSeconds,
+		rearGripFactor = rearGripFactor,
 	}
 end
 
@@ -103,56 +104,15 @@ local function advanceDrivetrain(
 	local gear, shiftRemaining =
 		Drivetrain.nextGear(state, rpmBefore, context.forwardSpeed, context.controls, dt, settings)
 	local rpm = Drivetrain.engineRpm(context.forwardSpeed, gear, settings)
-	local driveState: VehicleState =
-		{ wheels = state.wheels, gear = gear, shiftRemainingSeconds = shiftRemaining, engineRpm = rpm }
+	local driveState: VehicleState = {
+		wheels = state.wheels,
+		gear = gear,
+		shiftRemainingSeconds = shiftRemaining,
+		engineRpm = rpm,
+		rearGripFactor = state.rearGripFactor,
+	}
 	local force = Drivetrain.driveForce(driveState, context.controls, rpm, context.mass, settings)
 	return driveState, Drivetrain.split(force, settings)
-end
-
-local function buildFeedback(
-	state: VehicleState,
-	context: WheelForces.StepContext,
-	wheels: { WheelFeedback }
-): VehicleFeedback
-	local settings = context.settings
-	local speed = vector.magnitude(context.chassis.linearVelocity)
-	local driftLimit = math.rad(settings.DRIFT_ANGLE_THRESHOLD_DEGREES)
-	return {
-		speedStudsPerSecond = speed,
-		forwardSpeedStudsPerSecond = context.forwardSpeed,
-		engineRpm = state.engineRpm,
-		gear = state.gear,
-		isShifting = state.shiftRemainingSeconds > 0,
-		driftAngleRadians = context.driftAngle,
-		isDrifting = math.abs(context.driftAngle) > driftLimit and speed > settings.DRIFT_MIN_SPEED,
-		wheels = wheels,
-	}
-end
-
--- Con un dt inutilizable el estado queda igual y las fuerzas en cero.
-local function idleStep(
-	state: VehicleState,
-	context: WheelForces.StepContext
-): (VehicleState, { WheelOutput }, VehicleFeedback)
-	local outputs, feedbacks, wheels = {}, {}, {}
-	for index, wheel in state.wheels do
-		wheels[index] = table.clone(wheel)
-		outputs[index] = {
-			force = NO_FORCE,
-			isGrounded = wheel.isGrounded,
-			steerAngleRadians = 0,
-			compressionStuds = wheel.compressionStuds,
-			spinRadiansPerSecond = 0,
-		}
-		feedbacks[index] = { slipRatio = 0, slipAngleRadians = 0, isSliding = false, surface = nil }
-	end
-	local nextState: VehicleState = {
-		wheels = wheels,
-		gear = state.gear,
-		shiftRemainingSeconds = state.shiftRemainingSeconds,
-		engineRpm = state.engineRpm,
-	}
-	return nextState, outputs, buildFeedback(nextState, context, feedbacks)
 end
 
 function VehicleSimulator.newState(config: VehicleSettings?): VehicleState
@@ -161,7 +121,7 @@ function VehicleSimulator.newState(config: VehicleSettings?): VehicleState
 	for index = 1, #settings.WHEELS do
 		wheels[index] = SurfaceGrip.newWheelState(settings)
 	end
-	return { wheels = wheels, gear = 1, shiftRemainingSeconds = 0, engineRpm = settings.IDLE_RPM }
+	return { wheels = wheels, gear = 1, shiftRemainingSeconds = 0, engineRpm = settings.IDLE_RPM, rearGripFactor = 1 }
 end
 
 function VehicleSimulator.step(
@@ -175,9 +135,13 @@ function VehicleSimulator.step(
 	local settings = config or VehicleConfig
 	local isUsable = VehicleMath.isUsableStep(dt)
 	local stepSeconds = if isUsable then math.min(dt, settings.MAX_STEP_SECONDS) else 0
-	local context = buildContext(sanitizeControls(controls), chassis, contacts, settings, stepSeconds)
+	local safeControls = sanitizeControls(controls)
+	local rearGripFactor = if isUsable
+		then SurfaceGrip.nextRearGripFactor(state.rearGripFactor, safeControls.isHandbrakeOn, stepSeconds, settings)
+		else state.rearGripFactor
+	local context = buildContext(safeControls, chassis, contacts, settings, stepSeconds, rearGripFactor)
 	if not isUsable then
-		return idleStep(state, context)
+		return StepOutputs.idleStep(state, context)
 	end
 	local wheels, loads = updateWheels(state, contacts, context, stepSeconds)
 	local driveState, driveShares = advanceDrivetrain(state, context, stepSeconds)
@@ -187,8 +151,9 @@ function VehicleSimulator.step(
 		gear = driveState.gear,
 		shiftRemainingSeconds = driveState.shiftRemainingSeconds,
 		engineRpm = driveState.engineRpm,
+		rearGripFactor = rearGripFactor,
 	}
-	return nextState, outputs, buildFeedback(nextState, context, feedbacks)
+	return nextState, outputs, StepOutputs.buildFeedback(nextState, context, feedbacks)
 end
 
 return VehicleSimulator

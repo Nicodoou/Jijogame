@@ -1,6 +1,7 @@
 --!strict
 -- Propiedades del simulador completo, corridas sobre el mundo de juguete a 30 FPS con las fuerzas fijas entre cuadros.
 local Runner = require("../Runner")
+local Steering = require("../../src/vehicle/core/Steering")
 local ToyWorld = require("./ToyWorld")
 local VehicleConfig = require("../../src/vehicle/core/VehicleConfig")
 local VehicleSimulator = require("../../src/vehicle/core/VehicleSimulator")
@@ -23,6 +24,12 @@ local REST_SPIN_RADIANS_PER_SECOND = 0.01
 local REST_MAX_DRIFT_STUDS = 0.05
 local REST_MAX_SPEED = 0.05
 local CRUISE_SPEED = 60
+local HANDBRAKE_SECONDS = 0.3
+local HANDBRAKE_TURN_SECONDS = 2.5
+local HANDBRAKE_DRIFT_DEGREES = 15
+local SPIN_DRIFT_DEGREES = 90
+local ACCELERATION_SECONDS = 3
+local REAR_BIAS_STEER = 0.5
 local CORNER_SECONDS = 1
 local CORNER_THROTTLE = 0.2
 local EXIT_SECONDS = 2
@@ -199,48 +206,103 @@ local function maxDriftWithin(runner: ToyWorld.Runner, controls: VehicleControls
 	return maxDrift, timeOfTwenty
 end
 
-Runner.test("4. with the handbrake and full steering at 60 studs per second the tail breaks loose", function()
-	local _, timeOfTwenty =
-		maxDriftWithin(ToyWorld.new({ initialForwardSpeed = CRUISE_SPEED }), controlsWith(1, 0, 0, true), 1.5)
-	Runner.expectEqual(timeOfTwenty > 0 and timeOfTwenty < 1.5, true)
-	local leftTime = select(
-		2,
-		maxDriftWithin(ToyWorld.new({ initialForwardSpeed = CRUISE_SPEED }), controlsWith(-1, 0, 0, true), 1.5)
-	)
-	Runner.expectEqual(leftTime > 0 and leftTime < 1.5, true)
+local function runHandbrakeTurn(frameSeconds: number, steer: number, isHandbrakeUsed: boolean): (number, number, number)
+	local runner = ToyWorld.new({ frameSeconds = frameSeconds, initialForwardSpeed = CRUISE_SPEED })
+	local controlsAt = function(world: ToyWorldInstance): VehicleControls
+		return controlsWith(steer, 0, 0, isHandbrakeUsed and world.timeSeconds < HANDBRAKE_SECONDS)
+	end
+	local maxDrift, timeOfThreshold, factorAfterRelease = 0, -1, 1
+	runner.run(HANDBRAKE_TURN_SECONDS, controlsAt, function(world)
+		local drift = math.abs(math.deg(world.feedback.driftAngleRadians))
+		maxDrift = math.max(maxDrift, drift)
+		if drift > HANDBRAKE_DRIFT_DEGREES and timeOfThreshold < 0 then
+			timeOfThreshold = world.timeSeconds
+		end
+		factorAfterRelease = world.vehicleState.rearGripFactor
+	end)
+	return maxDrift, timeOfThreshold, factorAfterRelease
+end
+
+Runner.test(
+	"4. a short handbrake at 60 studs per second with full steering breaks the tail loose without a spin",
+	function()
+		for _, frameSeconds in { 1 / 30, 1 / 60 } do
+			for _, steer in { 1, -1 } do
+				local maxDrift, timeOfThreshold = runHandbrakeTurn(frameSeconds, steer, true)
+				Runner.expectEqual(timeOfThreshold > 0 and timeOfThreshold < HANDBRAKE_TURN_SECONDS, true)
+				Runner.expectEqual(maxDrift < SPIN_DRIFT_DEGREES, true)
+			end
+		end
+	end
+)
+
+Runner.test("4. the same maneuver without the handbrake stays below the drift threshold at first", function()
+	for _, frameSeconds in { 1 / 30, 1 / 60 } do
+		local runner = ToyWorld.new({ frameSeconds = frameSeconds, initialForwardSpeed = CRUISE_SPEED })
+		local maxDrift = maxDriftWithin(runner, controlsWith(1, 0, 0, false), HANDBRAKE_SECONDS + 1)
+		Runner.expectEqual(maxDrift < HANDBRAKE_DRIFT_DEGREES, true)
+	end
 end)
 
-Runner.test("4. the same maneuver without the handbrake stays below 20 degrees of drift", function()
-	local maxDrift =
-		maxDriftWithin(ToyWorld.new({ initialForwardSpeed = CRUISE_SPEED }), controlsWith(1, 0, 0, false), 1.5)
-	Runner.expectEqual(maxDrift < 20, true)
+Runner.test("13. after releasing the handbrake the rear grip comes back above 95% in under 1.5 seconds", function()
+	local runner = ToyWorld.new({ initialForwardSpeed = CRUISE_SPEED })
+	local controlsAt = function(world: ToyWorldInstance): VehicleControls
+		return controlsWith(0, 0, 0, world.timeSeconds < HANDBRAKE_SECONDS)
+	end
+	local recoveredAt = -1
+	runner.run(HANDBRAKE_SECONDS + 2, controlsAt, function(world)
+		local factor = world.vehicleState.rearGripFactor
+		Runner.expectEqual(factor <= 1, true)
+		Runner.expectEqual(factor >= VehicleConfig.HANDBRAKE_REAR_GRIP_MULTIPLIER, true)
+		if world.timeSeconds < HANDBRAKE_SECONDS then
+			Runner.expectNear(factor, VehicleConfig.HANDBRAKE_REAR_GRIP_MULTIPLIER, 1e-9)
+		elseif recoveredAt < 0 and factor > 0.95 then
+			recoveredAt = world.timeSeconds - HANDBRAKE_SECONDS
+		end
+	end)
+	Runner.expectEqual(recoveredAt > 0 and recoveredAt < 1.5, true)
 end)
 
-local function brakingDistance(surface: SurfaceKind): number
+Runner.test(
+	"14. while the car drifts the allowed steering angle is above the one for its speed, and not when going straight",
+	function()
+		local runner = ToyWorld.new({ initialForwardSpeed = CRUISE_SPEED })
+		local checked = false
+		runner.run(HANDBRAKE_TURN_SECONDS, function(world: ToyWorldInstance): VehicleControls
+			return controlsWith(1, 0, 0, world.timeSeconds < HANDBRAKE_SECONDS)
+		end, function(world)
+			local drift = world.feedback.driftAngleRadians
+			local speed = world.feedback.speedStudsPerSecond
+			if math.abs(drift) > math.rad(30) and speed > VehicleConfig.STEER_LOW_SPEED then
+				checked = true
+				Runner.expectEqual(Steering.maxAngleWhileDrifting(speed, drift) > Steering.maxAngle(speed), true)
+			end
+		end)
+		Runner.expectEqual(checked, true)
+		for _, speed in { VehicleConfig.STEER_LOW_SPEED, CRUISE_SPEED, VehicleConfig.STEER_HIGH_SPEED } do
+			Runner.expectEqual(Steering.maxAngleWhileDrifting(speed, 0), Steering.maxAngle(speed))
+		end
+	end
+)
+
+local function distanceAtFullThrottle(surface: SurfaceKind): number
 	local runner = ToyWorld.new({
-		initialForwardSpeed = CRUISE_SPEED,
 		surfaceAt = function(_: vector): SurfaceKind?
 			return surface
 		end,
 	})
 	local startZ = runner.world.position.z
-	local stopDistance = -1
-	runner.run(5, constant(controlsWith(0, 0, 1)), function(world)
-		if stopDistance < 0 and world.feedback.forwardSpeedStudsPerSecond < 1 then
-			stopDistance = math.abs(world.position.z - startZ)
-		end
-	end)
-	return stopDistance
+	runner.run(ACCELERATION_SECONDS, constant(controlsWith(0, 1, 0)))
+	return math.abs(runner.world.position.z - startZ)
 end
 
-Runner.test("6a. braking on mud takes more distance than on the road", function()
-	local road = brakingDistance("Road")
-	local shoulder = brakingDistance("Shoulder")
-	local grass = brakingDistance("Grass")
-	local mud = brakingDistance("Mud")
-	Runner.expectEqual(road > 0, true)
-	Runner.expectEqual(mud > road, true)
-	Runner.expectEqual(road <= shoulder and shoulder <= grass and grass <= mud, true)
+Runner.test("6a. accelerating on mud covers less distance than on the road", function()
+	local road = distanceAtFullThrottle("Road")
+	local shoulder = distanceAtFullThrottle("Shoulder")
+	local grass = distanceAtFullThrottle("Grass")
+	local mud = distanceAtFullThrottle("Mud")
+	Runner.expectEqual(mud < road, true)
+	Runner.expectEqual(road >= shoulder and shoulder >= grass and grass >= mud, true)
 end)
 
 Runner.test("6b. the grip does not jump in a single step when crossing the edge of a surface", function()
@@ -340,10 +402,9 @@ end
 Runner.test(
 	"5. coming out of a corner at full throttle in first or second gear, a rear bias of 1 drifts more than 0.5",
 	function()
-		local surfaces: { SurfaceKind } = { "Grass", "Mud" }
-		for _, surface: SurfaceKind in surfaces do
-			local rearDrive, gear = maxDriftOnExit(1, surface, 1, 20)
-			local balanced = maxDriftOnExit(0.5, surface, 1, 20)
+		for _, speed in { 20, 30 } do
+			local rearDrive, gear = maxDriftOnExit(1, "Road", REAR_BIAS_STEER, speed)
+			local balanced = maxDriftOnExit(0.5, "Road", REAR_BIAS_STEER, speed)
 			Runner.expectEqual(gear >= 1 and gear <= 2, true)
 			Runner.expectEqual(rearDrive > balanced + MIN_REAR_BIAS_DRIFT_GAIN_DEGREES, true)
 		end

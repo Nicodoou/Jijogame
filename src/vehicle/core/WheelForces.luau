@@ -28,6 +28,7 @@ export type StepContext = {
 	offsets: { vector },
 	velocities: { vector },
 	stepSeconds: number,
+	rearGripFactor: number,
 }
 
 local WheelForces = {}
@@ -97,16 +98,24 @@ local function opposingLongitudinal(
 	return brake - rollingDirection * rolling
 end
 
+-- Agarre del eje: el trasero baja por su multiplicador y por el freno de mano.
+local function axleGripMultiplier(context: StepContext, isFront: boolean): number
+	if isFront then
+		return context.settings.FRONT_GRIP_MULTIPLIER
+	end
+	return context.settings.REAR_GRIP_MULTIPLIER * context.rearGripFactor
+end
+
 local function opposingLateral(
 	context: StepContext,
-	wheel: WheelState,
 	slipAngle: number,
 	lateralSpeed: number,
-	load: number
+	load: number,
+	grip: number
 ): number
 	local settings = context.settings
 	local limit = VehicleMath.opposingForceLimit(context.mass, #settings.WHEELS, lateralSpeed, context.stepSeconds)
-	return math.clamp(Tire.lateralForce(slipAngle, load, wheel.gripMultiplier, settings), -limit, limit)
+	return math.clamp(Tire.lateralForce(slipAngle, load, grip, settings), -limit, limit)
 end
 
 local function groundedWheel(
@@ -126,12 +135,13 @@ local function groundedWheel(
 	local lateralSpeed = vector.dot(velocity, sideAxis)
 	local slipAngle = Tire.slipAngle(lateralSpeed, longitudinalSpeed, settings)
 	local brakeAndRolling = opposingLongitudinal(context, wheel, isFront, longitudinalSpeed, load, driveState)
-	local limitedLateral = opposingLateral(context, wheel, slipAngle, lateralSpeed, load)
+	local grip = wheel.gripMultiplier * axleGripMultiplier(context, isFront)
+	local limitedLateral = opposingLateral(context, slipAngle, lateralSpeed, load, grip)
 	local longitudinal, lateral, slipRatio, isSliding = Tire.combine(
 		driveShare + brakeAndRolling,
 		limitedLateral,
 		load,
-		wheel.gripMultiplier,
+		grip,
 		Tire.linearLateralForce(slipAngle, load, settings),
 		settings
 	)
