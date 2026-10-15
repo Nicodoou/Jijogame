@@ -276,13 +276,14 @@ El núcleo es **una función de paso**: recibe el estado anterior, las entradas 
 ### Núcleo de la cámara (`src/camera/core/`)
 
 - `CameraConfig`: distancia, altura, rigidez del seguimiento y peso de la dirección de la velocidad.
+- Ni la cámara ni el auto suponen nada sobre el origen: el auto aparece a unos 120.000 studs de él.
 - `ChaseCamera.step(state, vehicleView, isLookingBack, dt)`: calcula el yaw objetivo, que mezcla la orientación del auto con la dirección de su velocidad según el derrape, y lo suaviza con `1 − exp(−k·dt)`. Devuelve la posición y el punto al que mira, como `vector`. Si `isLookingBack` está activo, mira hacia atrás. **CP-11 y CP-12.**
 
 ### Adaptadores
 
 | Módulo | Dónde | Qué hace |
 | --- | --- | --- |
-| `VehicleSpawner` | `src/vehicle/server/` | Crea el auto (un modelo de cajas grises hasta que llegue el asset, ver más abajo), lo ubica en el punto de aparición y llama `SetNetworkOwner(player)` (RN-2). |
+| `VehicleSpawner` | `src/vehicle/server/` | Crea el auto **anclado** en el punto de aparición (un modelo de cajas grises hasta que llegue el asset, ver más abajo). Cuando el cliente avisa que el mundo está listo, lo desancla y llama `SetNetworkOwner(player)` (RN-2). Valida el pedido: que venga del dueño del auto, una sola vez por aparición y con límite de frecuencia. |
 | `VehicleController` | `src/vehicle/client/` | En `PreSimulation`: lee el chasis y lanza los 4 rayos. Cada rayo sale **desde arriba del chasis** (#31) y filtra el propio auto con `RaycastParams`. Consulta `GetSurfaceAt` en el punto de contacto, convierte `CFrame`/`Vector3` a `vector`, llama a `VehicleSimulator.step`, asigna cada `VectorForce.Force` y da el impulso mínimo despertador (#32). También publica `GetVehiclePosition` (#22) y mueve las ruedas visuales. |
 | `InputReader` | `src/input/client/` | Lee el teclado y el gamepad en cada frame con `UserInputService` (`IsKeyDown`, `GetGamepadState`) y entrega valores crudos. Mapea las teclas y botones del juego, incluidos el freno de mano y mirar atrás. |
 | `ChaseCameraController` | `src/camera/client/` | En `PreRender`: lee el auto, llama a `ChaseCamera.step` y posiciona la `CurrentCamera` (`CameraType = Scriptable`). |
@@ -297,7 +298,11 @@ Se crea en este diseño:
 - `src/app/client/Main.client.luau`: crea `InputReader`, `VehicleController` y `ChaseCameraController`, con sus núcleos y configuraciones, y les pasa `GetSurfaceAt` del mundo.
 - `src/app/server/Main.server.luau`: crea `VehicleSpawner`.
 
-Hasta que el Agente B tenga su adaptador del mundo, el arranque del cliente usa un **stub de `GetSurfaceAt` que devuelve `"Road"`**. El cambio al real es una línea en el arranque. Los dos agentes tocan `src/app/` **por acuerdo**: cada uno suma sus líneas en PRs revisados por el otro. Se agregan al mapeo de Rojo `src/app/`, `src/vehicle/{client,server}`, `src/input/client` y `src/camera/client`.
+**Orden de arranque** (acordado con el Agente B en la revisión del PR #34):
+- Las funciones de los contratos se pasan como **cierres** (por ejemplo, `function(position) return world.getSurfaceAt(position) end`). El auto necesita `GetSurfaceAt` del mundo y el mundo necesita `GetVehiclePosition` del auto, y con cierres el orden de construcción no importa.
+- **Punto de aparición:** el inicio de la ruta (cerca de x = −120.000), sacado del contrato "punto de ruta más cercano" que provee el Agente B. Ese contrato también sirve para el reset (RC-12) y tiene que poder usarse en el servidor. El issue `contrato` lo abre el Agente B.
+- **El auto aparece anclado.** El servidor lo crea anclado en el punto de aparición. El arranque del cliente espera a que el mundo tenga escrito el Terrain alrededor de ese punto, con un contrato nuevo de "mundo listo en una posición" que provee el Agente B, también por issue `contrato`. Recién ahí el cliente le pide al servidor que lo suelte, con un `RemoteEvent` del área de Conducción validado y con límite de frecuencia. El servidor lo desancla y llama `SetNetworkOwner(player)`. Así el auto no se cae al vacío.
+- Hasta que existan los adaptadores del mundo, el arranque usa **stubs**: `GetSurfaceAt` devuelve `"Road"`, el mundo está siempre listo y el punto de aparición es un valor fijo de configuración. Cambiar cada stub por el real es una línea en el arranque. El cambio al real es una línea en el arranque. Los dos agentes tocan `src/app/` **por acuerdo**: cada uno suma sus líneas en PRs revisados por el otro. Se agregan al mapeo de Rojo `src/app/`, `src/vehicle/{client,server}`, `src/input/client` y `src/camera/client`.
 
 ### Patrones y por qué
 
