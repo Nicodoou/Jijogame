@@ -71,6 +71,23 @@ El problema tiene tres capas, que se pueden decidir por separado:
 
 La ruta es infinita hacia adelante, y en 30 minutos el auto puede alejarse cientos de miles de studs. El Terrain tiene un tope de ±128.000 studs [V]. La precisión de la física y del render lejos del origen está [NC]. Puede hacer falta recentrar el mundo.
 
+**Experimento del 2026-10-15 [E]** (Agente B, con el MCP en un Baseplate de prueba). Confirma la decisión de arrancar en −120.000:
+
+- **Tope del Terrain:** `Terrain.MaxExtents` reporta ±32.000, pero **se escribe, se lee y los rayos pegan sin problema en x = −120.000, ±128.000, 250.000, 500.000, 1.000.000 y 2.000.000**. Una franja plana cerca de −120.000 y de +120.000 queda tan plana como en el origen (441 rayos, variación 0). El tope de ±128.000 de la documentación no se confirmó en la práctica, al menos en Studio. Arrancar en −120.000 queda igual del lado seguro.
+- **Física (en Play, servidor):**
+
+  | Dónde | Bloque en reposo | Bloque deslizando a 77 studs/s, temblor en Y | Deriva lateral |
+  | --- | --- | --- | --- |
+  | Origen | 0 | 0,32 studs | 0,002 studs |
+  | x = −120.000 | 0 | 0,34 studs | 0,003 studs |
+  | x = +120.000 | 0 | 0,28 studs | 0,001 studs |
+  | x = 1.000.000 | 0 | 0,21 studs | 0,001 studs |
+
+  - En reposo no hay temblor en ningún lado.
+  - Deslizando, el pequeño rebote contra los vóxeles es el mismo en el origen que a ±120.000, así que no depende de la distancia.
+  - El desvío del paso en x por frame dio entre 0,17 y 0,62 studs a ±120.000 y 1,16 a 1.000.000. Es una medida ruidosa (el Heartbeat no coincide con los pasos de física) y no muestra una tendencia dentro de ±120.000.
+  - **Conclusión:** dentro de ±120.000 no se ve degradación respecto del origen. La física del auto en sí la confirma el Agente A cuando lo tenga.
+
 ## Opciones
 
 Hay tres decisiones. La de la malla y la colisión de la ruta está en `terreno.md` (opciones T1 a T4), porque se decide junto con el terreno.
