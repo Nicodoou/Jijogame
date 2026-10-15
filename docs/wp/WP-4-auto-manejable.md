@@ -32,6 +32,12 @@ Es la versión **mínima** que pidió Nico, para manejar cuanto antes en un Base
   - **Sin un impulso mínimo por frame el chasis se "duerme" y la suspensión diverge.** Por eso, `ApplyImpulse(Vector3.new(0, 0.001, 0))` en cada frame.
   - Un rayo que arranca dentro del Terrain devuelve `nil`: el rayo sale desde arriba del chasis.
   - `PhysicsSteppingMethod` no se puede leer ni escribir desde un script.
+- **Aprendido en el experimento `exp/manejo`** (rama descartable con adaptadores mínimos sobre el WP-3, 2026-10-15):
+  - Con `StreamingEnabled` (viene activado en los Baseplate nuevos), el cliente no ve el auto y el script se cuelga en `WaitForChild`. Se resuelve con `ModelStreamingMode = Persistent` en el `Model` del auto y `player.ReplicationFocus = Body`, en el servidor.
+  - **Rojo no cambia `Workspace.StreamingEnabled`** desde el project file.
+  - La `SpawnLocation` por defecto del Baseplate está en el origen y cambia la altura de aparición: el auto aparece lejos de ella.
+  - El auto quieto no se mueve a 60 ni a 30 FPS, y no diverge manejando.
+  - Afinar en vivo con atributos de `Workspace` (`Cfg_<VALOR>`) fue lo que permitió encontrar la sensación (ver la sección 6).
 - **De la conversación con Nico:** quiere probar el manejo ya, en un Baseplate, y ajustar valores a medida que maneja. Nunca se toca su juego "Juego de Papu" en Studio.
 - **Contratos que usa o provee:**
   - **Provee** `GetVehiclePosition` (#22): la posición del chasis o, mientras el auto no existe, la del punto de aparición (acordado en #36).
@@ -67,6 +73,7 @@ Que Nico abra un Baseplate, conecte Rojo, le dé Play y maneje el auto de cajas 
   - límite de frecuencia: 1 pedido por segundo por jugador.
 
   Si es válido, desancla el auto y llama `Body:SetNetworkOwner(player)` (RN-2). Los pedidos inválidos se ignoran sin error.
+- **Streaming:** `Model.ModelStreamingMode = Persistent` y `player.ReplicationFocus = Body`.
 - Al salir el jugador, destruye su auto.
 
 ### 3. Cliente
@@ -105,7 +112,7 @@ Sin gamepad, los ejes del gamepad dan 0.
 ### 4. Arranque (`src/app/`)
 
 - **`src/app/server/Main.server.luau`:**
-  - define el stub de `GetSpawnPoint`: `RoadPoint` en `(0, 1, 0)` sobre el Baseplate, mirando a −z;
+  - define el stub de `GetSpawnPoint`: `RoadPoint` en `(0, 1, 60)` sobre el Baseplate, lejos de la `SpawnLocation`, mirando a −z;
   - crea `VehicleSpawner`;
   - llama `spawnFor` en `Players.PlayerAdded`, y también para los jugadores que ya estén conectados.
 - **`src/app/client/Main.client.luau`:**
@@ -115,6 +122,10 @@ Sin gamepad, los ejes del gamepad dan 0.
   - conecta `RunService.PreRender` para la cámara.
 - **Los dos stubs de `GetSpawnPoint` tienen que dar el mismo punto.** Ponelo una sola vez en un módulo de `src/app/shared/`, mapeado a `ReplicatedStorage.app`.
 
+### 6. Afinación en vivo (solo en Studio)
+
+`src/vehicle/client/TuningOverrides.luau`: solo si `RunService:IsStudio()`, lee los atributos `Cfg_<NOMBRE>` de `Workspace` y arma una copia de `VehicleConfig` con esos valores, que el controlador pasa como `config` a `VehicleSimulator.step`. Se actualiza con `AttributeChanged`. Ignora los nombres que no existan en `VehicleConfig` y los valores que no sean del mismo tipo. Fuera de Studio no hace nada. Así Nico puede ajustar la sensación sin reiniciar, y lo que le guste se pasa a `VehicleConfig` por PR.
+
 ### 5. Guía
 
 En `docs/guia-de-desarrollo.md`, una sección corta "Probar el manejo":
@@ -122,7 +133,8 @@ En `docs/guia-de-desarrollo.md`, una sección corta "Probar el manejo":
 - `rojo serve` y Connect;
 - Play;
 - la tabla de controles;
-- cómo fijar `PhysicsSteppingMethod = Fixed` a mano, si Rojo no puede.
+- cómo fijar `PhysicsSteppingMethod = Fixed` a mano, si Rojo no puede;
+- cómo afinar en vivo con `workspace:SetAttribute("Cfg_REAR_BIAS", 1)` y que lo que guste se pasa a `VehicleConfig` por PR.
 
 ## Fuera de alcance
 - El reset (RC-12) y los adaptadores reales del mundo: van en un WP que se hace cuando el Agente B tenga sus adaptadores.
