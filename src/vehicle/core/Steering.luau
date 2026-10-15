@@ -17,6 +17,15 @@ function Steering.maxAngle(speed: number, config: VehicleSettings?): number
 	return math.rad(degrees)
 end
 
+-- Al derrapar se puede contravolantear más allá del máximo por velocidad: hasta el ángulo de deriva más un margen,
+-- sin pasar del máximo de baja velocidad. En recta (deriva 0) vale lo mismo que `maxAngle`.
+function Steering.maxAngleWhileDrifting(speed: number, driftAngle: number, config: VehicleSettings?): number
+	local settings = config or VehicleConfig
+	local driftLimit = math.abs(driftAngle) + math.rad(settings.DRIFT_STEER_MARGIN_DEGREES)
+	local lowSpeedLimit = math.rad(settings.STEER_MAX_LOW_SPEED_DEGREES)
+	return math.max(Steering.maxAngle(speed, config), math.min(driftLimit, lowSpeedLimit))
+end
+
 function Steering.angle(steerInput: number, speed: number, config: VehicleSettings?): number
 	return steerInput * Steering.maxAngle(speed, config)
 end

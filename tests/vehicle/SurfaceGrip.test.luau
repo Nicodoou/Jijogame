@@ -98,4 +98,29 @@ Runner.test("step does not modify the wheel it receives", function()
 	Runner.expectEqual(kept ~= wheel, true)
 end)
 
+local RECOVERY_FRAME_SECONDS = 1 / 30
+
+Runner.test("the handbrake drops the rear grip factor at once", function()
+	local factor = SurfaceGrip.nextRearGripFactor(1, true, RECOVERY_FRAME_SECONDS)
+	Runner.expectEqual(factor, VehicleConfig.HANDBRAKE_REAR_GRIP_MULTIPLIER)
+	Runner.expectEqual(SurfaceGrip.nextRearGripFactor(0.9, true, RECOVERY_FRAME_SECONDS), factor)
+end)
+
+Runner.test("releasing the handbrake brings the factor back to 1 with the recovery rate", function()
+	local alpha = 1 - math.exp(-VehicleConfig.HANDBRAKE_GRIP_RECOVERY_RATE * RECOVERY_FRAME_SECONDS)
+	local factor = SurfaceGrip.nextRearGripFactor(0.5, false, RECOVERY_FRAME_SECONDS)
+	Runner.expectNear(factor, 0.5 + 0.5 * alpha, 1e-12)
+	Runner.expectEqual(SurfaceGrip.nextRearGripFactor(1, false, RECOVERY_FRAME_SECONDS), 1)
+end)
+
+Runner.test("the rear grip factor never goes above 1 even with a huge step", function()
+	Runner.expectEqual(SurfaceGrip.nextRearGripFactor(0.5, false, 1e9) <= 1, true)
+	local factor = 0.5
+	for _ = 1, 600 do
+		factor = SurfaceGrip.nextRearGripFactor(factor, false, RECOVERY_FRAME_SECONDS)
+		Runner.expectEqual(factor <= 1, true)
+	end
+	Runner.expectNear(factor, 1, 1e-9)
+end)
+
 Runner.finish()

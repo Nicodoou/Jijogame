@@ -45,4 +45,25 @@ Runner.test("the steering angle is the input times the maximum", function()
 	Runner.expectEqual(Steering.angle(0, 50), 0)
 end)
 
+Runner.test("while drifting the allowed angle goes above the speed limit up to the drift plus a margin", function()
+	local margin = math.rad(VehicleConfig.DRIFT_STEER_MARGIN_DEGREES)
+	local drift = math.rad(30)
+	local allowed = Steering.maxAngleWhileDrifting(60, drift)
+	Runner.expectEqual(allowed > Steering.maxAngle(60), true)
+	Runner.expectNear(allowed, LOW_ANGLE, 1e-12)
+	local smallDrift = math.rad(20)
+	Runner.expectNear(Steering.maxAngleWhileDrifting(120, smallDrift), smallDrift + margin, 1e-12)
+	Runner.expectNear(Steering.maxAngleWhileDrifting(120, -smallDrift), smallDrift + margin, 1e-12)
+end)
+
+Runner.test("going straight the allowed angle is the plain speed limit", function()
+	for _, speed in { 0, 20, 60, 120, 300 } do
+		Runner.expectNear(Steering.maxAngleWhileDrifting(speed, 0), Steering.maxAngle(speed), 1e-12)
+	end
+end)
+
+Runner.test("the allowed angle while drifting never goes over the low speed maximum", function()
+	Runner.expectNear(Steering.maxAngleWhileDrifting(120, math.rad(80)), LOW_ANGLE, 1e-12)
+end)
+
 Runner.finish()

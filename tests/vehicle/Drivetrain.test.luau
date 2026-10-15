@@ -15,7 +15,13 @@ local NO_LIMIT_DT = 1e-6
 local GEAR_COUNT = #VehicleConfig.GEAR_RATIOS
 
 local function stateIn(gear: number, shiftRemaining: number?): VehicleState
-	return { wheels = {}, gear = gear, shiftRemainingSeconds = shiftRemaining or 0, engineRpm = VehicleConfig.IDLE_RPM }
+	return {
+		wheels = {},
+		gear = gear,
+		shiftRemainingSeconds = shiftRemaining or 0,
+		engineRpm = VehicleConfig.IDLE_RPM,
+		rearGripFactor = 1,
+	}
 end
 
 local function controlsWith(throttle: number, brake: number, isHandbrakeOn: boolean?): VehicleControls

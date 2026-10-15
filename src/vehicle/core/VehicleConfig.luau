@@ -33,8 +33,14 @@ return table.freeze({
 	-- Fuerza lateral por unidad de carga y por radián.
 	TIRE_CORNERING_STIFFNESS_PER_RADIAN = 8,
 	-- 1 = sin caída de la fuerza lateral después del pico.
-	TIRE_SLIDE_FRICTION_RATIO = 1.0,
+	TIRE_SLIDE_FRICTION_RATIO = 0.75,
 	LOW_SPEED_REGULARIZATION_STUDS_PER_SECOND = 3,
+	-- Agarre por eje: multiplica el agarre disponible (tope lateral y círculo) de cada rueda.
+	FRONT_GRIP_MULTIPLIER = 1.0,
+	REAR_GRIP_MULTIPLIER = 0.9,
+	-- Con el freno de mano apretado el agarre trasero baja a esta fracción; al soltarlo vuelve a 1 con esta tasa.
+	HANDBRAKE_REAR_GRIP_MULTIPLIER = 0.5,
+	HANDBRAKE_GRIP_RECOVERY_RATE = 3,
 
 	-- Superficie.
 	SURFACE_GRIP = table.freeze({ Road = 1.0, Shoulder = 0.85, Grass = 0.7, Mud = 0.5 }),
@@ -52,7 +58,7 @@ return table.freeze({
 	}),
 	IDLE_RPM = 1000,
 	REDLINE_RPM = 7000,
-	FIRST_GEAR_PEAK_ACCELERATION = 110,
+	FIRST_GEAR_PEAK_ACCELERATION = 180,
 
 	-- Caja.
 	GEAR_RATIOS = table.freeze({ 3.5, 2.3, 1.65, 1.25, 1.0 }),
@@ -65,24 +71,26 @@ return table.freeze({
 	REVERSE_ENGAGE_SPEED = 1,
 
 	-- Tracción: fracción de la fuerza que va al eje trasero.
-	REAR_BIAS = 0.7,
+	REAR_BIAS = 1.0,
 
 	-- Frenos.
 	-- El neumático la recorta.
-	BRAKE_DECELERATION = 250,
+	BRAKE_DECELERATION = 75,
 	BRAKE_FRONT_BIAS = 0.6,
-	HANDBRAKE_FORCE_PER_LOAD = 1.5,
+	HANDBRAKE_FORCE_PER_LOAD = 0.25,
 	-- Debajo de esta velocidad longitudinal el freno y la resistencia al rodar se apagan en forma gradual.
 	BRAKE_REGULARIZATION_SPEED = 1,
 
 	-- Dirección.
 	STEER_MAX_LOW_SPEED_DEGREES = 32,
-	STEER_MAX_HIGH_SPEED_DEGREES = 8,
+	STEER_MAX_HIGH_SPEED_DEGREES = 18,
+	-- Al derrapar, la dirección permite este margen sobre el ángulo de deriva (hasta el máximo de baja velocidad).
+	DRIFT_STEER_MARGIN_DEGREES = 5,
 	STEER_LOW_SPEED = 20,
 	STEER_HIGH_SPEED = 120,
 
 	-- Asistencias (COUNTER_STEER_STRENGTH en 0 apaga el contravolante).
-	COUNTER_STEER_STRENGTH = 0.3,
+	COUNTER_STEER_STRENGTH = 0,
 	COUNTER_STEER_MAX_DEGREES = 15,
 	COUNTER_STEER_MIN_SPEED = 10,
 

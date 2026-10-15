@@ -52,6 +52,8 @@ export type VehicleState = {
 	gear: number,
 	shiftRemainingSeconds: number,
 	engineRpm: number,
+	-- Fracción del agarre trasero que deja el freno de mano (1 = sin efecto).
+	rearGripFactor: number,
 }
 
 -- `force` está en el mundo y se aplica en el punto de montaje de la rueda.

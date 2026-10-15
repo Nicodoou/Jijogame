@@ -49,8 +49,9 @@ Runner.test("the lateral force reaches the friction limit at the peak angle", fu
 end)
 
 Runner.test("with no drop after the peak the force stays at the limit", function()
+	local noDrop = withSlideRatio(1)
 	for _, factor in { 1.5, 2, 5, 100 } do
-		Runner.expectNear(Tire.lateralForce(PEAK_ANGLE * factor, LOAD, GRIP), -PEAK_FORCE, 1e-6)
+		Runner.expectNear(Tire.lateralForce(PEAK_ANGLE * factor, LOAD, GRIP, noDrop), -PEAK_FORCE, 1e-6)
 	end
 end)
 
@@ -63,9 +64,20 @@ Runner.test("with a drop the force falls linearly to the slide ratio at twice th
 	Runner.expectNear(Tire.lateralForce(-PEAK_ANGLE * 10, LOAD, GRIP, settings), PEAK_FORCE * 0.5, 1e-6)
 end)
 
+Runner.test("the default configuration drops the force to 75% of the peak after twice the peak angle", function()
+	Runner.expectEqual(VehicleConfig.TIRE_SLIDE_FRICTION_RATIO, 0.75)
+	Runner.expectNear(Tire.lateralForce(PEAK_ANGLE * 2, LOAD, GRIP), -PEAK_FORCE * 0.75, 1e-6)
+	Runner.expectNear(Tire.lateralForce(PEAK_ANGLE * 50, LOAD, GRIP), -PEAK_FORCE * 0.75, 1e-6)
+end)
+
 Runner.test("less grip lowers the limit and the angle of the peak", function()
 	local grip = 0.5
-	Runner.expectNear(Tire.lateralForce(PEAK_ANGLE, LOAD, grip), -VehicleConfig.TIRE_FRICTION * grip * LOAD, 1e-6)
+	local noDrop = withSlideRatio(1)
+	Runner.expectNear(
+		Tire.lateralForce(PEAK_ANGLE, LOAD, grip, noDrop),
+		-VehicleConfig.TIRE_FRICTION * grip * LOAD,
+		1e-6
+	)
 	Runner.expectNear(
 		Tire.lateralForce(PEAK_ANGLE * grip, LOAD, grip),
 		-VehicleConfig.TIRE_FRICTION * grip * LOAD,
@@ -155,11 +167,11 @@ Runner.test("combine measures the slip ratio with the requested lateral force be
 	Runner.expectEqual(isSliding, true)
 end)
 
-Runner.test("a pure corner past the peak angle reports sliding even though the force sits at the limit", function()
+Runner.test("a pure corner past the peak angle reports sliding even though the force dropped", function()
 	local slip = PEAK_ANGLE * 3
 	local capped = Tire.lateralForce(slip, LOAD, GRIP)
 	local _, lateral, slipRatio, isSliding = Tire.combine(0, capped, LOAD, GRIP, Tire.linearLateralForce(slip, LOAD))
-	Runner.expectNear(math.abs(lateral), PEAK_FORCE, 1e-6)
+	Runner.expectNear(math.abs(lateral), PEAK_FORCE * VehicleConfig.TIRE_SLIDE_FRICTION_RATIO, 1e-6)
 	Runner.expectNear(slipRatio, 3, 1e-9)
 	Runner.expectEqual(isSliding, true)
 end)
