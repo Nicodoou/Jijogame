@@ -253,6 +253,40 @@ Nico manejó el auto en un Baseplate con adaptadores descartables (rama `exp/man
 
 Lo que no se pudo sostener en el experimento (un derrape largo a 60–80 studs/s con piloto automático) **no es una propiedad**: lo juzga una persona.
 
+## Cambios después del experimento `exp/ajustes-manejo`
+
+Nico manejó un segundo experimento (rama `exp/ajustes-manejo`, que no se mergea), después de un diagnóstico con inputs pregrabados en Studio, y dejó una configuración para derrapar que le gustó (2026-10-15). **Reemplaza** a los valores y fórmulas de arriba donde se contradigan.
+
+**Valores de `VehicleConfig`:**
+
+| Valor | Antes | Ahora |
+| --- | --- | --- |
+| `TIRE_FRICTION` | 1,0 | **0,7** |
+| `TIRE_SLIDE_FRICTION_RATIO` | 0,75 | **0,9** |
+| `SUSPENSION_DAMPING_RATIO` | 0,6 | **0,8** |
+| `HANDBRAKE_REAR_GRIP_MULTIPLIER` | 0,5 | **0,85** |
+| `FIRST_GEAR_PEAK_ACCELERATION` | 180 | **120** studs/s² |
+| `REVERSE_RATIO` | 3,5 | **5** |
+| `REAR_BIAS` | 1,0 | **0,5** (ver `docs/decisiones.md`) |
+| `BRAKE_DECELERATION` | 75 | **55** studs/s² |
+| `STEER_MAX_LOW_SPEED_DEGREES` | 32 | **36** |
+| `STEER_MAX_HIGH_SPEED_DEGREES` | 18 | **24** |
+| `STEER_LOW_SPEED` / `STEER_HIGH_SPEED` | 20 / 120 | **55 / 80** studs/s |
+| `DRIFT_STEER_MARGIN_DEGREES` | 5 | **10** |
+
+**Mecánicas nuevas en el núcleo** (las tres primeras ya se probaron en el experimento):
+1. **Freno de mano progresivo:** al apretarlo, `rearGripFactor` baja hacia `HANDBRAKE_REAR_GRIP_MULTIPLIER` con `1 − exp(−HANDBRAKE_GRIP_DROP_RATE · dt)`, en vez de saltar. `HANDBRAKE_GRIP_DROP_RATE` = 8 por segundo.
+2. **Reversa con empuje propio:** en marcha −1, la fuerza del motor se multiplica por `REVERSE_DRIVE_FRACTION` = 0,4. Con `REVERSE_RATIO` 5, la velocidad máxima atrás es de unos 30 studs/s.
+3. **Corte de RPM suave:** entre `REDLINE_RPM − SOFT_LIMITER_RPM` y `REDLINE_RPM` la fuerza del motor baja linealmente hasta 0, en todas las marchas. `SOFT_LIMITER_RPM` = 400. Evita el prender y apagar del motor en el corte, que le sacaba agarre a la reversa.
+4. **Dirección en reversa (nuevo, pedido por Nico):** en marcha −1, el ángulo máximo de dirección es `STEER_MAX_REVERSE_DEGREES` = 15, en vez del de `Steering.maxAngle`. Con 36° el auto giraba demasiado cerrado marcha atrás y patinaba.
+
+**Pruebas que cambian:**
+- Se ajustan a los valores nuevos las que dependan de ellos, y a la caída progresiva las de `rearGripFactor` (la 13 sigue: vuelve a más de 0,95 en menos de 1,5 s después de soltar).
+- **Propiedad 4 (freno de mano):** con el agarre trasero al 85%, se mide igual que antes. Si ya no pasa los 15° con 0,3 s, el subagente **reporta los números** sin cambiar valores: el freno de mano ahora es más suave a propósito.
+- **Propiedad 5 (`REAR_BIAS`):** se mantiene como comparación con la configuración inyectada (1,0 contra 0,5).
+- **Propiedad nueva 15 (reversa):** desde quieto, con el freno a fondo y la dirección a fondo durante 6 s, el auto entra en marcha −1, la velocidad no pasa de 32 studs/s, el ángulo de dirección no pasa de `STEER_MAX_REVERSE_DEGREES` y el `slipRatio` trasero queda ≤ 1 en la mayor parte del círculo.
+- **Propiedad nueva 16 (corte suave):** acelerando a fondo en cualquier marcha, cerca del corte la fuerza del motor baja de forma continua: entre dos pasos seguidos nunca cae de más del 20% del pico a 0.
+
 ## Fuera de alcance
 - Todo lo que toca Roblox: adaptadores, `src/app/`, Rojo y las pruebas en Studio (son del WP-4).
 - El reset (RC-12) y el uso de los contratos #35 y #36 (WP-4).

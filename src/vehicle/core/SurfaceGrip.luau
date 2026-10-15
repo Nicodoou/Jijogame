@@ -47,7 +47,7 @@ function SurfaceGrip.step(wheel: WheelState, surface: SurfaceKind?, dt: number, 
 	return nextWheel
 end
 
--- Factor del agarre trasero por el freno de mano: baja de inmediato al apretarlo y vuelve a 1 con un filtro al soltarlo.
+-- Factor del agarre trasero por el freno de mano: baja con un filtro al apretarlo y vuelve a 1 con otro al soltarlo.
 function SurfaceGrip.nextRearGripFactor(
 	previous: number,
 	isHandbrakeOn: boolean,
@@ -56,7 +56,8 @@ function SurfaceGrip.nextRearGripFactor(
 ): number
 	local settings = config or VehicleConfig
 	if isHandbrakeOn then
-		return settings.HANDBRAKE_REAR_GRIP_MULTIPLIER
+		local dropAlpha = VehicleMath.smoothingAlpha(settings.HANDBRAKE_GRIP_DROP_RATE, dt)
+		return previous + (settings.HANDBRAKE_REAR_GRIP_MULTIPLIER - previous) * dropAlpha
 	end
 	return previous + (1 - previous) * VehicleMath.smoothingAlpha(settings.HANDBRAKE_GRIP_RECOVERY_RATE, dt)
 end

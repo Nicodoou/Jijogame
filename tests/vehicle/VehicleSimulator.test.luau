@@ -100,7 +100,7 @@ Runner.test("only the front wheels turn with the steering", function()
 	Runner.expectNear(left[1].steerAngleRadians, -maxAngle, 1e-9)
 end)
 
-Runner.test("the throttle pushes the car along its front, which is -z", function()
+Runner.test("the throttle pushes the car along its front, which is -z, evenly between the axles", function()
 	local _, outputs = stepAtRest(controlsWith(0, 1, 0), chassisWith())
 	local total = ZERO
 	for _, output in outputs do
@@ -110,7 +110,7 @@ Runner.test("the throttle pushes the car along its front, which is -z", function
 	Runner.expectNear(total.x, 0, 1e-3)
 	local rearPush = outputs[3].force.z + outputs[4].force.z
 	local frontPush = outputs[1].force.z + outputs[2].force.z
-	Runner.expectEqual(rearPush < frontPush, true)
+	Runner.expectNear(rearPush, frontPush, 1e-3)
 end)
 
 Runner.test("a wheel that does not touch the ground gives no force", function()
@@ -237,7 +237,9 @@ Runner.test("the handbrake lowers the rear grip factor and the rear wheels lose 
 	local freeState, freeOutputs = stepAtRest(controlsWith(0, 0, 0), sliding)
 	local heldState, heldOutputs = stepAtRest(controlsWith(0, 0, 0, true), sliding)
 	Runner.expectEqual(freeState.rearGripFactor, 1)
-	Runner.expectEqual(heldState.rearGripFactor, VehicleConfig.HANDBRAKE_REAR_GRIP_MULTIPLIER)
+	local dropAlpha = 1 - math.exp(-VehicleConfig.HANDBRAKE_GRIP_DROP_RATE * FRAME_SECONDS)
+	local expected = 1 + (VehicleConfig.HANDBRAKE_REAR_GRIP_MULTIPLIER - 1) * dropAlpha
+	Runner.expectNear(heldState.rearGripFactor, expected, 1e-12)
 	Runner.expectEqual(math.abs(heldOutputs[3].force.x) < math.abs(freeOutputs[3].force.x), true)
 	Runner.expectNear(heldOutputs[1].force.x, freeOutputs[1].force.x, 1e-6)
 end)
@@ -284,6 +286,19 @@ Runner.test("the total steering never goes over the maximum for that speed", fun
 				1
 			)
 	Runner.expectNear(outputs[1].steerAngleRadians, limit, 1e-9)
+end)
+
+Runner.test("in reverse gear the steering is limited to the reverse maximum", function()
+	local state = VehicleSimulator.newState()
+	state.gear = -1
+	local _, outputs =
+		VehicleSimulator.step(state, controlsWith(1, 0, 0), chassisWith(), restingContacts(), FRAME_SECONDS)
+	local limit = math.rad(VehicleConfig.STEER_MAX_REVERSE_DEGREES)
+	Runner.expectNear(outputs[1].steerAngleRadians, limit, 1e-9)
+	Runner.expectNear(outputs[2].steerAngleRadians, limit, 1e-9)
+	local _, left =
+		VehicleSimulator.step(state, controlsWith(-0.5, 0, 0), chassisWith(), restingContacts(), FRAME_SECONDS)
+	Runner.expectNear(left[1].steerAngleRadians, -limit / 2, 1e-9)
 end)
 
 Runner.test("the spin of the wheel follows the speed of the car", function()
