@@ -101,40 +101,34 @@ function InputSmoother.newState(): InputState
 	return { steer = 0, throttle = 0, brake = 0, isHandbrakeOn = false, isLookingBack = false }
 end
 
+local function stepSteer(previous: number, raw: RawInput, dt: number): number
+	local keyboardTarget = boolToNumber(raw.isSteerRightDown) - boolToNumber(raw.isSteerLeftDown)
+	local gamepadValue = processGamepad(raw.gamepadSteer, -1, InputConfig.GAMEPAD_STEER_EXPONENT)
+	local rise, back = InputConfig.STEER_RISE_SECONDS, InputConfig.STEER_RETURN_SECONDS
+	return resolveAxis(previous, gamepadValue, keyboardTarget, rise, back, dt)
+end
+
+local function stepThrottle(previous: number, raw: RawInput, dt: number): number
+	local gamepadValue = processGamepad(raw.gamepadThrottle, 0, InputConfig.GAMEPAD_PEDAL_EXPONENT)
+	local rise, back = InputConfig.THROTTLE_RISE_SECONDS, InputConfig.THROTTLE_RETURN_SECONDS
+	return resolveAxis(previous, gamepadValue, boolToNumber(raw.isThrottleDown), rise, back, dt)
+end
+
+local function stepBrake(previous: number, raw: RawInput, dt: number): number
+	local gamepadValue = processGamepad(raw.gamepadBrake, 0, InputConfig.GAMEPAD_PEDAL_EXPONENT)
+	local rise, back = InputConfig.BRAKE_RISE_SECONDS, InputConfig.BRAKE_RETURN_SECONDS
+	return resolveAxis(previous, gamepadValue, boolToNumber(raw.isBrakeDown), rise, back, dt)
+end
+
 function InputSmoother.step(state: InputState, raw: RawInput, dt: number): InputState
 	if dt ~= dt or dt == math.huge or dt <= 0 then
 		return copyState(state)
 	end
 	local stepSeconds = math.min(dt, InputConfig.MAX_STEP_SECONDS)
-	local steerTarget = boolToNumber(raw.isSteerRightDown) - boolToNumber(raw.isSteerLeftDown)
-	local gamepadSteer = processGamepad(raw.gamepadSteer, -1, InputConfig.GAMEPAD_STEER_EXPONENT)
-	local gamepadThrottle = processGamepad(raw.gamepadThrottle, 0, InputConfig.GAMEPAD_PEDAL_EXPONENT)
-	local gamepadBrake = processGamepad(raw.gamepadBrake, 0, InputConfig.GAMEPAD_PEDAL_EXPONENT)
 	return {
-		steer = resolveAxis(
-			state.steer,
-			gamepadSteer,
-			steerTarget,
-			InputConfig.STEER_RISE_SECONDS,
-			InputConfig.STEER_RETURN_SECONDS,
-			stepSeconds
-		),
-		throttle = resolveAxis(
-			state.throttle,
-			gamepadThrottle,
-			boolToNumber(raw.isThrottleDown),
-			InputConfig.THROTTLE_RISE_SECONDS,
-			InputConfig.THROTTLE_RETURN_SECONDS,
-			stepSeconds
-		),
-		brake = resolveAxis(
-			state.brake,
-			gamepadBrake,
-			boolToNumber(raw.isBrakeDown),
-			InputConfig.BRAKE_RISE_SECONDS,
-			InputConfig.BRAKE_RETURN_SECONDS,
-			stepSeconds
-		),
+		steer = stepSteer(state.steer, raw, stepSeconds),
+		throttle = stepThrottle(state.throttle, raw, stepSeconds),
+		brake = stepBrake(state.brake, raw, stepSeconds),
 		isHandbrakeOn = raw.isHandbrakeDown,
 		isLookingBack = raw.isLookBackDown,
 	}
