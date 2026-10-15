@@ -2,7 +2,7 @@
 
 **Issue:** #9
 **Requerimientos:** RC-1, RC-2, RC-3, RC-4, RC-5, RC-6, RC-7, RC-12
-**Estado:** decidido
+**Estado:** arquitectura propuesta
 
 ## Investigación
 
@@ -140,7 +140,103 @@ Beni eligió el 2026-10-14, en la sesión con el Agente B, las tres recomendacio
 No toca contratos: la superficie (#17) se sigue calculando con los datos de la ruta.
 
 ## Arquitectura
-Pendiente: se escribe cuando esté la decisión.
+
+Cubre toda el área de Calles infinitas (`src/world/`): la ruta (#9) y el terreno (#10). `terreno.md` remite acá.
+
+### Encaje con la regla "el servidor es la autoridad"
+
+`docs/reglas-de-trabajo.md` (sección 3) pide que la generación del mundo se decida en el servidor. Con G1 se cumple así:
+
+- **El servidor decide la semilla** y se la manda al cliente. El cliente nunca elige la semilla.
+- **El núcleo de la ruta es puro y compartido** (`src/world/shared/core/`). Con la misma semilla, el servidor puede recalcular la ruta (sin terreno, que es caro) para validar que la posición que reporta el auto sea creíble. Esa validación es del área de Conducción o de una capa de servidor futura; acá solo se deja posible.
+- **El cliente solo construye** lo visual y lo físico local: el Terrain, y más adelante el decorado.
+
+### Capas
+
+Las dependencias van en una sola dirección: **adaptadores → núcleo**. El núcleo no conoce a Roblox.
+
+```
+src/world/
+  shared/core/          núcleo puro (CLI luau, 87% de cobertura): ruta, consultas y superficie
+  client/core/          núcleo puro del lado cliente: alturas del terreno, vóxeles y planificación
+  client/               adaptadores a Roblox: Terrain, loop por frame y proveedores de contratos
+  server/               adaptador: elige la semilla y la manda
+```
+
+El núcleo de la ruta va en `shared/` porque lo usan los dos lados. El del terreno, solo el cliente.
+
+#### Núcleo compartido (`src/world/shared/core/`)
+
+| Módulo | Responsabilidad | No hace |
+| --- | --- | --- |
+| `SeededRandom` | Generador pseudoaleatorio propio (PCG32) con estado explícito. `nextNumber`, `nextInteger`. | No usa `Random` ni `math.random`. |
+| `RoadPieceCatalog` | Datos de cada tipo de pieza (recta, curva abierta, curva cerrada, S): rangos de largo, curvatura y pendiente, y pesos. | No sortea. |
+| `RoadPieceSequencer` | Sortea la próxima pieza con `SeededRandom` y el catálogo. Respeta la curvatura máxima, el corredor de rumbo (menos de 90° de la dirección media) y la pendiente máxima. | No integra geometría. |
+| `RoadPath` | Integra las piezas en pasos fijos y produce **muestras** (posición `vector`, rumbo, curvatura, altura y `s`), agrupadas en **tramos** (`segment`) consecutivos. Agrega tramos adelante y descarta los de atrás. | No sabe de chunks ni de Terrain. |
+| `RoadQuery` | Dada una posición, devuelve el punto más cercano, la dirección, la distancia lateral con signo y `s`. Usa un cursor con ventana (rápido, por frame) y una grilla hash de muestras (para el reset, RC-12). | No genera. |
+| `SurfaceClassifier` | Implementa `GetSurfaceAt` (#17): con `RoadQuery`, decide `Road` y `Shoulder` por distancia lateral, y `Mud` por manchones de ruido con semilla. El resto es `Grass`. | No lee el Terrain. |
+| `WorldConfig` | Todos los valores de ajuste con unidad: ancho de ruta, banquina, curvatura máxima, paso de integración, largo de tramo, etc. | Nada de lógica. |
+
+#### Núcleo del cliente (`src/world/client/core/`)
+
+| Módulo | Responsabilidad | No hace |
+| --- | --- | --- |
+| `TerrainHeightField` | Altura del suelo en (x, z): la de la ruta cerca del eje, mezclada con colinas de `math.noise` a medida que se aleja (RC-6, el terreno sigue a la ruta). | No escribe vóxeles. |
+| `VoxelChunkBuilder` | Para un chunk (por ejemplo, 128×128 studs), arma las tablas de material y de ocupación con `TerrainHeightField` y `SurfaceClassifier`. Los materiales van como claves propias (`"Ground"`, `"Grass"`, `"Mud"`), no como `Enum`. Reutiliza tablas para no presionar al recolector de basura. | No llama a la API de Roblox. |
+| `ChunkPlanner` | Con la posición del auto y `RoadPath`, decide qué chunks hay que generar adelante (RC-2) y cuáles liberar atrás (RC-3), con histéresis. Arma una cola de trabajo ordenada por prioridad. | No mide tiempo ni escribe. |
+| `WorkBudget` | Avanza la cola por pasos hasta agotar un presupuesto de milisegundos por frame. Recibe la función de reloj inyectada, así que en las pruebas se usa un reloj falso. | No usa `task` ni `os.clock` directo. |
+| `OriginShift` | Decide cuándo recentrar el mundo y en cuánto (ver "Distancia al origen"). | No mueve nada. |
+
+#### Adaptadores del cliente (`src/world/client/`)
+
+| Módulo | Responsabilidad |
+| --- | --- |
+| `TerrainWriter` | Traduce las claves de material a `Enum.Material` y llama a `WriteVoxels` y al borrado con aire. Es lo único que toca `workspace.Terrain`. |
+| `WorldClient` | **Punto de arranque** (composition root): recibe la semilla, arma los módulos con sus dependencias y engancha `WorkBudget` a `RunService.Heartbeat`. |
+| `SurfaceProvider` | Expone `GetSurfaceAt` (#17) a Conducción, conectado con `SurfaceClassifier`. |
+| `RoadResetProvider` | Expone el contrato del punto más cercano de la ruta (RC-12), conectado con `RoadQuery`. El contrato todavía no existe y va por su issue `contrato`. |
+
+#### Adaptador del servidor (`src/world/server/`)
+
+| Módulo | Responsabilidad |
+| --- | --- |
+| `WorldSeedServer` | Elige la semilla al arrancar la partida y se la manda al cliente (un `RemoteEvent` o un atributo). |
+
+### Cómo fluye un frame en el cliente
+
+1. `WorldClient` lee la posición del auto con el contrato "posición del jugador o del auto" (lo provee A). Mientras no exista, usa un stub dentro de `src/world/`.
+2. `ChunkPlanner` actualiza la cola: si hace falta, `RoadPath` agrega tramos adelante y marca chunks para liberar.
+3. `WorkBudget` avanza la cola hasta gastar el presupuesto del frame (por ejemplo, 4 ms en PC y menos en celular, en `WorldConfig`). Cada paso es "armar un pedazo de chunk" (`VoxelChunkBuilder`) o "escribirlo" (`TerrainWriter`).
+4. Conducción consulta `SurfaceProvider` por rueda cuando quiera, en tiempo constante.
+
+### Patrones y por qué
+
+- **Composition root (`WorldClient`):** es el único lugar donde se crean y conectan los módulos. Cumple "sin estado global" y permite probar cada módulo con dependencias falsas.
+- **Inyección de dependencias:** el reloj, el generador pseudoaleatorio y la posición del auto entran por parámetro. Así el núcleo se prueba en el CLI con semilla y tiempo fijos.
+- **Cola de trabajo con presupuesto por frame:** resuelve "sin tirones" sin `task.wait` en el núcleo. El trabajo pesado se corta en pasos chicos.
+- **Tabla de datos para las piezas (`RoadPieceCatalog`):** sumar o ajustar una pieza es cambiar datos, no código. Cumple "sin números mágicos".
+- **Adaptador (`TerrainWriter`, proveedores de contratos):** aísla la API de Roblox en una capa delgada que se prueba a mano.
+
+### Distancia al origen
+
+`OriginShift` decide recentrar cuando el auto pasa un umbral (por ejemplo, 50.000 studs). Recentrar implica mover el auto, la cámara y el decorado, así que **toca el área de Conducción**. Se propone resolverlo con un contrato nuevo ("desplazamiento del origen") por su issue `contrato`, en el WP correspondiente. Antes, un experimento confirma la precisión y el tope lejos del origen.
+
+### Pruebas (núcleo, CLI)
+
+- Con la misma semilla sale la misma ruta: hash de las muestras de los primeros N tramos.
+- **Propiedades** sobre cientos de semillas: curvatura menor o igual al máximo, rumbo dentro del corredor, pendiente máxima, sin saltos entre tramos (RC-4), la ruta no se cruza.
+- `RoadQuery` comparada contra una búsqueda por fuerza bruta.
+- `SurfaceClassifier` en bordes conocidos.
+- `WorkBudget` con un reloj falso: nunca se pasa del presupuesto.
+
+### División en WPs (propuesta)
+
+1. **WP de la ruta:** `SeededRandom`, catálogo, secuenciador, `RoadPath`, `RoadQuery`, `SurfaceClassifier` y `WorldConfig`. Todo núcleo, sin Roblox.
+2. **WP del terreno:** `TerrainHeightField`, `VoxelChunkBuilder`, `ChunkPlanner`, `WorkBudget`, `TerrainWriter` y `WorldClient`, más `WorldSeedServer`.
+3. **WP del decorado:** árboles y rocas (RC-9 y RC-10). Lleva un diseño corto aparte.
+4. **WP del origen:** `OriginShift` y su contrato con Conducción.
+
+Cada WP depende del anterior. Los proveedores de contratos (`SurfaceProvider` y `RoadResetProvider`) entran en el WP 2.
 
 ## Aprobación
 Pendiente.
