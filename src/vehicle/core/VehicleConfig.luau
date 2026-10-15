@@ -40,6 +40,8 @@ return table.freeze({
 	FRONT_GRIP_MULTIPLIER = 1.0,
 	REAR_GRIP_MULTIPLIER = 0.9,
 	DRIFT_STEER_MARGIN_DEGREES = 5,
+	HANDBRAKE_REAR_GRIP_MULTIPLIER = 0.5,
+	HANDBRAKE_GRIP_RECOVERY_RATE = 3,
 
 	-- Superficie.
 	SURFACE_GRIP = table.freeze({ Road = 1.0, Shoulder = 0.85, Grass = 0.7, Mud = 0.5 }),
@@ -74,9 +76,9 @@ return table.freeze({
 
 	-- Frenos.
 	-- El neumático la recorta.
-	BRAKE_DECELERATION = 130,
+	BRAKE_DECELERATION = 75,
 	BRAKE_FRONT_BIAS = 0.6,
-	HANDBRAKE_FORCE_PER_LOAD = 0.8,
+	HANDBRAKE_FORCE_PER_LOAD = 0.25,
 	-- Debajo de esta velocidad longitudinal el freno y la resistencia al rodar se apagan en forma gradual.
 	BRAKE_REGULARIZATION_SPEED = 1,
 

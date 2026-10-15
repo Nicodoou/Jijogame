@@ -28,6 +28,7 @@ export type StepContext = {
 	offsets: { vector },
 	velocities: { vector },
 	stepSeconds: number,
+	rearGripFactor: number,
 }
 
 local WheelForces = {}
@@ -127,7 +128,7 @@ local function groundedWheel(
 	local lateralSpeed = vector.dot(velocity, sideAxis)
 	local slipAngle = Tire.slipAngle(lateralSpeed, longitudinalSpeed, settings)
 	local brakeAndRolling = opposingLongitudinal(context, wheel, isFront, longitudinalSpeed, load, driveState)
-	local axleGrip = wheel.gripMultiplier * (if isFront then settings.FRONT_GRIP_MULTIPLIER else settings.REAR_GRIP_MULTIPLIER)
+	local axleGrip = wheel.gripMultiplier * (if isFront then settings.FRONT_GRIP_MULTIPLIER else settings.REAR_GRIP_MULTIPLIER * context.rearGripFactor)
 	local limitedLateral = opposingLateral(context, wheel, slipAngle, lateralSpeed, load, axleGrip)
 	local longitudinal, lateral, slipRatio, isSliding = Tire.combine(
 		driveShare + brakeAndRolling,

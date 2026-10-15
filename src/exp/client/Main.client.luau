@@ -76,6 +76,22 @@ rayParams.FilterDescendantsInstances = { model }
 
 local remote = ReplicatedStorage:WaitForChild("VehicleReleaseRequest")
 local released = false
+local cfg = table.clone(VehicleConfig)
+local function rebuildCfg()
+	cfg = table.clone(VehicleConfig)
+	for k, v in workspace:GetAttributes() do
+		if string.sub(k, 1, 4) == "Cfg_" then
+			cfg[string.sub(k, 5)] = v
+		end
+	end
+	table.freeze(cfg)
+end
+rebuildCfg()
+workspace.AttributeChanged:Connect(function(k)
+	if string.sub(k, 1, 4) == "Cfg_" then
+		rebuildCfg()
+	end
+end)
 local simState = VehicleSimulator.newState()
 local inputState = InputSmoother.newState()
 local feedback = nil
@@ -173,7 +189,7 @@ local function step(dt)
 		isHandbrakeOn = inputState.isHandbrakeOn,
 	}
 	local outputs
-	simState, outputs, feedback = VehicleSimulator.step(simState, controls, chassis, contacts, dt)
+	simState, outputs, feedback = VehicleSimulator.step(simState, controls, chassis, contacts, dt, cfg)
 	for i = 1, wheelCount do
 		local o = outputs[i]
 		forces[i].Force = toV3(o.force)

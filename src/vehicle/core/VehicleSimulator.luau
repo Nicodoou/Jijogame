@@ -73,6 +73,7 @@ local function buildContext(
 		offsets = offsets,
 		velocities = velocities,
 		stepSeconds = stepSeconds,
+		rearGripFactor = 1,
 	}
 end
 
@@ -105,7 +106,7 @@ local function advanceDrivetrain(
 		Drivetrain.nextGear(state, rpmBefore, context.forwardSpeed, context.controls, dt, settings)
 	local rpm = Drivetrain.engineRpm(context.forwardSpeed, gear, settings)
 	local driveState: VehicleState =
-		{ wheels = state.wheels, gear = gear, shiftRemainingSeconds = shiftRemaining, engineRpm = rpm }
+		{ wheels = state.wheels, gear = gear, shiftRemainingSeconds = shiftRemaining, engineRpm = rpm, rearGripFactor = state.rearGripFactor }
 	local force = Drivetrain.driveForce(driveState, context.controls, rpm, context.mass, settings)
 	return driveState, Drivetrain.split(force, settings)
 end
@@ -152,6 +153,7 @@ local function idleStep(
 		gear = state.gear,
 		shiftRemainingSeconds = state.shiftRemainingSeconds,
 		engineRpm = state.engineRpm,
+		rearGripFactor = state.rearGripFactor,
 	}
 	return nextState, outputs, buildFeedback(nextState, context, feedbacks)
 end
@@ -162,7 +164,7 @@ function VehicleSimulator.newState(config: VehicleSettings?): VehicleState
 	for index = 1, #settings.WHEELS do
 		wheels[index] = SurfaceGrip.newWheelState(settings)
 	end
-	return { wheels = wheels, gear = 1, shiftRemainingSeconds = 0, engineRpm = settings.IDLE_RPM }
+	return { wheels = wheels, gear = 1, shiftRemainingSeconds = 0, engineRpm = settings.IDLE_RPM, rearGripFactor = 1 }
 end
 
 function VehicleSimulator.step(
@@ -178,8 +180,16 @@ function VehicleSimulator.step(
 	local stepSeconds = if isUsable then math.min(dt, settings.MAX_STEP_SECONDS) else 0
 	local context = buildContext(sanitizeControls(controls), chassis, contacts, settings, stepSeconds)
 	if not isUsable then
+		context.rearGripFactor = state.rearGripFactor
 		return idleStep(state, context)
 	end
+	local factor = state.rearGripFactor
+	if context.controls.isHandbrakeOn then
+		factor = settings.HANDBRAKE_REAR_GRIP_MULTIPLIER
+	else
+		factor += (1 - factor) * (1 - math.exp(-settings.HANDBRAKE_GRIP_RECOVERY_RATE * stepSeconds))
+	end
+	context.rearGripFactor = factor
 	local wheels, loads = updateWheels(state, contacts, context, stepSeconds)
 	local driveState, driveShares = advanceDrivetrain(state, context, stepSeconds)
 	local outputs, feedbacks = WheelForces.simulateWheels(context, wheels, loads, contacts, driveState, driveShares)
@@ -188,6 +198,7 @@ function VehicleSimulator.step(
 		gear = driveState.gear,
 		shiftRemainingSeconds = driveState.shiftRemainingSeconds,
 		engineRpm = driveState.engineRpm,
+		rearGripFactor = factor,
 	}
 	return nextState, outputs, buildFeedback(nextState, context, feedbacks)
 end

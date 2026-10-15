@@ -52,6 +52,7 @@ export type VehicleState = {
 	gear: number,
 	shiftRemainingSeconds: number,
 	engineRpm: number,
+	rearGripFactor: number,
 }
 
 -- `force` está en el mundo y se aplica en el punto de montaje de la rueda.
