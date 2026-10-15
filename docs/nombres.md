@@ -15,3 +15,7 @@ Un concepto, un nombre. Se consulta antes de nombrar algo nuevo y se agrega acá
 | Longitud recorrida sobre el eje | `arcLength` | Distancia en studs, medida sobre el plano horizontal, desde el punto de partida de la ruta hasta una muestra o un punto del eje. |
 | Desvío lateral | `lateralOffset` | Distancia con signo entre una posición y el punto más cercano del eje: positiva a la derecha del sentido de marcha, negativa a la izquierda. Es la que usa `RoadQuery`. |
 | Posición del auto | `GetVehiclePosition` | Función que devuelve la posición actual del auto del jugador local. Contrato en `src/shared/contracts/VehiclePosition.luau` (#22). |
+| Punto de ruta | `RoadPoint` | Punto sobre el eje de la ruta, a la altura de la superficie, con su dirección hacia adelante y su `arcLength`. Contrato en `src/shared/contracts/RoadPoint.luau` (#35). |
+| Punto más cercano de la ruta | `GetNearestRoadPoint` | Función que devuelve el `RoadPoint` del eje más cercano a una posición, ignorando la altura. Se usa para el reset (RC-12). |
+| Punto de aparición | `GetSpawnPoint` | Función que devuelve el inicio de la ruta, donde aparece el auto. |
+| Mundo listo | `IsWorldReadyAt` | Función que dice si el Terrain alrededor de una posición ya está escrito. Contrato en `src/shared/contracts/WorldReady.luau` (#36). |
