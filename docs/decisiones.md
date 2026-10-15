@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-14 — El mundo arranca en −120.000 studs, sin recentrar
+**Decidió:** Beni (lo había propuesto el Agente A en la revisión del PR #21)
+**Issue:** #9, #10 (PR #21, `docs/disenos/ruta.md`, "Distancia al origen")
+**Decisión:** la ruta arranca en x = −120.000 y avanza hacia +x. El mundo no se recentra. Si alguien llega cerca de +120.000, la etapa termina.
+**Por qué:** el Terrain tiene un tope de ±128.000 studs. Arrancando en −120.000 hay 240.000 studs de margen (30 minutos a 100 studs/s son 180.000) y no hace falta un contrato con Conducción para mover el auto, la cámara y los efectos.
+**Descartado:** recentrar el mundo cuando el auto se aleja del origen.
+
 ## 2026-10-14 — Ruta y terreno: piezas con curvatura, todo Terrain, generado en el cliente
 **Decidió:** Beni
 **Issue:** #9, #10 (PR #21; diseños `docs/disenos/ruta.md` y `docs/disenos/terreno.md`)

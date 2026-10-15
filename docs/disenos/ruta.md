@@ -185,7 +185,6 @@ Todo el núcleo va junto en `core/`, para que entre en la medición de `src/*/co
 | `VoxelChunkBuilder` | Para un chunk (por ejemplo, 128×128 studs), arma las tablas de material y de ocupación con `TerrainHeightField` y `SurfaceClassifier`. Los materiales van como claves propias (`"Ground"`, `"Grass"`, `"Mud"`), no como `Enum`. Reutiliza tablas para no presionar al recolector de basura. | No llama a la API de Roblox. |
 | `ChunkPlanner` | Con la posición del auto y `RoadPath`, decide qué chunks hay que generar adelante (RC-2) y cuáles liberar atrás (RC-3), con histéresis. Arma una cola de trabajo ordenada por prioridad. | No mide tiempo ni escribe. |
 | `WorkBudget` | Avanza la cola por pasos hasta agotar un presupuesto de milisegundos por frame. Recibe la función de reloj inyectada, así que en las pruebas se usa un reloj falso. | No usa `task` ni `os.clock` directo. |
-| `OriginShift` | Decide cuándo recentrar el mundo y en cuánto (ver "Distancia al origen"). | No mueve nada. |
 
 #### Adaptadores del cliente (`src/world/client/`)
 
@@ -219,12 +218,16 @@ Todo el núcleo va junto en `core/`, para que entre en la medición de `src/*/co
 
 ### Distancia al origen
 
-Hay dos caminos, y el Agente A prefiere el segundo para el MVP (revisión del PR #21):
+**Decidió Beni el 2026-10-14: el mundo arranca en −120.000 studs y no se recentra**, como prefería el Agente A (revisión del PR #21).
 
-- **Recentrar:** `OriginShift` decide mover el origen cuando el auto pasa un umbral. Eso obliga a mover en el mismo frame el auto con su velocidad, la cámara, las marcas y las partículas. Toca el área de Conducción y necesita un contrato nuevo ("el origen se movió en tal vector").
-- **Arrancar en −120.000 studs** y avanzar hacia +120.000: hay 240.000 studs de margen. A una velocidad media de 100 studs/s, 30 minutos son 180.000 studs. No hace falta ningún contrato.
+- La ruta arranca en x = −120.000 y su dirección media apunta a +x. Así hay 240.000 studs de margen dentro del tope del Terrain (±128.000). A una velocidad media de 100 studs/s, 30 minutos son 180.000 studs.
+- El punto de partida y la dirección media van en `WorldConfig`.
+- El corredor de rumbo ya garantiza que la ruta avance en x. Para que tampoco se escape de costado, el secuenciador atrae el rumbo hacia la dirección media (reversión a la media) y acota el desvío lateral acumulado, también con valores de `WorldConfig`.
+- **Límite conocido:** si alguien llega cerca de +120.000, la etapa termina. Cómo se le muestra al jugador se define en el WP del terreno.
+- No hace falta ningún contrato nuevo con Conducción.
+- **Experimento antes del WP del terreno:** confirmar con el MCP que el Terrain se escribe y se ve bien cerca de −120.000 y de +120.000, y que la física de un cuerpo en movimiento no tiembla ahí. La física del auto en sí la confirma A cuando tenga el auto.
 
-**Pendiente de decisión de Beni.** En los dos casos, antes del WP correspondiente, un experimento confirma la precisión del render y **de la física del auto** lejos del origen (por ejemplo, a 100.000 studs), porque el temblor lo sentiría el jugador.
+Recentrar el mundo queda descartado para el MVP.
 
 ### Pruebas (núcleo, CLI)
 
@@ -239,8 +242,6 @@ Hay dos caminos, y el Agente A prefiere el segundo para el MVP (revisión del PR
 1. **WP de la ruta:** `SeededRandom`, catálogo, secuenciador, `RoadPath`, `RoadQuery`, `SurfaceClassifier` y `WorldConfig`. Todo núcleo, sin Roblox.
 2. **WP del terreno:** `TerrainHeightField`, `VoxelChunkBuilder`, `ChunkPlanner`, `WorkBudget`, `TerrainWriter` y `WorldClient`, más `WorldSeedServer`.
 3. **WP del decorado:** árboles y rocas (RC-9 y RC-10). Lleva un diseño corto aparte. Ya queda fijado un requisito, por pedido de A para CP-5 (choques sin frustración): **los colisionadores son formas simples**, un cilindro o una cápsula para el tronco y una esfera o una caja para la roca, nunca la colisión exacta de la malla, que engancha o despide al auto.
-4. **WP del origen:** depende de la decisión de arriba (recentrar o arrancar en −120.000).
-
 Cada WP depende del anterior. Los proveedores de contratos (`SurfaceProvider` y `RoadResetProvider`) entran en el WP 2.
 
 ## Aprobación
