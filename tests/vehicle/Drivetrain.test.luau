@@ -215,6 +215,35 @@ Runner.test("in reverse the brake pedal pushes backwards and the throttle does n
 	Runner.expectEqual(Drivetrain.driveForce(stateIn(-1), controlsWith(1, 0), 3000, MASS), 0)
 end)
 
+Runner.test("in reverse the engine pushes with a fraction of the forward force", function()
+	local forward = Drivetrain.driveForce(stateIn(1), controlsWith(1, 0), 3000, MASS)
+	local ratioScale = VehicleConfig.REVERSE_RATIO / VehicleConfig.GEAR_RATIOS[1]
+	local backwards = Drivetrain.driveForce(stateIn(-1), controlsWith(0, 1), 3000, MASS)
+	Runner.expectNear(backwards, -forward * ratioScale * VehicleConfig.REVERSE_DRIVE_FRACTION, 1e-6)
+end)
+
+Runner.test("the force fades linearly over the soft limiter band and is zero at the redline", function()
+	local band = VehicleConfig.SOFT_LIMITER_RPM
+	local top = VehicleConfig.REDLINE_RPM
+	local below = Drivetrain.driveForce(stateIn(2), controlsWith(1, 0), top - band, MASS)
+	local expectedBelow = MASS
+		* VehicleConfig.FIRST_GEAR_PEAK_ACCELERATION
+		* Drivetrain.torqueFraction(top - band)
+		* VehicleConfig.GEAR_RATIOS[2]
+		/ VehicleConfig.GEAR_RATIOS[1]
+	Runner.expectNear(below, expectedBelow, 1e-6)
+	local half = Drivetrain.driveForce(stateIn(2), controlsWith(1, 0), top - band / 2, MASS)
+	local expectedHalf = MASS
+		* VehicleConfig.FIRST_GEAR_PEAK_ACCELERATION
+		* Drivetrain.torqueFraction(top - band / 2)
+		* VehicleConfig.GEAR_RATIOS[2]
+		/ VehicleConfig.GEAR_RATIOS[1]
+		/ 2
+	Runner.expectNear(half, expectedHalf, 1e-6)
+	Runner.expectEqual(Drivetrain.driveForce(stateIn(2), controlsWith(1, 0), top, MASS), 0)
+	Runner.expectEqual(Drivetrain.driveForce(stateIn(2), controlsWith(1, 0), top + 1000, MASS), 0)
+end)
+
 Runner.test("split gives the rear axle its share in the order FL, FR, RL, RR", function()
 	local shares = Drivetrain.split(1000)
 	Runner.expectEqual(#shares, 4)

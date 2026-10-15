@@ -26,6 +26,11 @@ function Steering.maxAngleWhileDrifting(speed: number, driftAngle: number, confi
 	return math.max(Steering.maxAngle(speed, config), math.min(driftLimit, lowSpeedLimit))
 end
 
+-- En marcha atrás la dirección tiene su propio máximo, fijo.
+function Steering.reverseMaxAngle(config: VehicleSettings?): number
+	return math.rad((config or VehicleConfig).STEER_MAX_REVERSE_DEGREES)
+end
+
 function Steering.angle(steerInput: number, speed: number, config: VehicleSettings?): number
 	return steerInput * Steering.maxAngle(speed, config)
 end
