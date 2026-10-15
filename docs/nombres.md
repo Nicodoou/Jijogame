@@ -10,3 +10,4 @@ Un concepto, un nombre. Se consulta antes de nombrar algo nuevo y se agrega acá
 | Banquina | `"Shoulder"` | Franja angosta de tierra suelta a cada lado de la ruta. |
 | Pasto | `"Grass"` | Terreno al costado de la ruta. |
 | Barro | `"Mud"` | Manchones fuera de la ruta, ubicados a partir de la semilla. |
+| Posición del auto | `GetVehiclePosition` | Función que devuelve la posición actual del auto del jugador local. Contrato en `src/shared/contracts/VehiclePosition.luau` (#22). |
