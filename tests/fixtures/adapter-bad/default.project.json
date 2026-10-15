@@ -1,0 +1,12 @@
+{
+  "name": "AdapterBad",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "a": {
+        "$path": "src/a/server"
+      }
+    }
+  }
+}
