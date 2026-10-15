@@ -50,8 +50,19 @@ No hay fuentes de desarrolladores [NC]. Las guías de jugadores de Forza describ
 
 1. Si `VectorForce` persiste entre pasos de física, y cómo se compara con `ApplyImpulse` (auto en el aire, 30 y 60 FPS).
 2. Rigidez y amortiguación máximas estables de una suspensión por raycast con **FPS limitado a 30**, con `Fixed` y con `Adaptive`.
-3. Ruido de la `Normal` en rampas de Terrain: normal por rueda, normal suavizada o el eje "arriba" del chasis.
-4. Qué pasa con `Raycast` si el origen está dentro del Terrain.
+3. ~~Ruido de la `Normal` en rampas.~~ **Medido [V]** por el Agente B con el MCP (revisión del PR #31). Promediar rayos cercanos **no sirve**, porque la ondulación del Terrain tiene un período de unos 4 studs (un vóxel):
+
+   | Rampa | 1 rayo | 4 rayos a 1 stud | 9 rayos en 2×2 studs |
+   | --- | --- | --- | --- |
+   | 5° | 2,80° | 2,80° | 1,88° |
+   | 10° | 5,82° | 5,82° | 5,82° |
+
+   **Consecuencia:** la normal de cada rayo se ignora. La dirección de las fuerzas sale del **plano de los 4 puntos de contacto** de las ruedas (que están separados por más que el período de la ondulación) o del eje "arriba" del chasis. Si hiciera falta algo más limpio, el Agente B puede exponer la normal analítica de la ruta, pero eso sería un contrato nuevo y por ahora no hace falta.
+4. ~~Rayo con origen dentro del Terrain.~~ **Medido [V]:** devuelve `nil`, hacia abajo y hacia arriba, aunque arranque a 1 stud de la superficie. **Consecuencias:**
+   - el rayo arranca bien arriba (por ejemplo, desde el techo del chasis);
+   - el núcleo trata un `nil` repentino con la rueda muy comprimida como "suspensión a tope", no como "rueda en el aire".
+
+   **Además:** la superficie de un relleno de Terrain queda unos 2 studs por encima del límite pedido. El Agente B lo calibra en su WP del terreno. El auto toma la altura **del rayo**, nunca de los datos de la ruta.
 5. Costo en un celular de gama media.
 
 ## Opciones
@@ -163,7 +174,7 @@ Por ejemplo, 30% adelante y 70% atrás.
 - **Por rueda:**
   - suspensión: resorte y amortiguador, con tope y velocidad de compresión filtrada;
   - carga por rueda (CP-2);
-  - neumático: deslizamientos, curva, círculo de fricción y agarre por `SurfaceKind` (CP-3);
+  - neumático: deslizamientos, curva, círculo de fricción y agarre por `SurfaceKind` (CP-3). `GetSurfaceAt` se consulta con el **punto de contacto** del rayo, no con el centro de la rueda. El agarre de cada rueda se filtra con `1 − exp(−k·dt)`, para que el borde nítido entre superficies no cambie el agarre de golpe (sugerencias del Agente B);
   - freno de mano trasero (CP-9).
 - **Tren motriz:**
   - motor: curva de torque y RPM;
