@@ -1,37 +1,109 @@
 --!strict
 -- Valores de ajuste de la ruta y su superficie. Solo datos: nada de lógica.
--- Los iniciales se ajustan después en las pruebas de juego (WP-2).
+-- Los iniciales son los de la configuración G del prototipo (exp/ruta-guia) y se afinan jugando (WP-5).
 
 return table.freeze({
-	ROAD_WIDTH_STUDS = 24,
+	ROAD_WIDTH_STUDS = 16,
 	SHOULDER_WIDTH_STUDS = 4,
 	-- Tiene que ser mayor que la mitad del ancho más la banquina, o el eje cruzaría el borde de la propia curva.
 	MIN_CURVE_RADIUS_STUDS = 60,
-	MAX_SLOPE_DEGREES = 8,
+	-- Se confirma con el experimento de rampas de 15° y 20° antes de subirla más.
+	MAX_SLOPE_DEGREES = 12,
 	INTEGRATION_STEP_STUDS = 2,
 	SEGMENT_LENGTH_STUDS = 256,
 
-	-- El mundo arranca en -120.000 studs y no se recentra (docs/decisiones.md).
-	START_POSITION = vector.create(-120000, 50, 0),
-	MEAN_HEADING = vector.create(1, 0, 0),
-	MAX_HEADING_DEVIATION_DEGREES = 60,
-	MAX_LATERAL_DRIFT_STUDS = 2000,
+	START_POSITION = vector.create(0, 50, 0),
+	START_HEADING_DEGREES = 0,
+	-- La ruta nunca sale de este círculo alrededor del origen.
+	AREA_RADIUS_STUDS = 8000,
+	-- Desde este margen respecto del borde, la guía se inclina hacia el centro.
+	AREA_STEERING_MARGIN_STUDS = 2000,
 
-	-- Reversión a la media del secuenciador.
-	-- Desvío lateral al que el rumbo buscado llega a su máximo.
-	STEERING_DRIFT_SCALE_STUDS = 800,
-	-- Fracción del desvío máximo de rumbo que se busca cuando el desvío lateral es el máximo de la escala.
-	STEERING_GOAL_HEADING_FRACTION = 0.6,
-	-- Fracción del desvío máximo de rumbo a partir de la cual el empuje hacia la media es total.
-	STEERING_ERROR_SCALE_FRACTION = 0.5,
-	-- Qué tan sesgado puede quedar el sorteo del sentido de la curva (0 = parejo, 1 = siempre hacia la media).
-	STEERING_STRENGTH = 0.85,
-	-- Fracción del desvío lateral máximo desde la cual la curva siempre gira hacia la media.
-	STEERING_FORCED_DRIFT_FRACTION = 0.3,
-	-- Colchón para que el rumbo planeado nunca roce el límite por errores de redondeo.
-	HEADING_PLANNING_MARGIN_DEGREES = 0.5,
-	-- Si para respetar el corredor la curva quedaría con menos de esta fracción de su curvatura, se prueba el otro sentido.
-	MIN_CAPPED_PEAK_FRACTION = 0.4,
+	-- Guía grande: puntos de paso sorteados con la semilla.
+	GUIDE_STEP_STUDS = 1200,
+	GUIDE_MAX_TURN_DEGREES = 70,
+	-- Cambios de rumbo que se prueban, en orden fijo, cuando el sorteado no sirve (cada uno a la derecha y a la izquierda).
+	-- Sin 120°: deja esquinas demasiado cerradas.
+	GUIDE_ALTERNATIVE_TURNS_DEGREES = table.freeze({ 30, 60, 90 }),
+	-- Tiene que ser >= LIVE_CLEARANCE_STUDS + 2 * LOCAL_DEVIATION_MAX_STUDS + un margen (200 + 700 + 100).
+	GUIDE_CLEARANCE_STUDS = 1000,
+	-- A cuántos studs por delante de su posición sobre la guía apunta la ruta.
+	GUIDE_TARGET_AHEAD_STUDS = 600,
+	-- Un punto de paso nunca queda más cerca que esto del borde del área.
+	GUIDE_EDGE_MARGIN_STUDS = 1000,
+	-- Distancia más allá del margen de dirección en la que el tirón al centro llega al máximo.
+	GUIDE_PULL_RANGE_STUDS = 1000,
+	-- La guía va por lo menos tantos puntos delante de lo que usa la ruta, para que el retroceso no toque lo usado.
+	GUIDE_AHEAD_WAYPOINTS = 4,
+	-- Cada tantas fallas seguidas, la guía retrocede un punto más.
+	GUIDE_BACKTRACK_FAILS_PER_EXTRA_WAYPOINT = 8,
+	-- Tope de intentos sin avanzar antes de dar la guía por encerrada.
+	GUIDE_FAIL_LIMIT = 600,
+
+	-- Ruta local: el "túnel" alrededor de la guía y el rumbo relativo a ella.
+	LOCAL_DEVIATION_MAX_STUDS = 350,
+	MAX_RELATIVE_HEADING_DEGREES = 100,
+
+	-- Anti-cruce: dos muestras cuyo arcLength difiere en más de LIVE_NEIGHBOR_ARC_STUDS y hasta LIVE_LOOKBACK_STUDS
+	-- tienen que estar a LIVE_CLEARANCE_STUDS o más en el plano. LIVE_CLEARANCE_STUDS tiene que ser mayor que el
+	-- ancho total más las dos banquinas.
+	LIVE_CLEARANCE_STUDS = 200,
+	-- Mayor que lo más largo que se curva sobre sí mismo: una horquilla doble (~780 studs) y un círculo (~380).
+	LIVE_NEIGHBOR_ARC_STUDS = 1200,
+	-- El WP del terreno tiene que liberar todo lo que quede más atrás.
+	LIVE_LOOKBACK_STUDS = 4000,
+	-- Memoria extra para el retroceso. Tiene que ser >= ROAD_BACKTRACK_MAX_PIECES * la pieza más larga.
+	LIVE_BACKTRACK_MEMORY_STUDS = 3500,
+
+	-- Retroceso de la ruta.
+	ROAD_BACKTRACK_MAX_PIECES = 3,
+	-- Cada tantas fallas seguidas, la ruta retrocede una pieza más.
+	ROAD_BACKTRACK_FAILS_PER_EXTRA_PIECE = 6,
+	-- Tope de fallas seguidas (sin pasar del punto más lejano ya logrado) antes de dar la ruta por encerrada.
+	ROAD_FAIL_LIMIT = 600,
+
+	-- Cómo elige el secuenciador la próxima pieza.
+	-- Si la guía queda a más de este ángulo del rumbo, solo se sortean curvas simples.
+	SEQUENCER_CURVES_ONLY_ERROR_DEGREES = 45,
+	-- Error de rumbo a partir del cual el sesgo hacia la guía es máximo.
+	SEQUENCER_FULL_PULL_ERROR_DEGREES = 40,
+	-- Probabilidad de girar hacia la guía con error cero, y cuánto sube con el error: 0,5 + 0,45 = 0,95 como máximo.
+	SEQUENCER_TOWARD_BASE_PROBABILITY = 0.5,
+	SEQUENCER_TOWARD_PULL_GAIN = 0.45,
+	-- Con un error mayor que este ángulo, la pieza siempre gira hacia la guía.
+	SEQUENCER_ALWAYS_TOWARD_ERROR_DEGREES = 90,
+	-- Desde esta fracción del túnel, la probabilidad de girar hacia la guía sube al mínimo indicado.
+	SEQUENCER_OFF_CENTER_FRACTION = 0.6,
+	SEQUENCER_OFF_CENTER_MIN_PROBABILITY = 0.95,
+	-- Las horquillas dobles solo se sortean mientras la ruta esté dentro de esta fracción del túnel.
+	SEQUENCER_HAIRPIN_MAX_OFFSET_FRACTION = 0.8,
+	-- Salida de emergencia: si el rumbo al objetivo difiere más que esto, tiene que caber un giro cerrado.
+	ESCAPE_MIN_HEADING_ERROR_DEGREES = 3,
+	-- Fracción de cada giro cerrado que se usa para subir la curvatura (y otra igual para bajarla).
+	TIGHT_TURN_RAMP_FRACTION = 0.25,
+	-- Recta corta de la última alternativa, en pasos de integración.
+	EMERGENCY_STRAIGHT_STEPS = 20,
+	-- Al acortar una pieza se queda con esta fracción de cada lóbulo, con un mínimo de pasos de integración.
+	SHORTENED_PIECE_FRACTION = 0.5,
+	MIN_SHORTENED_LOBE_STEPS = 4,
+	-- Último recurso: giros de radio mínimo hacia la guía, del más largo al más corto, en pasos de integración.
+	LAST_RESORT_LOBE_STEPS = table.freeze({ 60, 40, 24, 12 }),
+
+	-- Perfil de cerros (HillProfile).
+	HILL_BASE_HEIGHT_STUDS = 50,
+	HILL_AMPLITUDE_STUDS = 120,
+	HILL_WAVELENGTH_STUDS = 900,
+	HILL_OCTAVES = 3,
+	-- La ruta nunca sale de esta franja de alturas.
+	HILL_MIN_HEIGHT_STUDS = -150,
+	HILL_MAX_HEIGHT_STUDS = 250,
+	HILL_MAX_SLOPE_CHANGE_DEGREES_PER_STEP = 0.5,
+	-- A cuántos studs por delante apunta la altura objetivo: cuanto más, más suave el seguimiento.
+	HILL_LOOKAHEAD_STUDS = 225,
+	-- Una octava tiene la amplitud y la longitud de onda de la anterior multiplicadas por estos factores.
+	HILL_OCTAVE_AMPLITUDE_FACTOR = 0.5,
+	HILL_OCTAVE_WAVELENGTH_FACTOR = 0.5,
+	HILL_NOISE_OFFSET_RANGE = 10000,
 
 	-- Manchones de barro: ruido con semilla, solo más allá de la banquina.
 	MUD_NOISE_SCALE_PER_STUD = 0.01,
