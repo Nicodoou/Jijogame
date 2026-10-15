@@ -43,7 +43,7 @@ La hizo el subagente `investigador` el 2026-10-14. Las marcas significan: **[V]*
   - el contenido creado en el cliente no sale por streaming [V] ([streaming](https://create.roblox.com/docs/workspace/streaming)).
 - **Materiales:** `Ground`, `Grass`, `LeafyGrass` y `Mud` existen [V]. Los `MaterialVariant` aplican al Terrain solo como reemplazo global del lugar [V] ([materiales](https://create.roblox.com/docs/parts/materials)).
 - **RC-11:** el Terrain es una sola instancia, así que lo cumple sin esfuerzo.
-- **Tope del mundo:** ±128.000 studs [V]. Ver "Riesgo: distancia al origen" en `ruta.md`.
+- **Tope del mundo:** la documentación dice ±128.000 studs [V], pero en la práctica se escribió y se leyó Terrain hasta 2.000.000 [E] (experimento del 2026-10-15, en `ruta.md`, "Riesgo nuevo: distancia al origen").
 - **Memoria:** se mide con las etiquetas `TerrainVoxels` y `GraphicsTerrain` de `Stats` [V]. Si al borrar un tramo (escribiendo aire) se devuelve memoria está [NC].
 - **Lo nuevo de 2026** (Early Access de Terrain, path splines, SDF): no está disponible para jugadores fuera del programa [S], así que **no sirve para el MVP**.
 
