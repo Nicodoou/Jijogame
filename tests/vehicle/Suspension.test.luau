@@ -16,10 +16,11 @@ local MAX_COMPRESSION = VehicleConfig.SUSPENSION_MAX_COMPRESSION_STUDS
 local STATIC_LOAD = MASS * GRAVITY / WHEEL_COUNT
 local SPRING_RATE = MASS / WHEEL_COUNT * (2 * math.pi * VehicleConfig.SUSPENSION_FREQUENCY_HZ) ^ 2
 
-local function wheelWith(compression: number, compressionSpeed: number?): WheelState
+local function wheelWith(compression: number, compressionSpeed: number?, missedSteps: number?): WheelState
 	return {
 		compressionStuds = compression,
 		compressionSpeed = compressionSpeed or 0,
+		missedContactSteps = missedSteps or 0,
 		gripMultiplier = 1,
 		rollingResistance = 0.015,
 		isGrounded = compression > 0,
@@ -147,6 +148,26 @@ Runner.test("a wheel without contact that was bottomed out stays on the ground",
 	end
 	Runner.expectNear(forceWithoutContact, SPRING_RATE * MAX_COMPRESSION, 1e-6)
 	Runner.expectNear(forceWithMiss, SPRING_RATE * MAX_COMPRESSION, 1e-6)
+end)
+
+Runner.test("a bottomed out wheel stays on the ground for a limited number of steps without contact", function()
+	local wheel = wheelWith(MAX_COMPRESSION)
+	local maxMissed = VehicleConfig.BOTTOM_OUT_MAX_MISSED_STEPS
+	for step = 1, maxMissed do
+		wheel = stepOnce(wheel, nil, 0)
+		Runner.expectEqual(wheel.isGrounded, true)
+		Runner.expectEqual(wheel.missedContactSteps, step)
+	end
+	local released, force = stepOnce(wheel, nil, 0)
+	Runner.expectEqual(released.isGrounded, false)
+	Runner.expectEqual(released.compressionStuds, 0)
+	Runner.expectEqual(force, 0)
+end)
+
+Runner.test("a hit resets the count of steps without contact", function()
+	local wheel = stepOnce(wheelWith(MAX_COMPRESSION, 0, 2), hitAt(REACH - 1), 0)
+	Runner.expectEqual(wheel.missedContactSteps, 0)
+	Runner.expectEqual(wheel.compressionStuds, 1)
 end)
 
 Runner.test("an airborne wheel keeps its grip values", function()

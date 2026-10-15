@@ -18,6 +18,7 @@ function SurfaceGrip.newWheelState(config: VehicleSettings?): WheelState
 	return {
 		compressionStuds = 0,
 		compressionSpeed = 0,
+		missedContactSteps = 0,
 		gripMultiplier = settings.SURFACE_GRIP[INITIAL_SURFACE],
 		rollingResistance = settings.SURFACE_ROLLING_RESISTANCE[INITIAL_SURFACE],
 		isGrounded = false,
@@ -30,6 +31,7 @@ function SurfaceGrip.step(wheel: WheelState, surface: SurfaceKind?, dt: number, 
 	local nextWheel: WheelState = {
 		compressionStuds = wheel.compressionStuds,
 		compressionSpeed = wheel.compressionSpeed,
+		missedContactSteps = wheel.missedContactSteps,
 		gripMultiplier = wheel.gripMultiplier,
 		rollingResistance = wheel.rollingResistance,
 		isGrounded = wheel.isGrounded,

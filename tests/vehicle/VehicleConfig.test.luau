@@ -4,6 +4,7 @@ local VehicleConfig = require("../../src/vehicle/core/VehicleConfig")
 
 local MAX_SUSPENSION_FREQUENCY_HZ = 4
 local DEFAULT_GRAVITY = 196.2
+local MAX_STATIC_COMPRESSION_FRACTION = 0.6
 
 Runner.test("the suspension frequency is not above the limit found in #32", function()
 	Runner.expectEqual(VehicleConfig.SUSPENSION_FREQUENCY_HZ <= MAX_SUSPENSION_FREQUENCY_HZ, true)
@@ -55,10 +56,13 @@ Runner.test("the top speed in the last gear at the redline is about 150 studs pe
 	Runner.expectNear(topSpeed, 150, 15)
 end)
 
-Runner.test("the static compression at the default gravity fits inside the suspension travel", function()
+Runner.test("the static compression at the default gravity is at most 60% of the suspension travel", function()
 	local angularFrequency = 2 * math.pi * VehicleConfig.SUSPENSION_FREQUENCY_HZ
 	local staticCompression = DEFAULT_GRAVITY / (angularFrequency * angularFrequency)
-	Runner.expectEqual(staticCompression < VehicleConfig.SUSPENSION_MAX_COMPRESSION_STUDS, true)
+	Runner.expectEqual(
+		staticCompression <= MAX_STATIC_COMPRESSION_FRACTION * VehicleConfig.SUSPENSION_MAX_COMPRESSION_STUDS,
+		true
+	)
 	Runner.expectEqual(VehicleConfig.BOTTOM_OUT_FRACTION > 0 and VehicleConfig.BOTTOM_OUT_FRACTION < 1, true)
 end)
 

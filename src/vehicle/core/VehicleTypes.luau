@@ -40,6 +40,7 @@ export type WheelContact = {
 export type WheelState = {
 	compressionStuds: number,
 	compressionSpeed: number,
+	missedContactSteps: number,
 	gripMultiplier: number,
 	rollingResistance: number,
 	isGrounded: boolean,

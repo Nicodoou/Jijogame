@@ -37,9 +37,18 @@ local function compressionFromContact(contact: WheelContact, settings: VehicleSe
 	return math.clamp(compression, 0, settings.SUSPENSION_MAX_COMPRESSION_STUDS)
 end
 
--- Suspensión a tope (#31): si el rayo ya no pega pero la rueda venía casi a fondo, sigue apoyada.
+-- Suspensión a tope (#31): si el rayo ya no pega pero la rueda venía casi a fondo, sigue apoyada, pero solo
+-- unos pasos seguidos: pasado ese tiempo se asume que la rueda se despegó de verdad.
 local function wasBottomedOut(wheel: WheelState, settings: VehicleSettings): boolean
-	return wheel.compressionStuds >= settings.BOTTOM_OUT_FRACTION * settings.SUSPENSION_MAX_COMPRESSION_STUDS
+	local wasDeep = wheel.compressionStuds >= settings.BOTTOM_OUT_FRACTION * settings.SUSPENSION_MAX_COMPRESSION_STUDS
+	return wasDeep and wheel.missedContactSteps < settings.BOTTOM_OUT_MAX_MISSED_STEPS
+end
+
+local function countMissedSteps(wheel: WheelState, contact: WheelContact?, settings: VehicleSettings): number
+	if contact ~= nil and contact.hasHit then
+		return 0
+	end
+	return math.min(wheel.missedContactSteps + 1, settings.BOTTOM_OUT_MAX_MISSED_STEPS)
 end
 
 local function resolveCompression(
@@ -70,6 +79,7 @@ function Suspension.step(
 	local nextWheel: WheelState = {
 		compressionStuds = compression,
 		compressionSpeed = 0,
+		missedContactSteps = countMissedSteps(wheel, contact, settings),
 		gripMultiplier = wheel.gripMultiplier,
 		rollingResistance = wheel.rollingResistance,
 		isGrounded = isGrounded,

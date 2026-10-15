@@ -24,6 +24,8 @@ return table.freeze({
 	SUSPENSION_MAX_FORCE_PER_STATIC_LOAD = 4,
 	-- Si la rueda venía comprimida más que esta fracción del recorrido y el rayo no pega, sigue apoyada (#31).
 	BOTTOM_OUT_FRACTION = 0.8,
+	-- Máximo de pasos seguidos sin contacto en los que la rueda se sigue considerando a tope.
+	BOTTOM_OUT_MAX_MISSED_STEPS = 3,
 	COMPRESSION_SPEED_FILTER_RATE = 30,
 
 	-- Neumático.
@@ -50,7 +52,7 @@ return table.freeze({
 	}),
 	IDLE_RPM = 1000,
 	REDLINE_RPM = 7000,
-	FIRST_GEAR_PEAK_ACCELERATION = 60,
+	FIRST_GEAR_PEAK_ACCELERATION = 110,
 
 	-- Caja.
 	GEAR_RATIOS = table.freeze({ 3.5, 2.3, 1.65, 1.25, 1.0 }),
