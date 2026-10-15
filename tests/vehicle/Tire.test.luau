@@ -142,4 +142,34 @@ Runner.test("the combined force never goes over the friction circle for many req
 	end
 end)
 
+Runner.test("the linear lateral force has no limit and opposes the slip", function()
+	Runner.expectNear(Tire.linearLateralForce(0.5, LOAD), -STIFFNESS * LOAD * 0.5, 1e-6)
+	Runner.expectNear(Tire.linearLateralForce(-0.5, LOAD), STIFFNESS * LOAD * 0.5, 1e-6)
+	Runner.expectEqual(Tire.linearLateralForce(0, LOAD), 0)
+end)
+
+Runner.test("combine measures the slip ratio with the requested lateral force before any cap", function()
+	local _, lateral, slipRatio, isSliding = Tire.combine(0, 0.5 * PEAK_FORCE, LOAD, GRIP, 2 * PEAK_FORCE)
+	Runner.expectNear(lateral, 0.5 * PEAK_FORCE, 1e-9)
+	Runner.expectNear(slipRatio, 2, 1e-9)
+	Runner.expectEqual(isSliding, true)
+end)
+
+Runner.test("a pure corner past the peak angle reports sliding even though the force sits at the limit", function()
+	local slip = PEAK_ANGLE * 3
+	local capped = Tire.lateralForce(slip, LOAD, GRIP)
+	local _, lateral, slipRatio, isSliding = Tire.combine(0, capped, LOAD, GRIP, Tire.linearLateralForce(slip, LOAD))
+	Runner.expectNear(math.abs(lateral), PEAK_FORCE, 1e-6)
+	Runner.expectNear(slipRatio, 3, 1e-9)
+	Runner.expectEqual(isSliding, true)
+end)
+
+Runner.test("below the peak angle a corner is not sliding", function()
+	local slip = PEAK_ANGLE * 0.5
+	local _, _, slipRatio, isSliding =
+		Tire.combine(0, Tire.lateralForce(slip, LOAD, GRIP), LOAD, GRIP, Tire.linearLateralForce(slip, LOAD))
+	Runner.expectNear(slipRatio, 0.5, 1e-9)
+	Runner.expectEqual(isSliding, false)
+end)
+
 Runner.finish()

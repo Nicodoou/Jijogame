@@ -49,7 +49,8 @@ local function buildContext(
 	controls: VehicleControls,
 	chassis: ChassisSample,
 	contacts: { WheelContact? },
-	settings: VehicleSettings
+	settings: VehicleSettings,
+	stepSeconds: number
 ): WheelForces.StepContext
 	local forwardSpeed = vector.dot(chassis.linearVelocity, chassis.forward)
 	local driftAngle = Tire.slipAngle(vector.dot(chassis.linearVelocity, chassis.right), forwardSpeed, settings)
@@ -70,6 +71,7 @@ local function buildContext(
 		contactUp = ContactPlane.upDirection(ContactPlane.hitPoints(contacts, settings), chassis.up, settings),
 		offsets = offsets,
 		velocities = velocities,
+		stepSeconds = stepSeconds,
 	}
 end
 
@@ -171,11 +173,12 @@ function VehicleSimulator.step(
 	config: VehicleSettings?
 ): (VehicleState, { WheelOutput }, VehicleFeedback)
 	local settings = config or VehicleConfig
-	local context = buildContext(sanitizeControls(controls), chassis, contacts, settings)
-	if not VehicleMath.isUsableStep(dt) then
+	local isUsable = VehicleMath.isUsableStep(dt)
+	local stepSeconds = if isUsable then math.min(dt, settings.MAX_STEP_SECONDS) else 0
+	local context = buildContext(sanitizeControls(controls), chassis, contacts, settings, stepSeconds)
+	if not isUsable then
 		return idleStep(state, context)
 	end
-	local stepSeconds = math.min(dt, settings.MAX_STEP_SECONDS)
 	local wheels, loads = updateWheels(state, contacts, context, stepSeconds)
 	local driveState, driveShares = advanceDrivetrain(state, context, stepSeconds)
 	local outputs, feedbacks = WheelForces.simulateWheels(context, wheels, loads, contacts, driveState, driveShares)

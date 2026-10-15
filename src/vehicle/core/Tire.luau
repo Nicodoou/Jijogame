@@ -17,6 +17,12 @@ function Tire.slipAngle(lateralSpeed: number, longitudinalSpeed: number, config:
 	return math.atan2(lateralSpeed, reference)
 end
 
+-- La fuerza lateral lineal sin tope: lo que el neumático "pide" por su ángulo de deslizamiento.
+function Tire.linearLateralForce(slipAngle: number, load: number, config: VehicleSettings?): number
+	local settings = config or VehicleConfig
+	return -settings.TIRE_CORNERING_STIFFNESS_PER_RADIAN * load * slipAngle
+end
+
 -- Lineal hasta el ángulo del pico; después baja hasta SLIDE_FRICTION_RATIO · tope al doble de ese ángulo.
 function Tire.lateralForce(slipAngle: number, load: number, grip: number, config: VehicleSettings?): number
 	local settings = config or VehicleConfig
@@ -36,12 +42,14 @@ function Tire.lateralForce(slipAngle: number, load: number, grip: number, config
 end
 
 -- Devuelve la fuerza longitudinal y la lateral ya recortadas al círculo, el cociente entre lo pedido y lo
--- disponible (0 si no hay carga) y si el neumático está deslizando (pidió más de lo que agarra).
+-- disponible (0 si no hay carga) y si el neumático está deslizando (pidió más de lo que agarra). Lo pedido es
+-- antes de cualquier tope: `requestedLateral` es la lateral lineal sin recortar (si falta, se usa `lateral`).
 function Tire.combine(
 	longitudinal: number,
 	lateral: number,
 	load: number,
 	grip: number,
+	requestedLateral: number?,
 	config: VehicleSettings?
 ): (number, number, number, boolean)
 	local settings = config or VehicleConfig
@@ -49,12 +57,13 @@ function Tire.combine(
 	if not (available > 0) then
 		return 0, 0, 0, false
 	end
-	local requested = math.sqrt(longitudinal * longitudinal + lateral * lateral)
-	local slipRatio = requested / available
-	if slipRatio <= 1 then
-		return longitudinal, lateral, slipRatio, false
+	local asked = requestedLateral or lateral
+	local slipRatio = math.sqrt(longitudinal * longitudinal + asked * asked) / available
+	local forceRatio = math.sqrt(longitudinal * longitudinal + lateral * lateral) / available
+	if forceRatio <= 1 then
+		return longitudinal, lateral, slipRatio, slipRatio > 1
 	end
-	return longitudinal / slipRatio, lateral / slipRatio, slipRatio, true
+	return longitudinal / forceRatio, lateral / forceRatio, slipRatio, slipRatio > 1
 end
 
 return Tire

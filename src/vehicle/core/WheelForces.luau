@@ -3,6 +3,7 @@
 -- Lo usa VehicleSimulator en el paso 6 y 7 de su orden.
 local Drivetrain = require("./Drivetrain")
 local Tire = require("./Tire")
+local VehicleMath = require("./VehicleMath")
 local VehicleTypes = require("./VehicleTypes")
 
 type ChassisSample = VehicleTypes.ChassisSample
@@ -26,6 +27,7 @@ export type StepContext = {
 	contactUp: vector,
 	offsets: { vector },
 	velocities: { vector },
+	stepSeconds: number,
 }
 
 local WheelForces = {}
@@ -84,13 +86,33 @@ local function groundedWheel(
 	local longitudinalSpeed = vector.dot(velocity, forwardAxis)
 	local lateralSpeed = vector.dot(velocity, sideAxis)
 	local slipAngle = Tire.slipAngle(lateralSpeed, longitudinalSpeed, settings)
+	local wheelCount = #settings.WHEELS
+	local brake = Drivetrain.brakeForce(
+		driveState,
+		context.controls,
+		context.mass,
+		isFront,
+		longitudinalSpeed,
+		load,
+		context.stepSeconds,
+		settings
+	)
+	local rollingLimit =
+		VehicleMath.opposingForceLimit(context.mass, wheelCount, longitudinalSpeed, context.stepSeconds)
 	local rollingDirection = math.clamp(longitudinalSpeed / settings.BRAKE_REGULARIZATION_SPEED, -1, 1)
-	local requestedLongitudinal = driveShare
-		+ Drivetrain.brakeForce(driveState, context.controls, context.mass, isFront, longitudinalSpeed, load, settings)
-		- rollingDirection * wheel.rollingResistance * load
-	local requestedLateral = Tire.lateralForce(slipAngle, load, wheel.gripMultiplier, settings)
-	local longitudinal, lateral, slipRatio, isSliding =
-		Tire.combine(requestedLongitudinal, requestedLateral, load, wheel.gripMultiplier, settings)
+	local rolling = rollingDirection
+		* math.min(wheel.rollingResistance * load, math.max(0, rollingLimit - math.abs(brake)))
+	local lateralLimit = VehicleMath.opposingForceLimit(context.mass, wheelCount, lateralSpeed, context.stepSeconds)
+	local limitedLateral =
+		math.clamp(Tire.lateralForce(slipAngle, load, wheel.gripMultiplier, settings), -lateralLimit, lateralLimit)
+	local longitudinal, lateral, slipRatio, isSliding = Tire.combine(
+		driveShare + brake - rolling,
+		limitedLateral,
+		load,
+		wheel.gripMultiplier,
+		Tire.linearLateralForce(slipAngle, load, settings),
+		settings
+	)
 	local output: WheelOutput = {
 		force = context.contactUp * load + forwardAxis * longitudinal + sideAxis * lateral,
 		isGrounded = true,

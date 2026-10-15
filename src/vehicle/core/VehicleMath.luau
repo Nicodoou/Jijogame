@@ -28,4 +28,10 @@ function VehicleMath.smoothingAlpha(rate: number, dt: number): number
 	return 1 - math.exp(-rate * dt)
 end
 
+-- Fuerza máxima de una rueda que se opone a su movimiento: la que alcanza justo para frenar su parte de la masa
+-- en un paso. Con las fuerzas fijas durante el cuadro, una fuerza mayor invertiría la velocidad y haría oscilar.
+function VehicleMath.opposingForceLimit(mass: number, wheelCount: number, speed: number, dt: number): number
+	return mass / wheelCount * math.abs(speed) / dt
+end
+
 return VehicleMath

@@ -2,6 +2,7 @@
 -- Motor, caja automática, reparto de tracción y frenos (CP-4, CP-9 y T1). Sin inercia de rueda:
 -- la fuerza longitudinal sale del motor y del freno, y el círculo de fricción del neumático la recorta.
 local VehicleConfig = require("./VehicleConfig")
+local VehicleMath = require("./VehicleMath")
 local VehicleTypes = require("./VehicleTypes")
 
 type VehicleState = VehicleTypes.VehicleState
@@ -131,7 +132,7 @@ function Drivetrain.split(force: number, config: VehicleSettings?): { number }
 end
 
 -- Fuerza de frenado de una rueda. Va contra la velocidad longitudinal de esa rueda y se apaga por debajo de
--- BRAKE_REGULARIZATION_SPEED para no oscilar cerca de 0. El freno de mano actúa solo atrás.
+-- BRAKE_REGULARIZATION_SPEED para no oscilar cerca de 0; nunca supera lo que frena la rueda en un paso. El freno de mano actúa solo atrás.
 function Drivetrain.brakeForce(
 	state: VehicleState,
 	controls: VehicleControls,
@@ -139,6 +140,7 @@ function Drivetrain.brakeForce(
 	isFront: boolean,
 	longitudinalSpeed: number,
 	load: number,
+	dt: number,
 	config: VehicleSettings?
 ): number
 	local settings = config or VehicleConfig
@@ -149,7 +151,8 @@ function Drivetrain.brakeForce(
 		maxForce += settings.HANDBRAKE_FORCE_PER_LOAD * load
 	end
 	local direction = math.clamp(longitudinalSpeed / settings.BRAKE_REGULARIZATION_SPEED, -1, 1)
-	return -direction * maxForce
+	local limit = VehicleMath.opposingForceLimit(mass, #settings.WHEELS, longitudinalSpeed, dt)
+	return math.clamp(-direction * maxForce, -limit, limit)
 end
 
 return Drivetrain

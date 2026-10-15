@@ -10,6 +10,8 @@ type VehicleControls = VehicleTypes.VehicleControls
 local MASS = 1000
 local FRAME_SECONDS = 1 / 30
 local TOLERANCE = 1e-9
+-- Un dt tan chico que el tope por paso no actúa.
+local NO_LIMIT_DT = 1e-6
 local GEAR_COUNT = #VehicleConfig.GEAR_RATIOS
 
 local function stateIn(gear: number, shiftRemaining: number?): VehicleState
@@ -233,15 +235,15 @@ end)
 
 Runner.test("the brake pushes against the motion of the wheel", function()
 	local state = stateIn(1)
-	Runner.expectEqual(Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, 20, 50000) < 0, true)
-	Runner.expectEqual(Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, -20, 50000) > 0, true)
-	Runner.expectEqual(Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, 0, 50000), 0)
+	Runner.expectEqual(Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, 20, 50000, NO_LIMIT_DT) < 0, true)
+	Runner.expectEqual(Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, -20, 50000, NO_LIMIT_DT) > 0, true)
+	Runner.expectEqual(Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, 0, 50000, NO_LIMIT_DT), 0)
 end)
 
 Runner.test("the brake force splits between the axles with the front bias", function()
 	local state = stateIn(1)
-	local front = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, 20, 50000)
-	local rear = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, false, 20, 50000)
+	local front = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, 20, 50000, NO_LIMIT_DT)
+	local rear = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, false, 20, 50000, NO_LIMIT_DT)
 	Runner.expectNear(front, -MASS * VehicleConfig.BRAKE_DECELERATION * VehicleConfig.BRAKE_FRONT_BIAS / 2, 1e-6)
 	Runner.expectNear(rear, -MASS * VehicleConfig.BRAKE_DECELERATION * (1 - VehicleConfig.BRAKE_FRONT_BIAS) / 2, 1e-6)
 	Runner.expectNear(2 * (front + rear), -MASS * VehicleConfig.BRAKE_DECELERATION, 1e-6)
@@ -249,46 +251,90 @@ end)
 
 Runner.test("the brake fades out below the regularization speed", function()
 	local state = stateIn(1)
-	local full =
-		Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, VehicleConfig.BRAKE_REGULARIZATION_SPEED, 0)
-	local half =
-		Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, VehicleConfig.BRAKE_REGULARIZATION_SPEED / 2, 0)
+	local full = Drivetrain.brakeForce(
+		state,
+		controlsWith(0, 1),
+		MASS,
+		true,
+		VehicleConfig.BRAKE_REGULARIZATION_SPEED,
+		0,
+		NO_LIMIT_DT
+	)
+	local half = Drivetrain.brakeForce(
+		state,
+		controlsWith(0, 1),
+		MASS,
+		true,
+		VehicleConfig.BRAKE_REGULARIZATION_SPEED / 2,
+		0,
+		NO_LIMIT_DT
+	)
 	Runner.expectNear(half, full / 2, 1e-6)
-	local above =
-		Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, VehicleConfig.BRAKE_REGULARIZATION_SPEED * 50, 0)
+	local above = Drivetrain.brakeForce(
+		state,
+		controlsWith(0, 1),
+		MASS,
+		true,
+		VehicleConfig.BRAKE_REGULARIZATION_SPEED * 50,
+		0,
+		NO_LIMIT_DT
+	)
 	Runner.expectEqual(above, full)
 end)
 
 Runner.test("the brake force is proportional to the pedal", function()
 	local state = stateIn(1)
-	local full = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, false, 30, 0)
-	Runner.expectNear(Drivetrain.brakeForce(state, controlsWith(0, 0.25), MASS, false, 30, 0), full / 4, 1e-6)
-	Runner.expectEqual(Drivetrain.brakeForce(state, controlsWith(0, 0), MASS, false, 30, 0), 0)
+	local full = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, false, 30, 0, NO_LIMIT_DT)
+	Runner.expectNear(
+		Drivetrain.brakeForce(state, controlsWith(0, 0.25), MASS, false, 30, 0, NO_LIMIT_DT),
+		full / 4,
+		1e-6
+	)
+	Runner.expectEqual(Drivetrain.brakeForce(state, controlsWith(0, 0), MASS, false, 30, 0, NO_LIMIT_DT), 0)
 end)
 
 Runner.test("the handbrake brakes only the rear wheels, in proportion to their load", function()
 	local state = stateIn(1)
 	local load = 50000
-	local rear = Drivetrain.brakeForce(state, controlsWith(0, 0, true), MASS, false, 30, load)
-	local front = Drivetrain.brakeForce(state, controlsWith(0, 0, true), MASS, true, 30, load)
+	local rear = Drivetrain.brakeForce(state, controlsWith(0, 0, true), MASS, false, 30, load, NO_LIMIT_DT)
+	local front = Drivetrain.brakeForce(state, controlsWith(0, 0, true), MASS, true, 30, load, NO_LIMIT_DT)
 	Runner.expectNear(rear, -VehicleConfig.HANDBRAKE_FORCE_PER_LOAD * load, 1e-6)
 	Runner.expectEqual(front, 0)
-	local lighter = Drivetrain.brakeForce(state, controlsWith(0, 0, true), MASS, false, 30, load / 2)
+	local lighter = Drivetrain.brakeForce(state, controlsWith(0, 0, true), MASS, false, 30, load / 2, NO_LIMIT_DT)
 	Runner.expectNear(lighter, rear / 2, 1e-6)
 end)
 
 Runner.test("the handbrake adds to the brake pedal at the rear", function()
 	local state = stateIn(1)
-	local pedalOnly = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, false, 30, 40000)
-	local both = Drivetrain.brakeForce(state, controlsWith(0, 1, true), MASS, false, 30, 40000)
+	local pedalOnly = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, false, 30, 40000, NO_LIMIT_DT)
+	local both = Drivetrain.brakeForce(state, controlsWith(0, 1, true), MASS, false, 30, 40000, NO_LIMIT_DT)
 	Runner.expectNear(both, pedalOnly - VehicleConfig.HANDBRAKE_FORCE_PER_LOAD * 40000, 1e-6)
 end)
 
 Runner.test("in reverse the throttle is the brake", function()
 	local reverse = stateIn(-1)
-	local throttleBrake = Drivetrain.brakeForce(reverse, controlsWith(1, 0), MASS, true, -20, 0)
+	local throttleBrake = Drivetrain.brakeForce(reverse, controlsWith(1, 0), MASS, true, -20, 0, NO_LIMIT_DT)
 	Runner.expectEqual(throttleBrake > 0, true)
-	Runner.expectEqual(Drivetrain.brakeForce(reverse, controlsWith(0, 1), MASS, true, -20, 0), 0)
+	Runner.expectEqual(Drivetrain.brakeForce(reverse, controlsWith(0, 1), MASS, true, -20, 0, NO_LIMIT_DT), 0)
+end)
+
+Runner.test("the brake never takes more speed from the wheel than it has in one step", function()
+	local state = stateIn(1)
+	local wheelCount = 4
+	local speed = 0.8
+	local force = Drivetrain.brakeForce(state, controlsWith(0, 1, true), MASS, false, speed, 50000, FRAME_SECONDS)
+	local limit = MASS / wheelCount * speed / FRAME_SECONDS
+	Runner.expectNear(force, -limit, 1e-6)
+	local backwards = Drivetrain.brakeForce(state, controlsWith(0, 1, true), MASS, false, -speed, 50000, FRAME_SECONDS)
+	Runner.expectNear(backwards, limit, 1e-6)
+	Runner.expectEqual(Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, 0, 50000, FRAME_SECONDS), 0)
+end)
+
+Runner.test("a longer step lowers the brake limit and a shorter one raises it", function()
+	local state = stateIn(1)
+	local long = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, 0.5, 0, 0.1)
+	local short = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, 0.5, 0, 0.01)
+	Runner.expectEqual(math.abs(long) < math.abs(short), true)
 end)
 
 Runner.test("functions do not modify their arguments", function()
@@ -298,7 +344,7 @@ Runner.test("functions do not modify their arguments", function()
 	table.freeze(controls)
 	Drivetrain.nextGear(state, 6500, 60, controls, FRAME_SECONDS)
 	Drivetrain.driveForce(state, controls, 4000, MASS)
-	Drivetrain.brakeForce(state, controls, MASS, true, 30, 40000)
+	Drivetrain.brakeForce(state, controls, MASS, true, 30, 40000, NO_LIMIT_DT)
 	Runner.expectEqual(state.gear, 2)
 end)
 

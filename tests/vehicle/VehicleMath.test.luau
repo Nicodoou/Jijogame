@@ -39,4 +39,14 @@ Runner.test("smoothingAlpha is between zero and one and grows with the rate and 
 	Runner.expectEqual(VehicleMath.smoothingAlpha(20, 0.1) > VehicleMath.smoothingAlpha(10, 0.1), true)
 end)
 
+Runner.test("opposingForceLimit is the force that stops the share of the mass in one step", function()
+	Runner.expectNear(VehicleMath.opposingForceLimit(1000, 4, 2, 0.1), 5000, 1e-9)
+	Runner.expectEqual(
+		VehicleMath.opposingForceLimit(1000, 4, -2, 0.1),
+		VehicleMath.opposingForceLimit(1000, 4, 2, 0.1)
+	)
+	Runner.expectEqual(VehicleMath.opposingForceLimit(1000, 4, 0, 0.1), 0)
+	Runner.expectEqual(VehicleMath.opposingForceLimit(0, 4, 50, 0.1), 0)
+end)
+
 Runner.finish()
