@@ -24,6 +24,18 @@ La hizo el subagente `investigador` el 2026-10-14. Las marcas significan: **[V]*
 
   Entra holgado en un presupuesto por frame. En el foro hay quejas de tirones con escrituras grandes [S]. En celular está [NC].
 - **Planicidad [E]:** una franja escrita a una altura que no es múltiplo de 4 (21,3 studs) quedó **perfectamente plana** (441 rayos, variación 0). Quedó 2 studs más arriba de lo pedido, así que hay que calibrar la fórmula de ocupación.
+- **Rampas [E]** (pedido de A en el PR #21): rampas de 2°, 5° y 10°, medidas con 301 rayos cada 0,4 studs a lo largo de 120 studs.
+
+  | Pendiente | Ondulación de la altura | Desvío máximo de la normal | Salto máximo entre muestras vecinas |
+  | --- | --- | --- | --- |
+  | 2° | 0,06 studs | 1,7° | 0,012 studs |
+  | 5° | 0,11 studs | 2,8° | 0,020 studs |
+  | 10° | 0,25 studs | 5,8° | 0,043 studs |
+
+  - **No hay escalones de vóxel:** la superficie es continua.
+  - **Hay una ondulación suave:** la altura sube y baja hasta 0,25 studs y la normal se desvía hasta más o menos la mitad de la pendiente.
+  - El corrimiento constante de unos 2 studs se repite (es el de la fórmula de ocupación, que se calibra).
+  - **Consecuencia para el auto:** si la suspensión usa la normal de un solo rayo, la va a sentir. Hay dos mitigaciones posibles, que se acuerdan con A: promediar varios rayos por rueda, o que el mundo exponga la normal analítica de la ruta (sale de la poligonal del eje).
 - **Resolución:** vóxeles de 4 studs [V]. La superficie es lisa, pero el borde entre materiales (por ejemplo, entre la ruta y el pasto) cae en la grilla de 4 studs.
 - **Cliente o servidor:**
   - lo que escribe el servidor se replica [V];

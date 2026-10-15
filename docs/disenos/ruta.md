@@ -148,24 +148,24 @@ Cubre toda el área de Calles infinitas (`src/world/`): la ruta (#9) y el terren
 `docs/reglas-de-trabajo.md` (sección 3) pide que la generación del mundo se decida en el servidor. Con G1 se cumple así:
 
 - **El servidor decide la semilla** y se la manda al cliente. El cliente nunca elige la semilla.
-- **El núcleo de la ruta es puro y compartido** (`src/world/shared/core/`). Con la misma semilla, el servidor puede recalcular la ruta (sin terreno, que es caro) para validar que la posición que reporta el auto sea creíble. Esa validación es del área de Conducción o de una capa de servidor futura; acá solo se deja posible.
+- **El núcleo es puro y lo pueden usar los dos lados** (`src/world/core/`, que Rojo mapea a `ReplicatedStorage`). Con la misma semilla, el servidor puede recalcular la ruta (sin terreno, que es caro) para validar que la posición que reporta el auto sea creíble. Esa validación es del área de Conducción o de una capa de servidor futura; acá solo se deja posible.
 - **El cliente solo construye** lo visual y lo físico local: el Terrain, y más adelante el decorado.
 
 ### Capas
 
-Las dependencias van en una sola dirección: **adaptadores → núcleo**. El núcleo no conoce a Roblox.
+Sigue la arquitectura general de #6 (`politica-de-codigo.md`): contratos ← núcleo ← adaptadores ← arranque (`src/app/`). El núcleo no conoce a Roblox.
 
 ```
 src/world/
-  shared/core/          núcleo puro (CLI luau, 87% de cobertura): ruta, consultas y superficie
-  client/core/          núcleo puro del lado cliente: alturas del terreno, vóxeles y planificación
+  core/                 núcleo puro (CLI luau, 87% de cobertura): ruta, consultas, superficie y terreno
   client/               adaptadores a Roblox: Terrain, loop por frame y proveedores de contratos
   server/               adaptador: elige la semilla y la manda
+tests/world/            pruebas del núcleo
 ```
 
-El núcleo de la ruta va en `shared/` porque lo usan los dos lados. El del terreno, solo el cliente.
+Todo el núcleo va junto en `core/`, para que entre en la medición de `src/*/core/**`. Los módulos de terreno los usa solo el cliente, pero son puros igual.
 
-#### Núcleo compartido (`src/world/shared/core/`)
+#### Núcleo: ruta, consultas y superficie
 
 | Módulo | Responsabilidad | No hace |
 | --- | --- | --- |
@@ -177,7 +177,7 @@ El núcleo de la ruta va en `shared/` porque lo usan los dos lados. El del terre
 | `SurfaceClassifier` | Implementa `GetSurfaceAt` (#17): con `RoadQuery`, decide `Road` y `Shoulder` por distancia lateral, y `Mud` por manchones de ruido con semilla. El resto es `Grass`. | No lee el Terrain. |
 | `WorldConfig` | Todos los valores de ajuste con unidad: ancho de ruta, banquina, curvatura máxima, paso de integración, largo de tramo, etc. | Nada de lógica. |
 
-#### Núcleo del cliente (`src/world/client/core/`)
+#### Núcleo: terreno y planificación
 
 | Módulo | Responsabilidad | No hace |
 | --- | --- | --- |
@@ -192,7 +192,7 @@ El núcleo de la ruta va en `shared/` porque lo usan los dos lados. El del terre
 | Módulo | Responsabilidad |
 | --- | --- |
 | `TerrainWriter` | Traduce las claves de material a `Enum.Material` y llama a `WriteVoxels` y al borrado con aire. Es lo único que toca `workspace.Terrain`. |
-| `WorldClient` | **Punto de arranque** (composition root): recibe la semilla, arma los módulos con sus dependencias y engancha `WorkBudget` a `RunService.Heartbeat`. |
+| `WorldClient` | Fábrica del área: recibe la semilla y las dependencias (reloj, posición del auto) y devuelve el mundo armado, con su función `step` para cada frame. **No se arranca sola:** la llama el arranque compartido `src/app/client/`, que es el único punto de armado (#6) y engancha `step` a `RunService.Heartbeat`. |
 | `SurfaceProvider` | Expone `GetSurfaceAt` (#17) a Conducción, conectado con `SurfaceClassifier`. |
 | `RoadResetProvider` | Expone el contrato del punto más cercano de la ruta (RC-12), conectado con `RoadQuery`. El contrato todavía no existe y va por su issue `contrato`. |
 
@@ -200,7 +200,7 @@ El núcleo de la ruta va en `shared/` porque lo usan los dos lados. El del terre
 
 | Módulo | Responsabilidad |
 | --- | --- |
-| `WorldSeedServer` | Elige la semilla al arrancar la partida y se la manda al cliente (un `RemoteEvent` o un atributo). |
+| `WorldSeedServer` | Elige la semilla al arrancar la partida y se la manda al cliente (un `RemoteEvent` o un atributo). Lo arma `src/app/server/`. |
 
 ### Cómo fluye un frame en el cliente
 
@@ -211,7 +211,7 @@ El núcleo de la ruta va en `shared/` porque lo usan los dos lados. El del terre
 
 ### Patrones y por qué
 
-- **Composition root (`WorldClient`):** es el único lugar donde se crean y conectan los módulos. Cumple "sin estado global" y permite probar cada módulo con dependencias falsas.
+- **Raíz de composición:** los módulos del área se crean y conectan en `WorldClient`, y a esa fábrica la llama `src/app/client/`, el único punto de armado del juego (#6). Cumple "sin estado global" y permite probar cada módulo con dependencias falsas.
 - **Inyección de dependencias:** el reloj, el generador pseudoaleatorio y la posición del auto entran por parámetro. Así el núcleo se prueba en el CLI con semilla y tiempo fijos.
 - **Cola de trabajo con presupuesto por frame:** resuelve "sin tirones" sin `task.wait` en el núcleo. El trabajo pesado se corta en pasos chicos.
 - **Tabla de datos para las piezas (`RoadPieceCatalog`):** sumar o ajustar una pieza es cambiar datos, no código. Cumple "sin números mágicos".
@@ -219,7 +219,12 @@ El núcleo de la ruta va en `shared/` porque lo usan los dos lados. El del terre
 
 ### Distancia al origen
 
-`OriginShift` decide recentrar cuando el auto pasa un umbral (por ejemplo, 50.000 studs). Recentrar implica mover el auto, la cámara y el decorado, así que **toca el área de Conducción**. Se propone resolverlo con un contrato nuevo ("desplazamiento del origen") por su issue `contrato`, en el WP correspondiente. Antes, un experimento confirma la precisión y el tope lejos del origen.
+Hay dos caminos, y el Agente A prefiere el segundo para el MVP (revisión del PR #21):
+
+- **Recentrar:** `OriginShift` decide mover el origen cuando el auto pasa un umbral. Eso obliga a mover en el mismo frame el auto con su velocidad, la cámara, las marcas y las partículas. Toca el área de Conducción y necesita un contrato nuevo ("el origen se movió en tal vector").
+- **Arrancar en −120.000 studs** y avanzar hacia +120.000: hay 240.000 studs de margen. A una velocidad media de 100 studs/s, 30 minutos son 180.000 studs. No hace falta ningún contrato.
+
+**Pendiente de decisión de Beni.** En los dos casos, antes del WP correspondiente, un experimento confirma la precisión del render y **de la física del auto** lejos del origen (por ejemplo, a 100.000 studs), porque el temblor lo sentiría el jugador.
 
 ### Pruebas (núcleo, CLI)
 
@@ -233,8 +238,8 @@ El núcleo de la ruta va en `shared/` porque lo usan los dos lados. El del terre
 
 1. **WP de la ruta:** `SeededRandom`, catálogo, secuenciador, `RoadPath`, `RoadQuery`, `SurfaceClassifier` y `WorldConfig`. Todo núcleo, sin Roblox.
 2. **WP del terreno:** `TerrainHeightField`, `VoxelChunkBuilder`, `ChunkPlanner`, `WorkBudget`, `TerrainWriter` y `WorldClient`, más `WorldSeedServer`.
-3. **WP del decorado:** árboles y rocas (RC-9 y RC-10). Lleva un diseño corto aparte.
-4. **WP del origen:** `OriginShift` y su contrato con Conducción.
+3. **WP del decorado:** árboles y rocas (RC-9 y RC-10). Lleva un diseño corto aparte. Ya queda fijado un requisito, por pedido de A para CP-5 (choques sin frustración): **los colisionadores son formas simples**, un cilindro o una cápsula para el tronco y una esfera o una caja para la roca, nunca la colisión exacta de la malla, que engancha o despide al auto.
+4. **WP del origen:** depende de la decisión de arriba (recentrar o arrancar en −120.000).
 
 Cada WP depende del anterior. Los proveedores de contratos (`SurfaceProvider` y `RoadResetProvider`) entran en el WP 2.
 
