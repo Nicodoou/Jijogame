@@ -87,7 +87,10 @@ Que en el cliente exista el mundo vivo alrededor del auto:
    - `WorldClient`, una fábrica que recibe la semilla, `getVehiclePosition` y el reloj, y devuelve `step()`, `getSurfaceAt`, `getNearestRoadPoint`, `getSpawnPoint` e `isWorldReadyAt`. Es lo que se conecta en `src/app/client/` en lugar de los stubs.
 8. **`src/world/server/WorldSeedServer`:** elige la semilla (acá sí `Random`, porque es adaptador), la publica en el atributo `WorldSeed` de `ReplicatedStorage` y expone `getSpawnPoint` para el `VehicleSpawner` de A.
 9. **Mapeo de Rojo:** `src/world/client` → `StarterPlayer.StarterPlayerScripts.world` y `src/world/server` → `ServerScriptService.world`.
-10. **Arranque (`src/app/`):** cambiar los cuatro stubs por el mundo real (una línea cada uno). El cliente espera el atributo `WorldSeed` antes de armar `WorldClient`. Si el código del WP-4 todavía no está en `main`, este paso queda para un PR aparte.
+10. **Arranque (`src/app/`):** cambiar los cuatro stubs por el mundo real (una línea cada uno). Si el código del WP-4 todavía no está en `main`, este paso queda para un PR aparte. El orden de arranque es obligatorio (revisión de A en el PR #49):
+    - **Servidor:** `WorldSeedServer` elige y publica la semilla **antes** de crear el `VehicleSpawner` y de conectar `PlayerAdded`. Si no, el primer auto aparece con el stub o con `nil`.
+    - **Cliente:** espera el atributo `WorldSeed`, arma `WorldClient` y **recién después** arma el `VehicleController` de A, pasándole los cierres del mundo. Así `getVehiclePosition()` puede devolver `getSpawnPoint().position` desde el primer frame.
+    - El subagente de adaptadores usa **solo** el Baseplate de prueba que le indique el orquestador, nunca "Juego de Papu".
 
 ## Fuera de alcance
 - Árboles y rocas (RC-9 y RC-10): van al WP del decorado.
