@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-15 — Auto: vuelve a AWD 50/50 y freno de mano suave
+**Decidió:** Nico (después de manejar el experimento `exp/ajustes-manejo`)
+**Issue:** #8 (cambia el valor de "Auto: tracción trasera y freno de mano que suelta la cola")
+**Decisión:** `REAR_BIAS` pasa de 1,0 a 0,5, con menos agarre general (`TIRE_FRICTION` 0,7), un freno de mano que baja el agarre trasero solo al 85% y en forma progresiva, más dirección (36° y 24°) y menos empuje (120). La reversa tiene empuje, velocidad y ángulo de dirección propios.
+**Por qué:** con esta combinación Nico logró derrapar a gusto. La tracción trasera con el freno de mano fuerte hacía trompo, y la reversa patinaba por exceso de empuje y de ángulo.
+**Descartado:** mantener la tracción trasera con el freno de mano al 50–60% (trompo con la dirección sostenida, medido con inputs pregrabados).
+
 ## 2026-10-15 — Auto: modelo visual sin masa y centro de masa por configuración
 **Decidió:** Nico
 **Issue:** #7 (diseño: `docs/disenos/auto.md`, sección "Centro de masa y modelo del auto")
