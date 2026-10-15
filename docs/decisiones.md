@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-15 — Auto: raycast con fuerzas, neumático con tope y AWD con sesgo trasero
+**Decidió:** Nico
+**Issue:** #7, #8 (diseño: `docs/disenos/auto.md`)
+**Decisión:** el auto usa un modelo propio, con un raycast por rueda y las fuerzas aplicadas al chasis en `PreSimulation`, y la lógica en `src/vehicle/core/`. Neumático lineal con tope y círculo de fricción, con caída opcional y contravolante suave. Tracción total con `rearBias` = 0,7, parametrizable. Queda condicionado al experimento de estabilidad a 30 FPS (`exp/auto-fisica`).
+**Por qué:** es la única opción con el derrape, el peso y el agarre por superficie bajo control, testeables en el núcleo y afinables por parámetros.
+**Descartado:** constraints de Roblox (el derrape casi no se puede afinar y casi no queda lógica testeable), cuerpo propio (choques a mano), Pacejka y arcade puro (para arrancar), y RWD (más difícil para un jugador nuevo; se puede llegar a eso con `rearBias` = 1).
+
 ## 2026-10-14 — El mundo arranca en −120.000 studs, sin recentrar
 **Decidió:** Beni (lo había propuesto el Agente A en la revisión del PR #21)
 **Issue:** #9, #10 (PR #21, `docs/disenos/ruta.md`, "Distancia al origen")
