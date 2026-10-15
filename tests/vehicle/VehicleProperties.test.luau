@@ -18,9 +18,15 @@ local SETTLE_SECONDS = 2
 local GRID_SETTLE_SECONDS = 6
 local REST_SECONDS = 10
 local REST_DROP_STUDS = 0.5
+local REST_PUSH_STUDS_PER_SECOND = 0.3
+local REST_SPIN_RADIANS_PER_SECOND = 0.01
 local REST_MAX_DRIFT_STUDS = 0.05
 local REST_MAX_SPEED = 0.05
 local CRUISE_SPEED = 60
+local CORNER_SECONDS = 1
+local CORNER_THROTTLE = 0.2
+local EXIT_SECONDS = 2
+local MIN_REAR_BIAS_DRIFT_GAIN_DEGREES = 10
 local WHEEL_COUNT = 4
 local GRAVITY = 196.2
 local MASS = 1000
@@ -84,9 +90,14 @@ end
 local function runRestScenario(
 	frameSeconds: number,
 	config: VehicleSettings?,
-	settleSeconds: number?
+	settleSeconds: number?,
+	isPerturbed: boolean?
 ): (number, number, number)
 	local runner = ToyWorld.new({ frameSeconds = frameSeconds, dropStuds = REST_DROP_STUDS, config = config })
+	if isPerturbed then
+		runner.world.linearVelocity = vector.create(REST_PUSH_STUDS_PER_SECOND, 0, 0)
+		runner.world.angularVelocity = vector.create(0, REST_SPIN_RADIANS_PER_SECOND, 0)
+	end
 	local settledPosition = runner.world.position
 	local maxDrift, maxSpeed = 0, 0
 	runner.run(REST_SECONDS, constant(IDLE), function(world)
@@ -115,12 +126,21 @@ Runner.test("1. at rest on flat ground the car settles in under 2 seconds and do
 	end
 end)
 
+Runner.test("1. at rest after a sideways push and a small spin the car settles and does not move", function()
+	for _, frameSeconds in { 1 / 30, 1 / 60 } do
+		local maxDrift, maxSpeed, height = runRestScenario(frameSeconds, nil, nil, true)
+		Runner.expectEqual(maxDrift < REST_MAX_DRIFT_STUDS, true)
+		Runner.expectEqual(maxSpeed < REST_MAX_SPEED, true)
+		Runner.expectEqual(height > 1, true)
+	end
+end)
+
 Runner.test(
 	"2. the car supported on its wheels does not diverge across suspension settings at 30 and 60 FPS",
 	function()
 		local cases = {
-			{ frameSeconds = 1 / 30, frequencies = { 2, 2.5, 3, 4 }, dampings = { 0.45, 0.6, 1 } },
-			{ frameSeconds = 1 / 60, frequencies = { 2, 2.5, 3, 3.5, 4 }, dampings = { 0.3, 0.6, 1 } },
+			{ frameSeconds = 1 / 30, frequencies = { 2, 2.5, 3, 3.5, 4 }, dampings = { 0.45, 0.6, 1 } },
+			{ frameSeconds = 1 / 60, frequencies = { 2, 2.5, 3, 3.5, 4 }, dampings = { 0.3, 0.45, 0.6, 1 } },
 		}
 		for _, case in cases do
 			for _, frequency in case.frequencies do
@@ -282,13 +302,51 @@ end)
 Runner.test(
 	"9. stopped with the brake held the car reverses, and with the throttle it goes back to first gear",
 	function()
-		local runner = ToyWorld.new({})
-		runner.run(2, constant(controlsWith(0, 0, 1)))
-		Runner.expectEqual(runner.world.feedback.gear, -1)
-		Runner.expectEqual(runner.world.feedback.forwardSpeedStudsPerSecond < -5, true)
-		runner.run(3, constant(controlsWith(0, 1, 0)))
-		Runner.expectEqual(runner.world.feedback.gear >= 1, true)
-		Runner.expectEqual(runner.world.feedback.forwardSpeedStudsPerSecond > 5, true)
+		for _, frameSeconds in { 1 / 30, 1 / 60 } do
+			local runner = ToyWorld.new({ frameSeconds = frameSeconds })
+			runner.run(2, constant(controlsWith(0, 0, 1)))
+			Runner.expectEqual(runner.world.feedback.gear, -1)
+			Runner.expectEqual(runner.world.feedback.forwardSpeedStudsPerSecond < -5, true)
+			runner.run(3, constant(controlsWith(0, 1, 0)))
+			Runner.expectEqual(runner.world.feedback.gear >= 1, true)
+			Runner.expectEqual(runner.world.feedback.forwardSpeedStudsPerSecond > 5, true)
+		end
+	end
+)
+
+local function maxDriftOnExit(rearBias: number, surface: SurfaceKind, steer: number, speed: number): (number, number)
+	local settings = table.clone(VehicleConfig)
+	settings.REAR_BIAS = rearBias
+	local runner = ToyWorld.new({
+		config = settings,
+		initialForwardSpeed = speed,
+		surfaceAt = function(_: vector): SurfaceKind?
+			return surface
+		end,
+	})
+	local maxDrift, highestGear = 0, 0
+	local controlsAt = function(world: ToyWorldInstance): VehicleControls
+		return controlsWith(steer, if world.timeSeconds < CORNER_SECONDS then CORNER_THROTTLE else 1, 0)
+	end
+	runner.run(CORNER_SECONDS + EXIT_SECONDS, controlsAt, function(world)
+		if world.timeSeconds > CORNER_SECONDS and world.feedback.gear <= 2 then
+			maxDrift = math.max(maxDrift, math.abs(math.deg(world.feedback.driftAngleRadians)))
+			highestGear = math.max(highestGear, world.feedback.gear)
+		end
+	end)
+	return maxDrift, highestGear
+end
+
+Runner.test(
+	"5. coming out of a corner at full throttle in first or second gear, a rear bias of 1 drifts more than 0.5",
+	function()
+		local surfaces: { SurfaceKind } = { "Grass", "Mud" }
+		for _, surface: SurfaceKind in surfaces do
+			local rearDrive, gear = maxDriftOnExit(1, surface, 1, 20)
+			local balanced = maxDriftOnExit(0.5, surface, 1, 20)
+			Runner.expectEqual(gear >= 1 and gear <= 2, true)
+			Runner.expectEqual(rearDrive > balanced + MIN_REAR_BIAS_DRIFT_GAIN_DEGREES, true)
+		end
 	end
 )
 
@@ -387,6 +445,7 @@ end)
 
 Runner.test("extreme rear bias and slide friction ratio stay finite and bounded while driving", function()
 	local variants: { { [string]: number } } = {
+		{ SUSPENSION_FREQUENCY_HZ = 4, SUSPENSION_DAMPING_RATIO = 0.45 },
 		{ REAR_BIAS = 0 },
 		{ REAR_BIAS = 1 },
 		{ TIRE_SLIDE_FRICTION_RATIO = 0.5 },
