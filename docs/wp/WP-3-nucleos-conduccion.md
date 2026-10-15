@@ -285,7 +285,7 @@ Nico manejó un segundo experimento (rama `exp/ajustes-manejo`, que no se mergea
 - **Propiedad 4 (freno de mano):** con el agarre trasero al 85%, se mide igual que antes. Si ya no pasa los 15° con 0,3 s, el subagente **reporta los números** sin cambiar valores: el freno de mano ahora es más suave a propósito.
 - **Propiedad 5 (`REAR_BIAS`):** se mantiene como comparación con la configuración inyectada (1,0 contra 0,5).
 - **Propiedad nueva 15 (reversa):** desde quieto, con el freno a fondo y la dirección a fondo durante 6 s, el auto entra en marcha −1, la velocidad no pasa de 32 studs/s, el ángulo de dirección no pasa de `STEER_MAX_REVERSE_DEGREES` y el `slipRatio` trasero queda ≤ 1 en la mayor parte del círculo.
-- **Propiedad nueva 16 (corte suave):** acelerando a fondo en cualquier marcha, la fuerza del motor nunca salta de más de 0 a 0 entre dos pasos seguidos cerca del corte: baja de forma continua.
+- **Propiedad nueva 16 (corte suave):** acelerando a fondo en cualquier marcha, cerca del corte la fuerza del motor baja de forma continua: entre dos pasos seguidos nunca cae de más del 20% del pico a 0.
 
 ## Fuera de alcance
 - Todo lo que toca Roblox: adaptadores, `src/app/`, Rojo y las pruebas en Studio (son del WP-4).
