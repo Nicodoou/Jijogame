@@ -197,7 +197,7 @@ arranque (src/app/)  ──arma──▶  adaptadores (client/, server/)  ──
 | Capa | Dónde | Qué hace | Qué no hace |
 | --- | --- | --- | --- |
 | **Contratos** | `src/shared/contracts/` | Tipos y firmas que se pasan las áreas. Se cambian por acuerdo (coordinación, sección 5). | No tiene lógica. |
-| **Núcleo** | `src/<área>/core/` | Toda la lógica del área: cálculos, generación y estado del modelo. Es determinista: el azar viene de un generador con semilla y el tiempo llega como parámetro (`dt`). | No usa nada de Roblox (`game`, `workspace`, `script`, `Instance`, `Enum`, `Random`, `task`, `Vector3`, `CFrame`, servicios ni `os.clock`). No cede el control (`task.wait`). No requiere el núcleo de otra área, solo contratos. |
+| **Núcleo** | `src/<área>/core/` | Toda la lógica del área: cálculos, generación y estado del modelo. Es determinista: el azar viene de un generador con semilla y el tiempo llega como parámetro (`dt`). | No usa nada de Roblox (`game`, `workspace`, `script`, `Instance`, `Enum`, `Random`, `task`, `Vector3`, `CFrame`, servicios ni `os.clock`). No cede el control (`task.wait`). No requiere el núcleo de otra área, solo contratos. **Todo el núcleo de un área vive en `src/<área>/core/`**, aunque lo use un solo lado: no hay `core/` dentro de `client/`, `server/` ni `shared/`, porque quedaría afuera de la medición de cobertura. |
 | **Adaptadores** | `src/<área>/client/`, `src/<área>/server/`, `src/<área>/shared/` | Traducen entre el motor y el núcleo: leen el input, la física y las instancias, llaman al núcleo y aplican el resultado (mover partes, crear tramos, sonidos). Son delgados. | No tienen lógica de juego. Si un adaptador necesita un `if` que decide algo del juego, ese `if` va al núcleo. |
 | **Arranque** | `src/app/client/` y `src/app/server/` | Único punto donde se crean los módulos y se les pasan sus dependencias (reglas, sección 3). Un script por lado. | No tiene lógica, solo arma. |
 
@@ -251,6 +251,8 @@ La jerarquía del juego **copia la del repo**, con los mismos nombres de carpeta
 - En el núcleo y los contratos, siempre por string relativo (`require("./X")` o `require("../../shared/contracts/X")`), que funciona en el CLI y en Roblox (#16).
 - En los adaptadores y el arranque, que no corren en el CLI, se permite `require(ReplicatedStorage.vehicle.core.X)`.
 
+Como `src/<área>/core/` va a `ReplicatedStorage`, el núcleo lo pueden usar el cliente y el servidor. Es a propósito: por ejemplo, el servidor recalcula la ruta con la misma semilla para validar lo que reporta el cliente (#21).
+
 ### Pruebas y cobertura
 
 - **Corredor:** `tests/Runner.luau`, mínimo y compartido. Funciones: `test(nombre, fn)`, `expectEqual`, `expectNear` (con tolerancia, para flotantes), `expectError` y un resumen final que termina con código distinto de 0 si algo falla. Cambiarlo es por acuerdo, como los contratos.
@@ -266,7 +268,7 @@ La jerarquía del juego **copia la del repo**, con los mismos nombres de carpeta
 | Formato | todo `src/`, `tests/` y `scripts/` | `stylua --check` |
 | Lint del núcleo | `src/*/core/`, `src/shared/contracts/` | `selene --config selene-core.toml` (std `luau`: falla con globales de Roblox) |
 | Lint de adaptadores | el resto de `src/` | `selene` (std `roblox`) |
-| Reglas del núcleo | `src/*/core/` | `scripts/check-core.sh`: sin `require` a otra área, sin `Vector3`/`CFrame` y con `--!strict` en cada archivo |
+| Reglas del núcleo | `src/*/core/` | `scripts/check-core.sh`: sin `require` a otra área, sin `Vector3`/`CFrame`, con `--!strict` en cada archivo y sin carpetas `core/` fuera de `src/<área>/core/` |
 | Tipos del núcleo | núcleo, contratos y pruebas | `luau-lsp analyze --platform=standard` |
 | Tipos de adaptadores | el resto de `src/` | `luau-lsp analyze --platform=roblox` con el sourcemap y el archivo de definiciones de Roblox que publica luau-lsp, fijado a la misma versión que `rokit.toml` |
 
@@ -288,7 +290,7 @@ Que el CI sea obligatorio para mergear es una configuración de GitHub (protecci
 
 ### Riesgos que el WP tiene que confirmar primero
 
-1. Que un `require` que sube carpetas (`../../shared/contracts/X`) funcione en Roblox con el mapeo de arriba. En #16 solo se probó `./`. Si no funciona, se frena y se vuelve a este paso.
+1. ~~Que un `require` que sube carpetas funcione en Roblox.~~ **Confirmado [V]** por el Agente B en Studio (#20): con el mapeo de arriba, armado a mano, funcionan `require("../../shared/contracts/Surface")`, `require("./Helper")` y `require("../core/Helper")` desde `world/core/`. El WP lo vuelve a confirmar con Rojo sincronizando.
 2. Que `luau --coverage` con varios archivos dé un solo reporte, o cómo se juntan varios.
 3. Que Selene tenga la std `luau` y que con ella rechace `game`, `Instance` y los demás globales de Roblox.
 4. De dónde sale exactamente el archivo de definiciones de Roblox para luau-lsp, y que funcione en CI.
