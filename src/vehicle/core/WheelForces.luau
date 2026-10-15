@@ -102,11 +102,12 @@ local function opposingLateral(
 	wheel: WheelState,
 	slipAngle: number,
 	lateralSpeed: number,
-	load: number
+	load: number,
+	grip: number
 ): number
 	local settings = context.settings
 	local limit = VehicleMath.opposingForceLimit(context.mass, #settings.WHEELS, lateralSpeed, context.stepSeconds)
-	return math.clamp(Tire.lateralForce(slipAngle, load, wheel.gripMultiplier, settings), -limit, limit)
+	return math.clamp(Tire.lateralForce(slipAngle, load, grip, settings), -limit, limit)
 end
 
 local function groundedWheel(
@@ -126,12 +127,13 @@ local function groundedWheel(
 	local lateralSpeed = vector.dot(velocity, sideAxis)
 	local slipAngle = Tire.slipAngle(lateralSpeed, longitudinalSpeed, settings)
 	local brakeAndRolling = opposingLongitudinal(context, wheel, isFront, longitudinalSpeed, load, driveState)
-	local limitedLateral = opposingLateral(context, wheel, slipAngle, lateralSpeed, load)
+	local axleGrip = wheel.gripMultiplier * (if isFront then settings.FRONT_GRIP_MULTIPLIER else settings.REAR_GRIP_MULTIPLIER)
+	local limitedLateral = opposingLateral(context, wheel, slipAngle, lateralSpeed, load, axleGrip)
 	local longitudinal, lateral, slipRatio, isSliding = Tire.combine(
 		driveShare + brakeAndRolling,
 		limitedLateral,
 		load,
-		wheel.gripMultiplier,
+		axleGrip,
 		Tire.linearLateralForce(slipAngle, load, settings),
 		settings
 	)

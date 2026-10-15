@@ -33,8 +33,13 @@ return table.freeze({
 	-- Fuerza lateral por unidad de carga y por radián.
 	TIRE_CORNERING_STIFFNESS_PER_RADIAN = 8,
 	-- 1 = sin caída de la fuerza lateral después del pico.
-	TIRE_SLIDE_FRICTION_RATIO = 1.0,
+	TIRE_SLIDE_FRICTION_RATIO = 0.75,
 	LOW_SPEED_REGULARIZATION_STUDS_PER_SECOND = 3,
+
+	-- Agarre por eje (exp).
+	FRONT_GRIP_MULTIPLIER = 1.0,
+	REAR_GRIP_MULTIPLIER = 0.9,
+	DRIFT_STEER_MARGIN_DEGREES = 5,
 
 	-- Superficie.
 	SURFACE_GRIP = table.freeze({ Road = 1.0, Shoulder = 0.85, Grass = 0.7, Mud = 0.5 }),
@@ -69,15 +74,15 @@ return table.freeze({
 
 	-- Frenos.
 	-- El neumático la recorta.
-	BRAKE_DECELERATION = 250,
+	BRAKE_DECELERATION = 130,
 	BRAKE_FRONT_BIAS = 0.6,
-	HANDBRAKE_FORCE_PER_LOAD = 1.5,
+	HANDBRAKE_FORCE_PER_LOAD = 0.8,
 	-- Debajo de esta velocidad longitudinal el freno y la resistencia al rodar se apagan en forma gradual.
 	BRAKE_REGULARIZATION_SPEED = 1,
 
 	-- Dirección.
 	STEER_MAX_LOW_SPEED_DEGREES = 32,
-	STEER_MAX_HIGH_SPEED_DEGREES = 8,
+	STEER_MAX_HIGH_SPEED_DEGREES = 18,
 	STEER_LOW_SPEED = 20,
 	STEER_HIGH_SPEED = 120,
 

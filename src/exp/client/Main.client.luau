@@ -87,6 +87,16 @@ local lookingBack = false
 local settleFrames = 0
 
 local function readInput()
+	if workspace:GetAttribute("ExpOv") then
+		return {
+			isSteerLeftDown = false, isSteerRightDown = false, isThrottleDown = false, isBrakeDown = false,
+			isHandbrakeDown = workspace:GetAttribute("ExpHB") == true,
+			isLookBackDown = false,
+			gamepadSteer = workspace:GetAttribute("ExpSteer") or 0,
+			gamepadThrottle = workspace:GetAttribute("ExpThr") or 0,
+			gamepadBrake = workspace:GetAttribute("ExpBrk") or 0,
+		}
+	end
 	local stick, r2, l2 = 0, 0, 0
 	local handbrakePad, lookPad = false, false
 	for _, st in UserInputService:GetGamepadState(Enum.UserInputType.Gamepad1) do
