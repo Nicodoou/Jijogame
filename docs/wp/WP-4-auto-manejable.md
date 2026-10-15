@@ -37,7 +37,7 @@ Es la versión **mínima** que pidió Nico, para manejar cuanto antes en un Base
   - **Rojo no cambia `Workspace.StreamingEnabled`** desde el project file.
   - La `SpawnLocation` por defecto del Baseplate está en el origen y cambia la altura de aparición: el auto aparece lejos de ella.
   - El auto quieto no se mueve a 60 ni a 30 FPS, y no diverge manejando.
-  - Afinar en vivo con atributos de `Workspace` (`Cfg_<VALOR>`) fue lo que permitió encontrar la sensación (ver la sección 6).
+  - Afinar en vivo con atributos de `Workspace` (`Cfg_<VALOR>`) fue lo que permitió encontrar la sensación (ver la sección 5).
 - **De la conversación con Nico:** quiere probar el manejo ya, en un Baseplate, y ajustar valores a medida que maneja. Nunca se toca su juego "Juego de Papu" en Studio.
 - **Contratos que usa o provee:**
   - **Provee** `GetVehiclePosition` (#22): la posición del chasis o, mientras el auto no existe, la del punto de aparición (acordado en #36).
@@ -122,11 +122,11 @@ Sin gamepad, los ejes del gamepad dan 0.
   - conecta `RunService.PreRender` para la cámara.
 - **Los dos stubs de `GetSpawnPoint` tienen que dar el mismo punto.** Ponelo una sola vez en un módulo de `src/app/shared/`, mapeado a `ReplicatedStorage.app`.
 
-### 6. Afinación en vivo (solo en Studio)
+### 5. Afinación en vivo (solo en Studio)
 
 `src/vehicle/client/TuningOverrides.luau`: solo si `RunService:IsStudio()`, lee los atributos `Cfg_<NOMBRE>` de `Workspace` y arma una copia de `VehicleConfig` con esos valores, que el controlador pasa como `config` a `VehicleSimulator.step`. Se actualiza con `AttributeChanged`. Ignora los nombres que no existan en `VehicleConfig` y los valores que no sean del mismo tipo. Fuera de Studio no hace nada. Así Nico puede ajustar la sensación sin reiniciar, y lo que le guste se pasa a `VehicleConfig` por PR.
 
-### 5. Guía
+### 6. Guía
 
 En `docs/guia-de-desarrollo.md`, una sección corta "Probar el manejo":
 - abrir un Baseplate, nunca otro juego;
