@@ -67,7 +67,8 @@ Dejar el repo listo para que cualquier WP con código tenga, desde el primer com
    - un núcleo que usa `game`, que Selene del núcleo tiene que rechazar;
    - un `require` a otra área y un archivo sin `--!strict`, que `check-core.sh` tiene que rechazar;
    - un núcleo sin pruebas, que tiene que contar 0% en `coverage.sh`;
-   - una cobertura justo por debajo y justo en el umbral (borde).
+   - una cobertura justo por debajo y justo en el umbral (borde);
+   - **un núcleo bueno** que usa `vector` (`vector.create`), `bit32`, `buffer` y `math.noise`, y que tiene que **pasar** Selene del núcleo, `check-core.sh` y `luau-lsp analyze --platform=standard` (revisión del Agente B en el PR #25).
 
    `check-all.sh` también corre `test-scripts.sh`.
 8. **Tipos:**
@@ -83,7 +84,7 @@ Dejar el repo listo para que cualquier WP con código tenga, desde el primer com
     - instalar el plugin de Rojo y usar `rojo serve` desde Studio;
     - correr `scripts/check-all.sh`;
     - agregar un área o una carpeta `client/` o `server/` al mapeo;
-    - escribir una prueba con el corredor.
+    - escribir una prueba con el corredor, con un ejemplo completo: desde `tests/<área>/X.test.luau` el núcleo se requiere con `require("../../src/<área>/core/X")`, y queda dicho desde qué directorio corre `test.sh`.
 11. **`.gitignore`:** suma `coverage.out` y los reportes intermedios que genere `test.sh`.
 12. **Limpieza:** se borra `.claude/agents/.gitkeep` si quedó, y no queda ningún archivo de prueba suelto.
 
@@ -91,7 +92,7 @@ Dejar el repo listo para que cualquier WP con código tenga, desde el primer com
 
 Antes de armar el resto, el subagente confirma estos riesgos. Si alguno falla, **frena**.
 - **Riesgo 2:** cómo dar un solo reporte de cobertura con varios archivos de prueba. Por ejemplo, un archivo que requiere a todos los demás, o juntar varios `coverage.out`, siempre que las líneas de un mismo archivo se sumen bien.
-- **Riesgo 3:** que Selene tenga una std sin globales de Roblox y que con ella rechace `game`, `workspace`, `Instance`, `Random` y `task`. Si ninguna std integrada sirve, se puede definir una propia en el repo.
+- **Riesgo 3:** que Selene tenga una std sin globales de Roblox que rechace `game`, `workspace`, `Instance`, `Random` y `task`, y que **a la vez acepte** las librerías estándar de Luau que usa el núcleo (`vector`, `bit32`, `buffer`, `math.noise`). Si ninguna std integrada sirve, se puede definir una propia en el repo.
 - **Riesgo 4:** de dónde sale el archivo de definiciones de Roblox para `luau-lsp --platform=roblox` (por ejemplo, el que publica el repo de luau-lsp para la versión 1.70.1). Hay que bajarlo de esa fuente oficial, fijado a esa versión, y comprobar que `luau-lsp analyze` lo usa sin errores sobre un archivo de prueba que use `game`. En CI se baja en cada corrida; no se commitea si pesa más de 1 MB.
 
 ## Fuera de alcance
