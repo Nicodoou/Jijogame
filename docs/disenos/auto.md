@@ -304,6 +304,26 @@ Se crea en este diseño:
 - **El auto aparece anclado.** El servidor lo crea anclado en el punto de aparición. El arranque del cliente espera a que el mundo tenga escrito el Terrain alrededor de ese punto, con un contrato nuevo de "mundo listo en una posición" que provee el Agente B, también por issue `contrato`. Recién ahí el cliente le pide al servidor que lo suelte, con un `RemoteEvent` del área de Conducción validado y con límite de frecuencia. El servidor lo desancla y llama `SetNetworkOwner(player)`. Así el auto no se cae al vacío.
 - Hasta que existan los adaptadores del mundo, el arranque usa **stubs**: `GetSurfaceAt` devuelve `"Road"`, el mundo está siempre listo y el punto de aparición es un valor fijo de configuración. Cambiar cada stub por el real es una línea en el arranque. El cambio al real es una línea en el arranque. Los dos agentes tocan `src/app/` **por acuerdo**: cada uno suma sus líneas en PRs revisados por el otro. Se agregan al mapeo de Rojo `src/app/`, `src/vehicle/{client,server}`, `src/input/client` y `src/camera/client`.
 
+### Centro de masa y modelo del auto (agregado el 2026-10-15)
+
+Decidió Nico, a partir de una pregunta suya sobre cómo meter cualquier modelo sin cambiar el manejo.
+
+- **El modelo visual no pesa.** Todas sus piezas van con `Massless = true`, `CanCollide = false` y `CanQuery = false`. Cambiar el modelo no cambia el manejo.
+- **La física la dan piezas invisibles:**
+  - el `Body` (la caja de colisión, con la masa);
+  - un **lastre** invisible y soldado, que el adaptador ubica para que el centro de masa caiga donde dice la configuración.
+- **Dos valores en `VehicleConfig`:**
+  - `FRONT_WEIGHT_FRACTION`: qué parte del peso va adelante. Por ejemplo, 0,6 es motor adelante y 0,45 motor atrás. Inicial 0,5.
+  - `CENTER_OF_MASS_HEIGHT_STUDS`: qué tan alto está el centro de masa respecto del montaje de las ruedas. Inicial: el del auto de cajas.
+
+  El adaptador los convierte en la posición y la masa del lastre. Roblox calcula el centro de masa y la inercia reales.
+- **El centro de masa no se mueve al doblar ni al frenar:** el auto es un cuerpo rígido. Lo que cambia es la carga de cada rueda, y eso ya sale solo de la suspensión (propiedad 3 del WP-3). No se agrega un corrimiento artificial, porque contaría el efecto dos veces.
+- **Corrección necesaria en el núcleo (independiente del lastre):**
+  - Hoy, `ChassisSample.position` es el centro de masa (`AssemblyCenterOfMass`), pero las posiciones de las ruedas están escritas respecto del centro del `Body`. Solo coinciden mientras el centro de masa esté en el centro de la caja.
+  - El núcleo tiene que recibir también el origen del `Body` y calcular el brazo de cada rueda como `montajeEnElMundo − centroDeMasa`.
+  - Va en un WP chico antes del modelo del auto.
+- **Si después el auto se inclina demasiado en curva,** se evalúa una barra estabilizadora (`ANTI_ROLL`). Por ahora no se agrega.
+
 ### Patrones y por qué
 
 - **Núcleo funcional y cáscara imperativa:** el núcleo es una función `step` pura y los adaptadores hacen los efectos. Resuelve que todo el manejo se pueda probar con `dt` y estado fijos (87% de cobertura).
@@ -316,7 +336,7 @@ Se crea en este diseño:
 - **Feedback:** sonido del motor y de los neumáticos, polvo, marcas y HUD (CP-13 a CP-16). Usan `VehicleFeedback`, que ya define este diseño.
 - **Reset (RC-12):** necesita el contrato "punto de ruta más cercano", que provee el Agente B y todavía no existe.
 - **Validación en el servidor** de lo que reporta el cliente.
-- **Asset del auto:** se pide a Nico con un issue `necesita-humano` (`asset-modelo`). Mientras tanto, se usan cajas grises con los nombres `Body`, `WheelFL`, `WheelFR`, `WheelRL` y `WheelRR`.
+- **Asset del auto:** se pide a Nico con un issue `necesita-humano`. Mientras tanto, se usan cajas grises con los nombres `Body`, `WheelFL`, `WheelFR`, `WheelRL` y `WheelRR`. El modelo es solo visual (ver "Centro de masa y modelo del auto").
 
 ### Plan de WPs
 
