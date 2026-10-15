@@ -4,6 +4,20 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-14 — El mundo arranca en −120.000 studs, sin recentrar
+**Decidió:** Beni (lo había propuesto el Agente A en la revisión del PR #21)
+**Issue:** #9, #10 (PR #21, `docs/disenos/ruta.md`, "Distancia al origen")
+**Decisión:** la ruta arranca en x = −120.000 y avanza hacia +x. El mundo no se recentra. Si alguien llega cerca de +120.000, la etapa termina.
+**Por qué:** el Terrain tiene un tope de ±128.000 studs. Arrancando en −120.000 hay 240.000 studs de margen (30 minutos a 100 studs/s son 180.000) y no hace falta un contrato con Conducción para mover el auto, la cámara y los efectos.
+**Descartado:** recentrar el mundo cuando el auto se aleja del origen.
+
+## 2026-10-14 — Ruta y terreno: piezas con curvatura, todo Terrain, generado en el cliente
+**Decidió:** Beni
+**Issue:** #9, #10 (PR #21; diseños `docs/disenos/ruta.md` y `docs/disenos/terreno.md`)
+**Decisión:** el eje de la ruta se arma con piezas de curvatura definida (rectas, arcos y transiciones) sorteadas con la semilla, con el rumbo a menos de 90° de una dirección media. El suelo y la ruta se escriben en el Terrain de Roblox (la ruta plana, con material `Ground`). Todo se genera en el cliente a partir de la semilla.
+**Por qué:** RC-4 y RC-5 se cumplen por construcción. El Terrain medido en Studio es rápido (unos 3 ms por pedazo de 128×128 studs), queda plano y trae la colisión sin el tirón de `CreateMeshPartAsync` (14 a 32 ms). En el cliente no hay replicación y queda junto a la física del auto (RN-2).
+**Descartado:** spline Catmull-Rom; malla visual de la ruta encima del Terrain (queda como mejora futura); todo con mallas propias; piezas de ruta prearmadas; generación en el servidor.
+
 ## 2026-10-14 — Política de pruebas, cobertura y estructura de `src/`
 **Decidió:** ambos
 **Issue:** #6 (diseño: `docs/disenos/politica-de-codigo.md`)
