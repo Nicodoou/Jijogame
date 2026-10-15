@@ -1,159 +1,194 @@
 --!strict
--- Sortea la próxima pieza de ruta. Respeta la curvatura máxima, el corredor de rumbo, la pendiente y el desvío lateral,
--- y empuja el trazado hacia la media (reversión a la media) para que no choque con los límites.
+-- Secuenciador de la ruta: sortea la próxima pieza, la previsualiza y la acepta o prueba otra (RoadPieceAlternatives, en
+-- un orden fijo que termina en el último recurso: giros de radio mínimo hacia la guía).
+-- Si ni el último recurso entra, la ruta retrocede: descarta las últimas piezas (1 a ROAD_BACKTRACK_MAX_PIECES, más
+-- cuantas más fallas seguidas) y vuelve a sortear. Si no queda nada para retroceder, la ruta está encerrada y es un error.
+-- Una muestra es definitiva recién cuando ya no hay forma de retroceder sobre ella.
 
+local HillProfile = require("./HillProfile")
+local LiveRoadIndex = require("./LiveRoadIndex")
+local RoadFrame = require("./RoadFrame")
+local RoadGuide = require("./RoadGuide")
+local RoadIntegrator = require("./RoadIntegrator")
+local RoadPieceAlternatives = require("./RoadPieceAlternatives")
+local RoadPieceBuilder = require("./RoadPieceBuilder")
 local RoadPieceCatalog = require("./RoadPieceCatalog")
+local RoadPiecePreview = require("./RoadPiecePreview")
 local RoadPieceProfile = require("./RoadPieceProfile")
+local RoadPieceSelector = require("./RoadPieceSelector")
 local SeededRandom = require("./SeededRandom")
 local WorldConfig = require("./WorldConfig")
 
-type PieceDefinition = RoadPieceCatalog.PieceDefinition
+type IntegratorState = RoadIntegrator.IntegratorState
+type PreviewResult = RoadPiecePreview.PreviewResult
 type RoadPiece = RoadPieceProfile.RoadPiece
 
-export type SequencerContext = {
-	-- Desvío del rumbo respecto del medio, en radianes. Positivo es hacia la derecha.
-	headingDeviationRadians: number,
-	-- Desvío lateral de la posición respecto de la recta media, en studs. Positivo es hacia la derecha.
-	lateralOffsetStuds: number,
+-- Las muestras con número (arcLength / paso) mayor que `retractedAfterSampleNumber` se retiran y las nuevas siguen a
+-- partir de ahí. Las de número menor o igual que `finalizedSampleNumber` ya no cambian.
+export type PieceResult = {
+	retractedAfterSampleNumber: number,
+	samples: { RoadIntegrator.RoadSample },
+	finalizedSampleNumber: number,
 }
 
-local NEUTRAL_PROBABILITY = 0.5
-local RAMPS_PER_LOBE = 2
+export type SequencerStatistics = {
+	pieceCount: number,
+	-- Piezas vigentes (sin contar las retiradas) por clase.
+	pieceCountByKind: { [RoadPieceCatalog.PieceKind]: number },
+	-- Largo recorrido por la ruta generada, en studs, incluido lo que todavía puede retirarse.
+	arcLengthStuds: number,
+	-- Veces que ninguna alternativa entró y se llegó al último recurso (aunque después haya entrado).
+	lastResortCount: number,
+	-- Veces que la ruta retrocedió y piezas descartadas en total.
+	backtrackCount: number,
+	retractedPieceCount: number,
+	guide: RoadGuide.GuideStatistics,
+}
+
+export type RoadPieceSequencer = {
+	getInitialSample: () -> RoadIntegrator.RoadSample,
+	generateNextPiece: () -> PieceResult,
+	getStatistics: () -> SequencerStatistics,
+}
+
+-- Dónde estaba la ruta antes de una pieza, para volver ahí.
+type Checkpoint = {
+	state: IntegratorState,
+	guideSegment: number,
+	guideArcLength: number,
+	-- Clase de la pieza que se agregó después de este punto.
+	pieceKind: RoadPieceCatalog.PieceKind,
+}
+
 local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
-local MAX_DEVIATION_RADIANS = math.rad(WorldConfig.MAX_HEADING_DEVIATION_DEGREES)
-local PLANNING_LIMIT_RADIANS = MAX_DEVIATION_RADIANS - math.rad(WorldConfig.HEADING_PLANNING_MARGIN_DEGREES)
-local MAX_SLOPE_DEGREES = WorldConfig.MAX_SLOPE_DEGREES
-local FORCED_DRIFT_STUDS = WorldConfig.MAX_LATERAL_DRIFT_STUDS * WorldConfig.STEERING_FORCED_DRIFT_FRACTION
-local GOAL_HEADING_RADIANS = MAX_DEVIATION_RADIANS * WorldConfig.STEERING_GOAL_HEADING_FRACTION
-local ERROR_SCALE_RADIANS = MAX_DEVIATION_RADIANS * WorldConfig.STEERING_ERROR_SCALE_FRACTION
 
-local function getSign(value: number): number
-	return if value < 0 then -1 else 1
-end
+local RoadPieceSequencerModule = {}
 
-local function lerp(from: number, to: number, fraction: number): number
-	if from == to then
-		return from
+function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
+	-- Tres secuencias independientes (guía, cerros y piezas), así lo que consume una no mueve a las otras.
+	local seedRandom = SeededRandom.new(seed)
+	local guide = RoadGuide.new(SeededRandom.new(seedRandom.nextNumber()))
+	local hill = HillProfile.new(seedRandom.nextNumber())
+	local random = SeededRandom.new(seedRandom.nextNumber())
+	local index = LiveRoadIndex.new()
+	local previewer = RoadPiecePreview.new(guide, index, hill)
+
+	local initialState = RoadIntegrator.createState(WorldConfig.START_POSITION, RoadFrame.getStartHeadingRadians())
+	local state = initialState
+	local guideSegment, guideArcLength = 1, 0
+	local checkpoints: { Checkpoint } = {}
+	local failStreak = 0
+	local bestArcLength = 0
+	local statistics: SequencerStatistics = {
+		pieceCount = 0,
+		pieceCountByKind = {},
+		arcLengthStuds = 0,
+		lastResortCount = 0,
+		backtrackCount = 0,
+		retractedPieceCount = 0,
+		guide = guide.getStatistics(),
+	}
+	index.add(state.x, state.z, 0)
+
+	local function tryPiece(piece: RoadPiece): PreviewResult?
+		return (previewer.preview(state, piece, guideSegment))
 	end
-	return from + (to - from) * fraction
-end
 
-local function isTurning(definition: PieceDefinition): boolean
-	return definition.lobeCount == 1 and definition.maxRadiusStuds < math.huge
-end
+	local function findNextPiece(): PreviewResult?
+		guide.ensureCovers(guideArcLength + WorldConfig.GUIDE_TARGET_AHEAD_STUDS)
+		local lateralOffset, arcLength, segment = guide.project(state.x, state.z, guideSegment)
+		guideArcLength, guideSegment = arcLength, segment
+		local targetX, targetZ = guide.getPointAt(arcLength + WorldConfig.GUIDE_TARGET_AHEAD_STUDS)
+		local headingToTarget = math.atan2(targetZ - state.z, targetX - state.x)
+		local steering: RoadPieceSelector.Steering = {
+			headingErrorRadians = RoadFrame.wrapAngleRadians(headingToTarget - state.heading),
+			lateralOffsetStuds = lateralOffset,
+		}
+		local definition = RoadPieceSelector.pickDefinition(random, steering)
+		local turnSign = RoadPieceSelector.pickTurnSign(random, steering, definition)
+		local drawn = RoadPieceBuilder.draw(random, definition)
+		local piece = if turnSign > 0 then drawn else RoadPieceBuilder.flip(drawn)
+		local result, usedLastResort =
+			RoadPieceAlternatives.findFirstAccepted(piece, RoadPieceSelector.getTowardSign(steering), tryPiece, random)
+		statistics.lastResortCount += if usedLastResort then 1 else 0
+		return result
+	end
 
-local function pickDefinition(random: SeededRandom.SeededRandom, onlyTurning: boolean): PieceDefinition
-	local candidates: { PieceDefinition } = {}
-	local totalWeight = 0
-	for _, definition in RoadPieceCatalog.definitions do
-		if not onlyTurning or isTurning(definition) then
-			table.insert(candidates, definition)
-			totalWeight += definition.weight
+	local function commit(result: PreviewResult)
+		table.insert(checkpoints, {
+			state = state,
+			guideSegment = guideSegment,
+			guideArcLength = guideArcLength,
+			pieceKind = result.pieceKind,
+		})
+		if #checkpoints > WorldConfig.ROAD_BACKTRACK_MAX_PIECES then
+			table.remove(checkpoints, 1)
+		end
+		for _, sample in result.samples do
+			index.add(sample.position.x, sample.position.z, sample.arcLength)
+		end
+		state, guideSegment, guideArcLength = result.endState, result.guideSegment, result.guideArcLength
+		statistics.pieceCount += 1
+		statistics.pieceCountByKind[result.pieceKind] = (statistics.pieceCountByKind[result.pieceKind] or 0) + 1
+		statistics.arcLengthStuds = state.sampleIndex * STEP_STUDS
+		if statistics.arcLengthStuds > bestArcLength then
+			bestArcLength = statistics.arcLengthStuds
+			failStreak = 0
 		end
 	end
-	local roll = random.nextNumber() * totalWeight
-	local chosen = candidates[1]
-	local weightBefore = 0
-	for _, definition in candidates do
-		if roll >= weightBefore then
-			chosen = definition
+
+	local function takeBack()
+		failStreak += 1
+		if #checkpoints == 0 or failStreak > WorldConfig.ROAD_FAIL_LIMIT then
+			error("the road is enclosed: no piece fits and there is nothing left to take back", 3)
 		end
-		weightBefore += definition.weight
+		local count = math.min(#checkpoints, 1 + failStreak // WorldConfig.ROAD_BACKTRACK_FAILS_PER_EXTRA_PIECE)
+		local checkpoint = checkpoints[#checkpoints - count + 1]
+		for _ = 1, count do
+			local retracted = table.remove(checkpoints) :: Checkpoint
+			statistics.pieceCount -= 1
+			statistics.pieceCountByKind[retracted.pieceKind] -= 1
+		end
+		state, guideSegment, guideArcLength = checkpoint.state, checkpoint.guideSegment, checkpoint.guideArcLength
+		index.removeAfter(state.sampleIndex * STEP_STUDS)
+		statistics.arcLengthStuds = state.sampleIndex * STEP_STUDS
+		statistics.backtrackCount += 1
+		statistics.retractedPieceCount += count
 	end
-	return chosen
-end
 
--- Sentido de la curva: parejo cuando el trazado está centrado y sesgado hacia la media cuando se aleja.
-local function pickTurnSign(random: SeededRandom.SeededRandom, context: SequencerContext): number
-	local roll = random.nextNumber()
-	local lateral = context.lateralOffsetStuds
-	if math.abs(lateral) > FORCED_DRIFT_STUDS then
-		return -getSign(lateral)
+	local function findPieceTakingBack(): PreviewResult
+		local result = findNextPiece()
+		while result == nil do
+			takeBack()
+			result = findNextPiece()
+		end
+		return result :: PreviewResult
 	end
-	local driftFraction = math.clamp(lateral / WorldConfig.STEERING_DRIFT_SCALE_STUDS, -1, 1)
-	local headingError = -driftFraction * GOAL_HEADING_RADIANS - context.headingDeviationRadians
-	local pull = math.clamp(headingError / ERROR_SCALE_RADIANS, -1, 1)
-	local probabilityRight = NEUTRAL_PROBABILITY + (1 - NEUTRAL_PROBABILITY) * WorldConfig.STEERING_STRENGTH * pull
-	return if roll < probabilityRight then 1 else -1
-end
 
--- Baja la curvatura de la curva si el rumbo se pasaría del corredor. Devuelve nil si quedaría demasiado floja.
-local function capPeakCurvature(piece: RoadPiece, headingDeviation: number): number?
-	local sign = getSign(piece.peakCurvature)
-	local headroom = PLANNING_LIMIT_RADIANS - sign * headingDeviation
-	local headingChange = math.abs(RoadPieceProfile.getFirstLobeHeadingChange(piece))
-	if headingChange <= headroom then
-		return piece.peakCurvature
+	local function generateNextPiece(): PieceResult
+		local result = findPieceTakingBack()
+		local retractedAfter = state.sampleIndex
+		commit(result)
+		return {
+			retractedAfterSampleNumber = retractedAfter,
+			samples = result.samples,
+			finalizedSampleNumber = checkpoints[1].state.sampleIndex,
+		}
 	end
-	local ratio = headroom / headingChange
-	if ratio < WorldConfig.MIN_CAPPED_PEAK_FRACTION then
-		return nil
+
+	local function getInitialSample(): RoadIntegrator.RoadSample
+		return RoadIntegrator.toSample(initialState)
 	end
-	return piece.peakCurvature * ratio
-end
 
-local function fitToHeadingCorridor(piece: RoadPiece, headingDeviation: number)
-	local capped = capPeakCurvature(piece, headingDeviation)
-	if capped == nil then
-		piece.peakCurvature = -piece.peakCurvature
-		capped = capPeakCurvature(piece, headingDeviation)
+	local function getStatistics(): SequencerStatistics
+		return statistics
 	end
-	piece.peakCurvature = capped or 0
-end
 
--- Cota conservadora del desvío lateral al terminar la pieza: el rumbo recorre un tramo monótono por lóbulo.
-local function getLateralDriftBound(piece: RoadPiece, context: SequencerContext): number
-	local endDeviation = context.headingDeviationRadians + RoadPieceProfile.getFirstLobeHeadingChange(piece)
-	local worstDeviation = math.max(math.abs(context.headingDeviationRadians), math.abs(endDeviation))
-	local totalLength = RoadPieceProfile.getTotalSteps(piece) * STEP_STUDS
-	return math.abs(context.lateralOffsetStuds) + totalLength * math.sin(worstDeviation)
-end
-
--- Último recurso: una curva de un solo lóbulo, lo más cerrada posible, hacia la media.
-local function turnBackTowardMean(piece: RoadPiece, context: SequencerContext)
-	piece.lobeCount = 1
-	piece.peakCurvature = -getSign(context.lateralOffsetStuds) / WorldConfig.MIN_CURVE_RADIUS_STUDS
-	fitToHeadingCorridor(piece, context.headingDeviationRadians)
-end
-
-local function buildPiece(
-	definition: PieceDefinition,
-	random: SeededRandom.SeededRandom,
-	turnSign: number,
-	useTightestRadius: boolean
-): RoadPiece
-	local lengthStuds = random.nextInteger(definition.minLengthStuds, definition.maxLengthStuds)
-	-- El sorteo se consume igual con el radio fijo, para que el resto de la secuencia no dependa de esta rama.
-	local drawnRadiusFraction = random.nextNumber()
-	local radiusFraction = if useTightestRadius then 0 else drawnRadiusFraction
-	local slopeFraction = random.nextNumber()
-	local radiusStuds = math.max(
-		lerp(definition.minRadiusStuds, definition.maxRadiusStuds, radiusFraction),
-		WorldConfig.MIN_CURVE_RADIUS_STUDS
-	)
-	local lobeSteps = math.round(lengthStuds / definition.lobeCount / STEP_STUDS)
-	local slopeDegrees = lerp(definition.minSlopeDegrees, definition.maxSlopeDegrees, slopeFraction)
 	return {
-		kind = definition.kind,
-		lobeCount = definition.lobeCount,
-		lobeSteps = lobeSteps,
-		rampSteps = math.min(math.max(1, math.round(definition.rampFraction * lobeSteps)), lobeSteps // RAMPS_PER_LOBE),
-		peakCurvature = turnSign / radiusStuds,
-		endSlopeRadians = math.rad(math.clamp(slopeDegrees, -MAX_SLOPE_DEGREES, MAX_SLOPE_DEGREES)),
+		getInitialSample = getInitialSample,
+		generateNextPiece = generateNextPiece,
+		getStatistics = getStatistics,
 	}
 end
 
-local RoadPieceSequencer = {}
-
-function RoadPieceSequencer.chooseNextPiece(random: SeededRandom.SeededRandom, context: SequencerContext): RoadPiece
-	local isForcedBack = math.abs(context.lateralOffsetStuds) > FORCED_DRIFT_STUDS
-	local definition = pickDefinition(random, isForcedBack)
-	local piece = buildPiece(definition, random, pickTurnSign(random, context), isForcedBack)
-	fitToHeadingCorridor(piece, context.headingDeviationRadians)
-	if getLateralDriftBound(piece, context) > WorldConfig.MAX_LATERAL_DRIFT_STUDS then
-		turnBackTowardMean(piece, context)
-	end
-	return piece
-end
-
-return RoadPieceSequencer
+return RoadPieceSequencerModule
