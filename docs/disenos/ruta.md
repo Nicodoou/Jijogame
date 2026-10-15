@@ -2,7 +2,7 @@
 
 **Issue:** #9
 **Requerimientos:** RC-1, RC-2, RC-3, RC-4, RC-5, RC-6, RC-7, RC-12
-**Estado:** en revisión (#37): decidido el cambio, falta actualizar la arquitectura
+**Estado:** en revisión (#37): arquitectura propuesta, falta aprobación
 
 > **Revisión del 2026-10-15 (#37).** Después de probar la ruta en Studio, Beni decidió que sea más de rally:
 > - trazado libre en un área acotada cerca del origen;
@@ -267,6 +267,52 @@ Recentrar el mundo queda descartado para el MVP.
 2. **WP del terreno:** `TerrainHeightField`, `VoxelChunkBuilder`, `ChunkPlanner`, `WorkBudget`, `TerrainWriter` y `WorldClient`, más `WorldSeedServer`.
 3. **WP del decorado:** árboles y rocas (RC-9 y RC-10). Lleva un diseño corto aparte. Ya queda fijado un requisito, por pedido de A para CP-5 (choques sin frustración): **los colisionadores son formas simples**, un cilindro o una cápsula para el tronco y una esfera o una caja para la roca, nunca la colisión exacta de la malla, que engancha o despide al auto.
 Cada WP depende del anterior. Los proveedores de contratos (`SurfaceProvider` y `RoadResetProvider`) entran en el WP 2.
+
+### Revisión de la arquitectura por la ruta de rally (#37)
+
+Propuesta del Agente B, 2026-10-15. Reemplaza lo que contradiga de arriba, sobre todo "Distancia al origen" y el corredor de rumbo. Las capas, los contratos y `RoadQuery`, `SurfaceClassifier` y `SeededRandom` no cambian.
+
+**Valores nuevos o cambiados en `WorldConfig`** (iniciales, se ajustan jugando):
+
+| Valor | Antes | Ahora |
+| --- | --- | --- |
+| `ROAD_WIDTH_STUDS` | 24 | **16** |
+| `START_POSITION` | (−120.000, 50, 0) | **(0, 50, 0)** |
+| `START_HEADING_DEGREES` | (rumbo medio +x) | **0** (+x), solo como rumbo inicial |
+| `AREA_RADIUS_STUDS` | — | **8.000**: la ruta nunca sale de este círculo alrededor del origen |
+| `AREA_STEERING_MARGIN_STUDS` | — | **2.000**: a partir de acá el sorteo del sentido de las curvas se inclina hacia el centro |
+| `LIVE_CLEARANCE_STUDS` | — | **400**: distancia mínima entre partes vivas de la ruta que no son vecinas |
+| `LIVE_LOOKBACK_STUDS` | — | **4.000**: cuánta ruta hacia atrás se considera viva para el anti-cruce. El WP del terreno tiene que liberar todo lo que quede más atrás |
+| `MAX_SLOPE_DEGREES` | 8 | **12** (se confirma con el experimento de rampas de 15° y 20°) |
+| `HILL_*` | — | perfil de cerros: amplitud, longitud de onda, octavas, franja de altura y cambio máximo de pendiente por paso |
+| `MEAN_HEADING`, `MAX_HEADING_DEVIATION_DEGREES`, `MAX_LATERAL_DRIFT_STUDS`, `STEERING_*` | — | **se borran** |
+
+**Módulos que cambian:**
+
+| Módulo | Cambio |
+| --- | --- |
+| `RoadIntegrator` (nuevo) | Saca de `RoadPath` la integración de un paso (rumbo, posición y curvatura), para que el secuenciador pueda **previsualizar** una pieza con exactamente las mismas cuentas que `RoadPath`. |
+| `HillProfile` (nuevo) | Altura objetivo en función de `arcLength`: ruido con semilla (varias octavas de `math.noise`) dentro de la franja de altura. Da la **pendiente de cada paso**: sigue al objetivo con la pendiente limitada a `MAX_SLOPE_DEGREES` y con un cambio de pendiente por paso acotado (RC-4, sin quiebres). Reemplaza la pendiente por pieza del catálogo. |
+| `LiveRoadIndex` (nuevo) | Grilla de las muestras de los últimos `LIVE_LOOKBACK_STUDS`. Responde "¿este punto queda a menos de `LIVE_CLEARANCE_STUDS` de alguna muestra viva que no sea vecina?". Las vecinas son las que están a menos de `LIVE_CLEARANCE_STUDS` de distancia sobre el eje. Puede reutilizar `RoadSampleGrid`. |
+| `RoadPieceSequencer` | Sin corredor de rumbo. Sortea pieza, sentido, largo y radio. **Previsualiza** la pieza con `RoadIntegrator` y la acepta solo si todas sus muestras quedan adentro del área y lejos de la ruta viva (`LiveRoadIndex`). Si no, prueba en un orden fijo: el otro sentido, más corta, una curva cerrada para el lado libre y una recta corta. Cerca del borde del área, el sentido se inclina hacia el centro. Todo se consume del mismo `SeededRandom`, así que sigue siendo determinista. |
+| `RoadPieceCatalog` | Se le saca la pendiente (ahora la da `HillProfile`). Se suma la **horquilla** (`hairpin`: un lóbulo de radio cerca del mínimo que gira entre 120° y 180°), y los pesos se ajustan para que haya más curvas. |
+| `RoadFrame` | Se le saca el rumbo medio y el desvío lateral. Queda lo que sigue sirviendo (pasos por tramo y envoltura de ángulos), o se elimina si queda vacío. |
+| `RoadPath` | Usa `RoadIntegrator` y `HillProfile`, y le da al secuenciador acceso de solo lectura a `LiveRoadIndex`. La API pública no cambia. |
+
+**Por qué estos patrones:**
+- **Previsualizar y aceptar o rechazar** (generar y probar): es la forma más simple de garantizar el anti-cruce y el área sin geometría analítica. Como el secuenciador usa las mismas cuentas que `RoadPath` (`RoadIntegrator`), lo que se previsualiza es exactamente lo que después se genera.
+- **Altura separada de las curvas** (`HillProfile`): las lomas no dependen de qué pieza toque, y la franja de altura se cumple por construcción.
+- **Orden fijo de alternativas:** sin eso, el determinismo dependería de cuántos intentos haga falta.
+
+**Riesgo principal:** que la ruta se "encierre" (todas las alternativas rechazadas). Se mitiga con un área grande (8.000 de radio contra 400 de distancia libre), con el tirón hacia el centro y con la horquilla como salida. Lo verifica una prueba de propiedades de 200 semillas × 400 tramos (~100 km cada una). Si igual pasara, hay un último recurso documentado: la curva más cerrada hacia el lado con más espacio libre, y la prueba tiene que demostrar que nunca hace falta pasar de ahí.
+
+**Relación con el WP del terreno:** como la ruta puede volver por una zona vieja, el terreno de cada chunk sale **solo de la ruta viva** (más el ruido de las colinas). El WP del terreno tiene que liberar los chunks de la ruta que quedó a más de `LIVE_LOOKBACK_STUDS` y reescribirlos si la ruta vuelve.
+
+**División en WPs (actualizada):**
+1. ~~WP de la ruta~~ (WP-2, en `main`).
+2. **WP-5, rediseño de la ruta de rally:** todo lo de la tabla de arriba, con sus pruebas.
+3. WP del terreno.
+4. WP del decorado.
 
 ## Aprobación
 Aprobó Beni el 2026-10-14, en la sesión con el Agente B: [#9](https://github.com/Nicodoou/Jijogame/issues/9#issuecomment-6181254772) y [#10](https://github.com/Nicodoou/Jijogame/issues/10#issuecomment-6181255081). Revisión del Agente A en el PR #21.
