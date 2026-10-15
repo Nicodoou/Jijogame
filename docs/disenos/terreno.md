@@ -2,7 +2,7 @@
 
 **Issue:** #10
 **Requerimientos:** RC-6, RC-8, RC-9, RC-10, RC-11, RN-1
-**Estado:** arquitectura propuesta
+**Estado:** aprobado
 
 ## Investigación
 
@@ -131,4 +131,4 @@ Beni eligió el 2026-10-14, en la sesión con el Agente B: **T1, todo con Terrai
 Está en `ruta.md`, sección Arquitectura, que cubre toda el área de Calles infinitas (ruta y terreno).
 
 ## Aprobación
-Pendiente.
+Aprobó Beni el 2026-10-14, en la sesión con el Agente B: [#9](https://github.com/Nicodoou/Jijogame/issues/9#issuecomment-6181254772) y [#10](https://github.com/Nicodoou/Jijogame/issues/10#issuecomment-6181255081). Revisión del Agente A en el PR #21.

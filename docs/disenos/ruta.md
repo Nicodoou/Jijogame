@@ -2,7 +2,7 @@
 
 **Issue:** #9
 **Requerimientos:** RC-1, RC-2, RC-3, RC-4, RC-5, RC-6, RC-7, RC-12
-**Estado:** arquitectura propuesta
+**Estado:** aprobado
 
 ## Investigación
 
@@ -245,4 +245,4 @@ Recentrar el mundo queda descartado para el MVP.
 Cada WP depende del anterior. Los proveedores de contratos (`SurfaceProvider` y `RoadResetProvider`) entran en el WP 2.
 
 ## Aprobación
-Pendiente.
+Aprobó Beni el 2026-10-14, en la sesión con el Agente B: [#9](https://github.com/Nicodoou/Jijogame/issues/9#issuecomment-6181254772) y [#10](https://github.com/Nicodoou/Jijogame/issues/10#issuecomment-6181255081). Revisión del Agente A en el PR #21.
