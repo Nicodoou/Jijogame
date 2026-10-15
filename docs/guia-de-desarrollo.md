@@ -20,7 +20,7 @@ Rokit es el administrador que instala las herramientas del proyecto con la versi
    ```
 
    Eso copia Rokit a `C:\Users\<vos>\.rokit\bin` y lo agrega al `PATH` del usuario.
-3. **Cerrá y volvé a abrir la terminal** (y Git Bash) para que tome el `PATH`.
+3. **Cerrá y volvé a abrir la terminal** (y Git Bash) para que tome el `PATH`. Si la terminal está adentro de otro programa (VS Code, la app de Claude u otro editor), **cerrá y abrí el programa entero**: la terminal hereda las variables del programa, y si no, sigue sin encontrar `rokit`.
 4. Si tu Git Bash no encuentra `rokit`, agregá esta línea a `~/.bashrc` y abrí una terminal nueva:
 
    ```bash
@@ -222,6 +222,7 @@ scripts/coverage.sh      # cobertura de src/*/core/**; falla por debajo de 87%
 | Síntoma | Causa y arreglo |
 | --- | --- |
 | `rojo` (u otra herramienta) dice que no encuentra la herramienta | Estás fuera de una carpeta con `rokit.toml`. Entrá al repo. |
+| `rokit: command not found` justo después de instalarlo | La terminal se abrió antes de instalar Rokit. Reiniciá la terminal o el programa que la contiene (sección 2, paso 3), o corré `export PATH="$HOME/.rokit/bin:$PATH"` en esa terminal. |
 | `rokit install` se cuelga | Falta `rokit trust` de alguna herramienta (sección 3). |
 | `stylua --check` falla solo en tu máquina | Fin de línea. Confirmá que el archivo es LF con `git ls-files --eol <archivo>`; `.gitattributes` fuerza LF al hacer checkout. |
 | `no encuentro 'luau'` (u otra) desde un script | Falta el `PATH` de Rokit en Git Bash (sección 2, paso 4). |
