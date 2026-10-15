@@ -11,3 +11,9 @@ Thumbs.db
 
 # Reporte de cobertura de luau --coverage
 coverage.out
+
+# Reportes intermedios y combinados de scripts/test.sh y scripts/coverage.sh
+coverage/
+
+# Definiciones de Roblox que baja scripts/analyze-adapters.sh
+.cache/
