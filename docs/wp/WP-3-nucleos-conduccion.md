@@ -223,6 +223,36 @@ Los aprobó Nico el 2026-10-15, después del informe del subagente:
 - **Resueltos por el orquestador, porque estaban en el WP:** `slipRatio` usa la fuerza pedida antes del tope, y la suspensión a tope dura como máximo `BOTTOM_OUT_MAX_MISSED_STEPS` pasos.
 - **Aceptadas del informe:** configuración inyectable (`config?` como último parámetro), los módulos `VehicleMath` y `WheelForces`, `ContactPlane` antes de la suspensión y el filtro de la velocidad de compresión dentro de `Suspension.step`.
 
+## Cambios después del experimento `exp/manejo`
+
+Nico manejó el auto en un Baseplate con adaptadores descartables (rama `exp/manejo`, que no se mergea) y lo dejó "bastante bien" con estos cambios (2026-10-15). **Reemplazan** a los valores y fórmulas de arriba donde se contradigan:
+
+**Valores de `VehicleConfig`:**
+
+| Valor | Antes | Ahora |
+| --- | --- | --- |
+| `REAR_BIAS` | 0,7 | **1,0** (tracción trasera; ver `docs/decisiones.md`) |
+| `FIRST_GEAR_PEAK_ACCELERATION` | 110 | **180** studs/s² |
+| `COUNTER_STEER_STRENGTH` | 0,3 | **0** (apagado; el módulo `Assists` queda) |
+| `STEER_MAX_HIGH_SPEED_DEGREES` | 8 | **18** |
+| `TIRE_SLIDE_FRICTION_RATIO` | 1,0 | **0,75** |
+| `BRAKE_DECELERATION` | 250 | **75** studs/s² |
+| `HANDBRAKE_FORCE_PER_LOAD` | 1,5 | **0,25** |
+
+**Mecánicas nuevas en el núcleo:**
+1. **Contravolante sin recorte al derrapar** (en `VehicleSimulator`, donde se calcula el máximo de dirección): el límite efectivo es `max(Steering.maxAngle(speed), min(|driftAngle| + DRIFT_STEER_MARGIN, STEER_MAX_LOW_SPEED))`, con `DRIFT_STEER_MARGIN_DEGREES` = 5. CP-10 sigue valiendo en recta; al derrapar se puede contravolantear.
+2. **Agarre por eje:** `FRONT_GRIP_MULTIPLIER` = 1,0 y `REAR_GRIP_MULTIPLIER` = 0,9 multiplican el agarre disponible (tope lateral y círculo) de cada rueda según su eje.
+3. **El freno de mano suelta la cola en vez de frenar:** mientras está apretado, el agarre trasero se multiplica por `HANDBRAKE_REAR_GRIP_MULTIPLIER` = 0,5. Al soltarlo, el factor vuelve a 1 con `1 − exp(−HANDBRAKE_GRIP_RECOVERY_RATE · dt)`, con `HANDBRAKE_GRIP_RECOVERY_RATE` = 3 por segundo. Al apretarlo, baja de inmediato. El factor vive en `VehicleState.rearGripFactor`. La fuerza de freno del freno de mano (`HANDBRAKE_FORCE_PER_LOAD`) se mantiene, más chica.
+
+**Pruebas que cambian:**
+- Se ajustan a los valores nuevos las pruebas de `Tire` (caída 0,75), de `VehicleSimulator` (el tope de dirección ahora depende de la deriva) y la propiedad 6a (barro contra ruta).
+- **Propiedad 4 (freno de mano):** a 60 studs/s, con dirección a fondo y freno de mano durante 0,3 s, la deriva pasa los 15° y **no hace trompo** (la deriva máxima queda por debajo de 90°).
+- **Propiedad 5 (`REAR_BIAS`):** se mantiene, con la configuración inyectada (1,0 contra 0,5), en Road.
+- **Propiedad nueva 13 (freno de mano que se recupera):** después de soltarlo, `rearGripFactor` vuelve a más de 0,95 en menos de 1,5 s y nunca pasa de 1.
+- **Propiedad nueva 14 (contravolante):** con el auto derrapando a 30°, el ángulo de dirección permitido es mayor que `maxAngle(speed)`; en recta, a la misma velocidad, no.
+
+Lo que no se pudo sostener en el experimento (un derrape largo a 60–80 studs/s con piloto automático) **no es una propiedad**: lo juzga una persona.
+
 ## Fuera de alcance
 - Todo lo que toca Roblox: adaptadores, `src/app/`, Rojo y las pruebas en Studio (son del WP-4).
 - El reset (RC-12) y el uso de los contratos #35 y #36 (WP-4).

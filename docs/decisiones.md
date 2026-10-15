@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-15 — Auto: tracción trasera y freno de mano que suelta la cola
+**Decidió:** Nico (después de manejar el experimento `exp/manejo`)
+**Issue:** #8 (cambia el valor inicial de la decisión "Auto: raycast con fuerzas, neumático con tope y AWD con sesgo trasero")
+**Decisión:** `REAR_BIAS` pasa de 0,7 a 1,0 (tracción trasera), con más empuje (`FIRST_GEAR_PEAK_ACCELERATION` 180) y sin asistencia de contravolante. El freno de mano baja el agarre trasero en vez de frenar, y al soltarlo el agarre vuelve en menos de un segundo. Al derrapar, la dirección permite contravolantear más allá del límite por velocidad. El modelo físico, el neumático y el resto de la decisión anterior no cambian.
+**Por qué:** con AWD 70% y el empuje inicial no se podía derrapar: el agarre de la ruta le ganaba al motor y el freno de mano hacía trompo o frenaba en seco. Manejándolo, la combinación de arriba se sintió "bastante bien".
+**Descartado:** temperatura de neumáticos y frenos (cambia en segundos o minutos y no resuelve el balance del derrape; queda como idea para después del MVP), y mantener AWD subiendo solo el empuje.
+
 ## 2026-10-15 — Ruta de rally: trazado libre en un área acotada, perfil de cerros y 16 studs de ancho
 **Decidió:** Beni (después de probar la ruta del WP-2 en Studio)
 **Issue:** #37 (reabre "El mundo arranca en −120.000 studs, sin recentrar" y retoma la idea de Nico del #23)
