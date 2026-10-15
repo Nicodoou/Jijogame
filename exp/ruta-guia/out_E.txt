@@ -1,0 +1,4 @@
+[E] semillas=40 guideFail=0 routeStuck=0 routeShort=0 | retrocesos guia=9 (max seguidos 2) | ultimo recurso=406 de 16952 piezas (1er intento 82%)
+    antiCruce: violaciones=0 (semillas 0) distMin(no vecinas)=200 | maxRadio=7194 | giro>180 neto 4% de ventanas, acumulado 100%, max neto 420 deg | semillas con ventana neta>180: 40/40 | 4 cuadrantes 40/40
+    por km: curvas cerradas 1.62, horquillas 0.44 | km por semilla 103 | tiempo 0.8 s por semilla (0.20 s por 100 tramos)
+    intentos usados (1..6): 13914 1072 716 865 32 235  retrocesos de ruta=46 (piezas retiradas 52, maximo de una vez 2)
