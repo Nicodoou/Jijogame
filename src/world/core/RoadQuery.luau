@@ -123,8 +123,8 @@ function RoadQueryModule.new(path: RoadPath.RoadPath): RoadQuery
 			or (candidate.startIndex == highestIndex - 1 and candidate.rawFraction > 1)
 	end
 
-	-- Las cuentas van con componentes sueltos (doubles): un `vector` guarda floats de 32 bits, que cerca de x = -120.000
-	-- pierden casi 0,01 studs en cada operación.
+	-- Las cuentas van con componentes sueltos (doubles): un `vector` guarda floats de 32 bits, que a miles de studs del
+	-- origen pierden cerca de 0,001 studs en cada operación.
 	local function buildResult(candidate: Candidate, queryX: number, queryZ: number): RoadQueryResult
 		local start, finish = grid.getSample(candidate.startIndex), grid.getSample(candidate.startIndex + 1)
 		assert(start and finish, "a candidate edge has both of its samples")

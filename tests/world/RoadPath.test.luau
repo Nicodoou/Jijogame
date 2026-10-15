@@ -77,10 +77,10 @@ Runner.test("a seed that is not finite is rejected", function()
 	end)
 end)
 
-Runner.test("the road starts at the configured start position, heading to the mean heading", function()
+Runner.test("the road starts at the configured start position, heading to +x", function()
 	local first = RoadPath.new(1).generateNextSegment().samples[1]
 	Runner.expectEqual(first.position, WorldConfig.START_POSITION)
-	Runner.expectEqual(first.heading, 0)
+	Runner.expectEqual(first.heading, math.rad(WorldConfig.START_HEADING_DEGREES))
 	Runner.expectEqual(first.curvature, 0)
 	Runner.expectEqual(first.slope, 0)
 	Runner.expectEqual(first.arcLength, 0)

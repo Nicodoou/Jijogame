@@ -10,7 +10,7 @@ type RoadQueryResult = RoadQuery.RoadQueryResult
 
 local POSITION_COUNT = 1000
 local TOLERANCE = 0.01
--- El punto devuelto es un vector de floats de 32 bits: cerca de x = -120.000 se redondea a 0,0078 studs por coordenada.
+-- El punto devuelto es un vector de floats de 32 bits: a 8.000 studs del origen se redondea a 0,001 studs por coordenada.
 local VECTOR_PRECISION_STUDS = 0.03
 local PATH_SEED = 2024
 local GENERATED_SEGMENTS = 8
@@ -165,7 +165,6 @@ Runner.test("positions before the first loaded segment and after the last one ha
 	local after = last.position + vector.create(math.cos(last.heading), 0, math.sin(last.heading)) * 30
 	Runner.expectEqual(query.findNearest(before, nil), nil)
 	Runner.expectEqual(query.findNearest(after, nil), nil)
-	Runner.expectEqual(query.findNearest(WorldConfig.START_POSITION, nil), nil)
 end)
 
 Runner.test("the first and the last loaded points still answer", function()

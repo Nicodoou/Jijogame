@@ -11,7 +11,7 @@ type SurfaceKind = "Road" | "Shoulder" | "Grass" | "Mud"
 local PATH_SEED = 777
 local GENERATED_SEGMENTS = 6
 local FIRST_LOADED_SEGMENT = 1
--- Un vector guarda floats de 32 bits (0,0078 studs de paso cerca de x = -120.000): el hueco tiene que ser mayor que eso.
+-- Un vector guarda floats de 32 bits (0,001 studs de paso a 8.000 studs del origen): el hueco tiene que ser mayor que eso.
 local EDGE_GAP_STUDS = 0.05
 local ROAD_HALF_WIDTH = WorldConfig.ROAD_WIDTH_STUDS / 2
 local SHOULDER_EDGE = ROAD_HALF_WIDTH + WorldConfig.SHOULDER_WIDTH_STUDS
