@@ -31,6 +31,27 @@
           "$path": "src/world/core"
         }
       }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "exp": {
+        "$path": "src/exp/server"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "exp": {
+          "$path": "src/exp/client"
+        }
+      }
+    },
+    "Players": {
+      "$className": "Players",
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
     }
   }
 }
