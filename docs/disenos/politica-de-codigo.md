@@ -2,7 +2,7 @@
 
 **Issue:** #6
 **Requerimientos:** transversal (reglas de pruebas y cobertura de `docs/reglas-de-trabajo.md`, sección 5)
-**Estado:** arquitectura propuesta
+**Estado:** aprobado
 
 ## Investigación
 
@@ -301,4 +301,4 @@ El diseño interno de cada área (cómo es el núcleo de la ruta o del auto) va 
 
 ## Aprobación
 
-Pendiente.
+Arquitectura aprobada por **Nico** (2026-10-14, [comentario](https://github.com/Nicodoou/Jijogame/issues/6#issuecomment-6181265010)) y por **Beni** (2026-10-14, a través del Agente B, en #6). Revisada por el Agente B en el PR #20.
