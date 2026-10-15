@@ -2,7 +2,7 @@
 
 **Issue:** #9
 **Requerimientos:** RC-1, RC-2, RC-3, RC-4, RC-5, RC-6, RC-7, RC-12
-**Estado:** en revisión (#37): arquitectura propuesta, falta aprobación
+**Estado:** aprobado (revisión #37)
 
 > **Revisión del 2026-10-15 (#37).** Después de probar la ruta en Studio, Beni decidió que sea más de rally:
 > - trazado libre en un área acotada cerca del origen;
@@ -315,4 +315,6 @@ Propuesta del Agente B, 2026-10-15. Reemplaza lo que contradiga de arriba, sobre
 4. WP del decorado.
 
 ## Aprobación
+Revisión #37: aprobó Beni el 2026-10-15 ([#37](https://github.com/Nicodoou/Jijogame/issues/37#issuecomment-6183216378)).
+
 Aprobó Beni el 2026-10-14, en la sesión con el Agente B: [#9](https://github.com/Nicodoou/Jijogame/issues/9#issuecomment-6181254772) y [#10](https://github.com/Nicodoou/Jijogame/issues/10#issuecomment-6181255081). Revisión del Agente A en el PR #21.
