@@ -23,3 +23,7 @@ Un concepto, un nombre. Se consulta antes de nombrar algo nuevo y se agrega acá
 | Carga | `load` | Fuerza vertical que la suspensión hace sobre una rueda. Es el límite de agarre del neumático. |
 | Reparto trasero | `REAR_BIAS` | Fracción de la fuerza del motor que va al eje trasero (0,7 inicial). |
 | Orden de las ruedas | FL, FR, RL, RR | Delantera izquierda, delantera derecha, trasera izquierda y trasera derecha. Es el orden de todas las listas de ruedas del núcleo del auto. |
+| Punto de ruta | `RoadPoint` | Punto sobre el eje de la ruta, a la altura de la superficie, con su dirección hacia adelante y su `arcLength`. Contrato en `src/shared/contracts/RoadPoint.luau` (#35). |
+| Punto más cercano de la ruta | `GetNearestRoadPoint` | Función que devuelve el `RoadPoint` del eje más cercano a una posición, ignorando la altura. Se usa para el reset (RC-12). |
+| Punto de aparición | `GetSpawnPoint` | Función que devuelve el inicio de la ruta, donde aparece el auto. |
+| Mundo listo | `IsWorldReadyAt` | Función que dice si el Terrain alrededor de una posición ya está escrito. Contrato en `src/shared/contracts/WorldReady.luau` (#36). |
