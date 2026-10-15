@@ -2,7 +2,7 @@
 
 **Issue:** #7 (modelo de física), #8 (tipo de auto)
 **Requerimientos:** CP-1 a CP-16, RN-2
-**Estado:** decidido
+**Estado:** arquitectura propuesta
 
 ## Investigación
 
@@ -230,7 +230,112 @@ Decidió Nico el 2026-10-15, eligiendo las tres recomendaciones:
 **Por qué:** es la combinación que deja el derrape, el peso y el agarre por superficie bajo control y medibles, y que se puede afinar con parámetros en las pruebas de juego.
 
 ## Arquitectura
-Pendiente: se escribe con la decisión y los resultados de los experimentos.
+
+Propuesta del Agente A, 2026-10-15. Sigue la arquitectura general de `docs/disenos/politica-de-codigo.md` (contratos ← núcleo ← adaptadores ← arranque). La aprueba Nico. Como crea `src/app/`, que es compartido, también hace falta la aprobación de Beni para esa parte.
+
+### Visión general
+
+Cada frame, el lado del cliente hace esto:
+
+```
+PreSimulation(dt)
+  input/client  ──valores crudos──▶  input/core: InputSmoother ──▶ VehicleControls (dirección, acelerador, freno, freno de mano en [−1, 1] o [0, 1])
+  vehicle/client: lee el chasis (CFrame, velocidades) y lanza 4 rayos ──▶ WheelContact ×4 (con GetSurfaceAt en el punto de contacto)
+  vehicle/core: VehicleSimulator.step(state, controls, chassis, contacts, dt) ──▶ nuevo estado + fuerza por rueda (mundo) + datos de feedback
+  vehicle/client: aplica la fuerza de cada rueda a su VectorForce + impulso mínimo (despertador)
+PreRender(dt)
+  camera/client ──▶ camera/core: ChaseCamera.step(cámara, datos del auto, mirarAtrás, dt) ──▶ CFrame objetivo ──▶ CurrentCamera
+```
+
+El núcleo es **una función de paso**: recibe el estado anterior, las entradas y `dt`, y devuelve el estado nuevo y las salidas. No guarda nada escondido, no lee el reloj ni usa azar. Así cada prueba arma un estado, llama a `step` y compara.
+
+### Núcleo del auto (`src/vehicle/core/`)
+
+| Módulo | Responsabilidad | Requerimientos |
+| --- | --- | --- |
+| `VehicleConfig` | **Todos los parámetros del auto en un solo lugar**, con nombre y unidad: masa, posición de las ruedas, suspensión (frecuencia en Hz, como máximo 4; amortiguación relativa; recorrido), neumático (`mu`, rigidez lateral, caída opcional después del pico), agarre por `SurfaceKind`, motor (curva de torque y corte), caja (relaciones, umbrales con histéresis, tiempo de cambio), `rearBias` (0,7), dirección (ángulo máximo contra velocidad), freno, freno de mano y asistencias. Es solo datos. | CP-6 |
+| `VehicleTypes` | Los tipos compartidos del núcleo: `VehicleState`, `VehicleControls`, `ChassisSample` (orientación, velocidad lineal y angular, como `vector`), `WheelContact` (`hit`, distancia, punto, `SurfaceKind?`), `WheelOutput` y `VehicleFeedback`. | — |
+| `Suspension` | Compresión, fuerza de resorte y amortiguador (con tope) y velocidad de compresión filtrada. Si el rayo no pega (`nil`) y la rueda venía muy comprimida, la trata como **suspensión a tope**, no como rueda en el aire (#31). | CP-2 |
+| `ContactPlane` | El plano del suelo a partir de los puntos de contacto (de 2 a 4). Da la dirección "arriba" para las fuerzas. Ignora la `Normal` de cada rayo por la ondulación del Terrain (#31). Si hay menos de 2 contactos, usa el "arriba" del chasis. | — |
+| `Tire` | Por rueda: ángulo de deslizamiento, fuerza lateral lineal con tope `mu × carga` y caída opcional, y círculo de fricción con la fuerza longitudinal. A baja velocidad, se regulariza para no temblar. | CP-1, CP-3 |
+| `SurfaceGrip` | Del `SurfaceKind` al factor de agarre y a la resistencia al rodar. Filtra el cambio por rueda con `1 − exp(−k·dt)`, así un borde nítido no se siente como un golpe. Un `nil` mantiene el último valor. | CP-3 |
+| `Drivetrain` | Curva de torque del motor, RPM desde la velocidad de las ruedas, caja automática con histéresis, corte de torque durante el cambio y reparto entre ejes según `rearBias`. **Sin inercia de rueda:** la fuerza longitudinal de cada rueda sale del torque y del freno, y el círculo de fricción la recorta. Es más simple y estable que integrar el giro de las ruedas, y alcanza para un auto arcade. | CP-4, CP-13 |
+| `Steering` | El ángulo de dirección máximo baja con la velocidad. | CP-10 |
+| `Assists` | Contravolante suave, parametrizable (con 0 se apaga). | CP-1 |
+| `VehicleSimulator` | Orquesta un paso: dirección → suspensión y cargas → agarre → tren motriz → neumáticos → fuerzas por rueda en el plano del contacto → asistencias → feedback. **No implementa física propia:** solo compone los otros módulos. | — |
+
+**Salidas por paso:**
+- **`WheelOutput` ×4:** la fuerza total de cada rueda, en coordenadas del mundo (suspensión más neumático), y si la rueda toca el suelo.
+- **`VehicleFeedback`:** velocidad, RPM, marcha, si está cambiando de marcha, deslizamiento por rueda, ángulo de deriva y si está derrapando. Es lo que usan el HUD, el sonido, las partículas, las marcas y la cámara.
+
+### Núcleo del input (`src/input/core/`)
+
+- `InputConfig`: rampas de subida y de retorno por eje, zona muerta del gamepad y curva de respuesta.
+- `InputSmoother.step(state, rawInput, dt)`: devuelve `VehicleControls`. El teclado da 0 o 1 y pasa por las rampas; el gamepad da valores analógicos, pasa por la zona muerta y la curva, y no lleva rampa. El freno de mano es un botón, sin rampa. **CP-7.**
+
+### Núcleo de la cámara (`src/camera/core/`)
+
+- `CameraConfig`: distancia, altura, rigidez del seguimiento y peso de la dirección de la velocidad.
+- `ChaseCamera.step(state, vehicleView, isLookingBack, dt)`: calcula el yaw objetivo, que mezcla la orientación del auto con la dirección de su velocidad según el derrape, y lo suaviza con `1 − exp(−k·dt)`. Devuelve la posición y el punto al que mira, como `vector`. Si `isLookingBack` está activo, mira hacia atrás. **CP-11 y CP-12.**
+
+### Adaptadores
+
+| Módulo | Dónde | Qué hace |
+| --- | --- | --- |
+| `VehicleSpawner` | `src/vehicle/server/` | Crea el auto (un modelo de cajas grises hasta que llegue el asset, ver más abajo), lo ubica en el punto de aparición y llama `SetNetworkOwner(player)` (RN-2). |
+| `VehicleController` | `src/vehicle/client/` | En `PreSimulation`: lee el chasis y lanza los 4 rayos. Cada rayo sale **desde arriba del chasis** (#31) y filtra el propio auto con `RaycastParams`. Consulta `GetSurfaceAt` en el punto de contacto, convierte `CFrame`/`Vector3` a `vector`, llama a `VehicleSimulator.step`, asigna cada `VectorForce.Force` y da el impulso mínimo despertador (#32). También publica `GetVehiclePosition` (#22) y mueve las ruedas visuales. |
+| `InputReader` | `src/input/client/` | Lee el teclado y el gamepad en cada frame con `UserInputService` (`IsKeyDown`, `GetGamepadState`) y entrega valores crudos. Mapea las teclas y botones del juego, incluidos el freno de mano y mirar atrás. |
+| `ChaseCameraController` | `src/camera/client/` | En `PreRender`: lee el auto, llama a `ChaseCamera.step` y posiciona la `CurrentCamera` (`CameraType = Scriptable`). |
+
+Las constantes del motor van en constantes con nombre dentro de cada adaptador. Ejemplos: el valor del impulso despertador, cuánto arriba del chasis sale el rayo y la tecla de cada acción.
+
+**Por qué `UserInputService` con lectura por frame** y no el Input Action System: es estable y conocido, y da exactamente lo que necesita el núcleo (valores crudos por frame). El Input Action System no documenta una zona muerta, y la zona muerta igual la hace el núcleo. Si más adelante conviene el Input Action System (por ejemplo, para reasignar controles), se cambia solo `InputReader`.
+
+### Arranque (`src/app/`)
+
+Se crea en este diseño:
+- `src/app/client/Main.client.luau`: crea `InputReader`, `VehicleController` y `ChaseCameraController`, con sus núcleos y configuraciones, y les pasa `GetSurfaceAt` del mundo.
+- `src/app/server/Main.server.luau`: crea `VehicleSpawner`.
+
+Hasta que el Agente B tenga su adaptador del mundo, el arranque del cliente usa un **stub de `GetSurfaceAt` que devuelve `"Road"`**. El cambio al real es una línea en el arranque. Los dos agentes tocan `src/app/` **por acuerdo**: cada uno suma sus líneas en PRs revisados por el otro. Se agregan al mapeo de Rojo `src/app/`, `src/vehicle/{client,server}`, `src/input/client` y `src/camera/client`.
+
+### Patrones y por qué
+
+- **Núcleo funcional y cáscara imperativa:** el núcleo es una función `step` pura y los adaptadores hacen los efectos. Resuelve que todo el manejo se pueda probar con `dt` y estado fijos (87% de cobertura).
+- **Composición en `VehicleSimulator` en vez de herencia:** cada parte de la física es un módulo chico que se prueba solo, y el simulador las encadena en un orden fijo y documentado.
+- **Configuración como datos:** CP-6 pide ajustar sin tocar código. Toda constante de afinación vive en `VehicleConfig`, `InputConfig` o `CameraConfig`.
+- **Puertos y adaptadores:** el núcleo nunca ve `Vector3` ni `Instance`, y el adaptador traduce.
+
+### Lo que este diseño no cubre (WPs posteriores)
+
+- **Feedback:** sonido del motor y de los neumáticos, polvo, marcas y HUD (CP-13 a CP-16). Usan `VehicleFeedback`, que ya define este diseño.
+- **Reset (RC-12):** necesita el contrato "punto de ruta más cercano", que provee el Agente B y todavía no existe.
+- **Validación en el servidor** de lo que reporta el cliente.
+- **Asset del auto:** se pide a Nico con un issue `necesita-humano` (`asset-modelo`). Mientras tanto, se usan cajas grises con los nombres `Body`, `WheelFL`, `WheelFR`, `WheelRL` y `WheelRR`.
+
+### Plan de WPs
+
+1. **WP-3 (núcleos):** `vehicle/core`, `input/core` y `camera/core` con sus pruebas. Incluye las pruebas de propiedades:
+   - el auto en reposo sobre suelo plano no se mueve;
+   - con el freno de mano en una curva, la cola se suelta;
+   - con más `rearBias`, más sobreviraje con acelerador;
+   - nada da NaN con `dt` extremos.
+   Es puro Luau y no necesita Studio.
+2. **WP-4 (adaptadores y arranque):** el spawner, el controlador, el input, la cámara y `src/app/`.
+   Pruebas manuales en Studio:
+   - manejar;
+   - derrapar;
+   - 30 FPS con espera activa;
+   - `Fixed` contra `Adaptive`;
+   - el dueño de red en el cliente;
+   - el Terrain del Agente B cuando esté.
+   Pide a Nico la prueba de juego (`prueba-de-juego`).
+
+### Riesgos que el WP-4 confirma primero
+
+1. Si `PhysicsSteppingMethod` se puede fijar en `Fixed` desde `default.project.json` (`$properties` de `Workspace`). Si no se puede, se documenta cómo fijarlo a mano en el lugar.
+2. Que la suspensión siga estable con el dueño de red en el cliente y con fuerzas laterales, no solo verticales (#32 midió en el servidor y solo con fuerzas verticales).
+3. Cuánto cuesta en un celular de gama media: prueba manual.
 
 ## Aprobación
 Pendiente.
