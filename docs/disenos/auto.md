@@ -2,7 +2,7 @@
 
 **Issue:** #7 (modelo de física), #8 (tipo de auto)
 **Requerimientos:** CP-1 a CP-16, RN-2
-**Estado:** opciones presentadas
+**Estado:** decidido
 
 ## Investigación
 
@@ -183,7 +183,14 @@ Por ejemplo, 30% adelante y 70% atrás.
 - **Servidor** (`src/vehicle/server/`): asignar el dueño de red al jugador (RN-2).
 
 ## Decisión
-Pendiente: decide Nico (área de Conducción).
+
+Decidió Nico el 2026-10-15, eligiendo las tres recomendaciones:
+
+1. **Física: F2**, raycast por rueda y fuerzas sobre el chasis. Queda condicionada a los experimentos 1 a 3 de `exp/auto-fisica`. Si a 30 FPS no se logra estabilidad, la suspensión pasa a `SpringConstraint` y el resto del manejo queda en el núcleo.
+2. **Neumático: N1**, lineal con tope y círculo de fricción, con caída opcional después del pico y un contravolante suave, los dos parametrizables.
+3. **Tracción: T1**, AWD con sesgo trasero, con `rearBias` = 0,7 como valor inicial y parametrizable.
+
+**Por qué:** es la combinación que deja el derrape, el peso y el agarre por superficie bajo control y medibles, y que se puede afinar con parámetros en las pruebas de juego.
 
 ## Arquitectura
 Pendiente: se escribe con la decisión y los resultados de los experimentos.
