@@ -1,6 +1,7 @@
 --!strict
 -- Propiedades del simulador completo, corridas sobre el mundo de juguete a 30 FPS con las fuerzas fijas entre cuadros.
 local Runner = require("../Runner")
+local Drivetrain = require("../../src/vehicle/core/Drivetrain")
 local Steering = require("../../src/vehicle/core/Steering")
 local ToyWorld = require("./ToyWorld")
 local VehicleConfig = require("../../src/vehicle/core/VehicleConfig")
@@ -24,17 +25,27 @@ local REST_SPIN_RADIANS_PER_SECOND = 0.01
 local REST_MAX_DRIFT_STUDS = 0.05
 local REST_MAX_SPEED = 0.05
 local CRUISE_SPEED = 60
+-- Más rápido que STEER_LOW_SPEED, donde el máximo por velocidad ya bajó del de baja velocidad.
+local DRIFT_CHECK_SPEED = 100
 local HANDBRAKE_SECONDS = 0.3
 local HANDBRAKE_TURN_SECONDS = 2.5
 local HANDBRAKE_DRIFT_DEGREES = 15
 local SPIN_DRIFT_DEGREES = 90
 local ACCELERATION_SECONDS = 3
-local REAR_BIAS_STEER = 0.5
+local REAR_BIAS_STEER = 0.7
 local CORNER_SECONDS = 1
 local CORNER_THROTTLE = 0.2
 local EXIT_SECONDS = 2
 local MIN_REAR_BIAS_DRIFT_GAIN_DEGREES = 10
 local WHEEL_COUNT = 4
+local REVERSE_SECONDS = 6
+local REVERSE_MAX_SPEED = 32
+local REVERSE_MOVING_SPEED = 5
+local REVERSE_GRIP_FRACTION = 0.8
+local LIMITER_SWEEP_STEP_RPM = 10
+local LIMITER_SWEEP_EXTRA_RPM = 500
+local MAX_FORCE_DROP_FRACTION = 0.2
+local LIMITER_RUN_SECONDS = 40
 local GRAVITY = 196.2
 local MASS = 1000
 
@@ -255,7 +266,7 @@ Runner.test("13. after releasing the handbrake the rear grip comes back above 95
 		Runner.expectEqual(factor <= 1, true)
 		Runner.expectEqual(factor >= VehicleConfig.HANDBRAKE_REAR_GRIP_MULTIPLIER, true)
 		if world.timeSeconds < HANDBRAKE_SECONDS then
-			Runner.expectNear(factor, VehicleConfig.HANDBRAKE_REAR_GRIP_MULTIPLIER, 1e-9)
+			Runner.expectEqual(factor < 1, true)
 		elseif recoveredAt < 0 and factor > 0.95 then
 			recoveredAt = world.timeSeconds - HANDBRAKE_SECONDS
 		end
@@ -266,7 +277,7 @@ end)
 Runner.test(
 	"14. while the car drifts the allowed steering angle is above the one for its speed, and not when going straight",
 	function()
-		local runner = ToyWorld.new({ initialForwardSpeed = CRUISE_SPEED })
+		local runner = ToyWorld.new({ initialForwardSpeed = DRIFT_CHECK_SPEED })
 		local checked = false
 		runner.run(HANDBRAKE_TURN_SECONDS, function(world: ToyWorldInstance): VehicleControls
 			return controlsWith(1, 0, 0, world.timeSeconds < HANDBRAKE_SECONDS)
@@ -408,6 +419,76 @@ Runner.test(
 			Runner.expectEqual(gear >= 1 and gear <= 2, true)
 			Runner.expectEqual(rearDrive > balanced + MIN_REAR_BIAS_DRIFT_GAIN_DEGREES, true)
 		end
+	end
+)
+
+Runner.test(
+	"15. in reverse with the brake and the steering to the floor the car stays slow, limited in steering and gripping",
+	function()
+		for _, frameSeconds in { 1 / 30, 1 / 60 } do
+			local runner = ToyWorld.new({ frameSeconds = frameSeconds })
+			local maxSpeed, maxSteer, gripFrames, movingFrames = 0, 0, 0, 0
+			local previousGear = 1
+			runner.run(REVERSE_SECONDS, constant(controlsWith(1, 0, 1)), function(world)
+				maxSpeed = math.max(maxSpeed, world.feedback.speedStudsPerSecond)
+				if previousGear == -1 and world.feedback.gear == -1 then
+					maxSteer = math.max(maxSteer, math.abs(world.outputs[1].steerAngleRadians))
+					if world.feedback.speedStudsPerSecond > REVERSE_MOVING_SPEED then
+						movingFrames += 1
+						local rear = world.feedback.wheels
+						gripFrames += if math.max(rear[3].slipRatio, rear[4].slipRatio) <= 1 then 1 else 0
+					end
+				end
+				previousGear = world.feedback.gear
+			end)
+			Runner.expectEqual(runner.world.feedback.gear, -1)
+			Runner.expectEqual(maxSpeed <= REVERSE_MAX_SPEED, true)
+			Runner.expectEqual(maxSteer <= math.rad(VehicleConfig.STEER_MAX_REVERSE_DEGREES) + 1e-9, true)
+			Runner.expectEqual(maxSteer > 0, true)
+			Runner.expectEqual(movingFrames > 0 and gripFrames / movingFrames >= REVERSE_GRIP_FRACTION, true)
+		end
+	end
+)
+
+Runner.test("16. near the rev limiter the engine force falls continuously in every gear", function()
+	local mass = MASS
+	for gear = 1, #VehicleConfig.GEAR_RATIOS do
+		local state: VehicleTypes.VehicleState = VehicleSimulator.newState()
+		state.gear = gear
+		local peak = mass
+			* VehicleConfig.FIRST_GEAR_PEAK_ACCELERATION
+			* VehicleConfig.GEAR_RATIOS[gear]
+			/ VehicleConfig.GEAR_RATIOS[1]
+		local previous = Drivetrain.driveForce(state, controlsWith(0, 1, 0), VehicleConfig.IDLE_RPM, mass)
+		for rpm = VehicleConfig.IDLE_RPM, VehicleConfig.REDLINE_RPM + LIMITER_SWEEP_EXTRA_RPM, LIMITER_SWEEP_STEP_RPM do
+			local force = Drivetrain.driveForce(state, controlsWith(0, 1, 0), rpm, mass)
+			Runner.expectEqual(previous - force <= peak * MAX_FORCE_DROP_FRACTION, true)
+			previous = force
+		end
+		Runner.expectEqual(previous, 0)
+	end
+end)
+
+Runner.test(
+	"16. at full throttle in the simulation the engine force never falls by more than 20% between frames",
+	function()
+		local runner = ToyWorld.new({})
+		local controls = controlsWith(0, 1, 0)
+		local previousForce, previousGear, previousShifting = 0, 1, false
+		runner.run(LIMITER_RUN_SECONDS, constant(controls), function(world)
+			local feedback = world.feedback
+			local state = world.vehicleState
+			local force = Drivetrain.driveForce(state, controls, feedback.engineRpm, MASS)
+			local peak = MASS
+				* VehicleConfig.FIRST_GEAR_PEAK_ACCELERATION
+				* VehicleConfig.GEAR_RATIOS[feedback.gear]
+				/ VehicleConfig.GEAR_RATIOS[1]
+			if feedback.gear == previousGear and not feedback.isShifting and not previousShifting then
+				Runner.expectEqual(previousForce - force <= peak * MAX_FORCE_DROP_FRACTION, true)
+			end
+			previousForce, previousGear, previousShifting = force, feedback.gear, feedback.isShifting
+		end)
+		Runner.expectNear(runner.world.feedback.forwardSpeedStudsPerSecond, 150, 15)
 	end
 )
 

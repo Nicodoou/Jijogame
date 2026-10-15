@@ -104,7 +104,8 @@ function Drivetrain.driveForce(
 	config: VehicleSettings?
 ): number
 	local settings = config or VehicleConfig
-	if rpm >= settings.REDLINE_RPM then
+	local limiterFactor = math.clamp((settings.REDLINE_RPM - rpm) / settings.SOFT_LIMITER_RPM, 0, 1)
+	if limiterFactor == 0 then
 		return 0
 	end
 	local drivePedal = resolvePedals(state.gear, controls)
@@ -114,10 +115,14 @@ function Drivetrain.driveForce(
 		* Drivetrain.torqueFraction(rpm, config)
 		* gearMultiplier
 		* drivePedal
+		* limiterFactor
 	if state.shiftRemainingSeconds > 0 then
 		magnitude *= settings.SHIFT_TORQUE_FRACTION
 	end
-	return if state.gear == REVERSE_GEAR then -magnitude else magnitude
+	if state.gear == REVERSE_GEAR then
+		return -magnitude * settings.REVERSE_DRIVE_FRACTION
+	end
+	return magnitude
 end
 
 -- Fuerza de cada rueda en el orden FL, FR, RL, RR.

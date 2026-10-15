@@ -66,4 +66,9 @@ Runner.test("the allowed angle while drifting never goes over the low speed maxi
 	Runner.expectNear(Steering.maxAngleWhileDrifting(120, math.rad(80)), LOW_ANGLE, 1e-12)
 end)
 
+Runner.test("the reverse maximum is its own fixed angle", function()
+	Runner.expectNear(Steering.reverseMaxAngle(), math.rad(VehicleConfig.STEER_MAX_REVERSE_DEGREES), 1e-12)
+	Runner.expectEqual(Steering.reverseMaxAngle() < Steering.maxAngle(0), true)
+end)
+
 Runner.finish()

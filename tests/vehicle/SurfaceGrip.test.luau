@@ -100,10 +100,19 @@ end)
 
 local RECOVERY_FRAME_SECONDS = 1 / 30
 
-Runner.test("the handbrake drops the rear grip factor at once", function()
+Runner.test("the handbrake drops the rear grip factor progressively toward the multiplier", function()
+	local target = VehicleConfig.HANDBRAKE_REAR_GRIP_MULTIPLIER
+	local alpha = 1 - math.exp(-VehicleConfig.HANDBRAKE_GRIP_DROP_RATE * RECOVERY_FRAME_SECONDS)
 	local factor = SurfaceGrip.nextRearGripFactor(1, true, RECOVERY_FRAME_SECONDS)
-	Runner.expectEqual(factor, VehicleConfig.HANDBRAKE_REAR_GRIP_MULTIPLIER)
-	Runner.expectEqual(SurfaceGrip.nextRearGripFactor(0.9, true, RECOVERY_FRAME_SECONDS), factor)
+	Runner.expectNear(factor, 1 + (target - 1) * alpha, 1e-12)
+	Runner.expectEqual(factor < 1 and factor > target, true)
+	for _ = 1, 120 do
+		local previous = factor
+		factor = SurfaceGrip.nextRearGripFactor(factor, true, RECOVERY_FRAME_SECONDS)
+		Runner.expectEqual(factor <= previous and factor >= target, true)
+	end
+	Runner.expectNear(factor, target, 1e-9)
+	Runner.expectEqual(SurfaceGrip.nextRearGripFactor(target, true, RECOVERY_FRAME_SECONDS), target)
 end)
 
 Runner.test("releasing the handbrake brings the factor back to 1 with the recovery rate", function()
