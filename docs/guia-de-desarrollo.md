@@ -224,6 +224,7 @@ scripts/coverage.sh      # cobertura de src/*/core/**; falla por debajo de 87%
 | `rojo` (u otra herramienta) dice que no encuentra la herramienta | Estás fuera de una carpeta con `rokit.toml`. Entrá al repo. |
 | `rokit: command not found` justo después de instalarlo | La terminal se abrió antes de instalar Rokit. Reiniciá la terminal o el programa que la contiene (sección 2, paso 3), o corré `export PATH="$HOME/.rokit/bin:$PATH"` en esa terminal. |
 | `rokit install` se cuelga | Falta `rokit trust` de alguna herramienta (sección 3). |
+| `stylua --check` falla en archivos que no tocaste, en una copia del repo clonada antes del WP-1 | Esos archivos quedaron con CRLF: `.gitattributes` no los renormaliza solo. `git ls-files --eol` muestra los que dicen `w/crlf`. Borralos y volvelos a sacar del repo con `git checkout -- <archivo>` (con los cambios propios commiteados antes). |
 | `stylua --check` falla solo en tu máquina | Fin de línea. Confirmá que el archivo es LF con `git ls-files --eol <archivo>`; `.gitattributes` fuerza LF al hacer checkout. |
 | `no encuentro 'luau'` (u otra) desde un script | Falta el `PATH` de Rokit en Git Bash (sección 2, paso 4). |
 | `Unknown global 'game'` en `core/` | Es lo esperado: el núcleo no puede usar nada de Roblox. Esa lógica va en un adaptador. |
