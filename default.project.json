@@ -1,0 +1,36 @@
+{
+  "name": "Rally",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "shared": {
+        "$path": "src/shared"
+      },
+      "vehicle": {
+        "$className": "Folder",
+        "core": {
+          "$path": "src/vehicle/core"
+        }
+      },
+      "input": {
+        "$className": "Folder",
+        "core": {
+          "$path": "src/input/core"
+        }
+      },
+      "camera": {
+        "$className": "Folder",
+        "core": {
+          "$path": "src/camera/core"
+        }
+      },
+      "world": {
+        "$className": "Folder",
+        "core": {
+          "$path": "src/world/core"
+        }
+      }
+    }
+  }
+}
