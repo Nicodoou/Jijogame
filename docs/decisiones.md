@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-15 — Ruta de rally: trazado libre en un área acotada, perfil de cerros y 16 studs de ancho
+**Decidió:** Beni (después de probar la ruta del WP-2 en Studio)
+**Issue:** #37 (reabre "El mundo arranca en −120.000 studs, sin recentrar" y retoma la idea de Nico del #23)
+**Decisión:** la ruta va para cualquier lado dentro de un área acotada cerca del origen, da vueltas y cambia de dirección, sin que su parte viva pase cerca de sí misma. El contenido sale de la semilla y del progreso (`arcLength`), así que una zona vieja se reescribe si la ruta vuelve. La altura sigue un perfil de lomas y valles (ruido con semilla), con una pendiente máxima de 12° a 15° y dentro de una franja. El ancho de la ruta pasa a 16 studs.
+**Por qué:** la ruta del WP-2 iba casi siempre hacia adelante y era muy plana: no se sentía de rally. Además, el auto queda siempre cerca del origen.
+**Descartado:** abrir el corredor de rumbo a ±120° con horquillas (sigue avanzando en promedio); solo más curvas sin tocar el corredor; agrandar la pendiente por pieza sin perfil de cerros (la altura queda sin control); anchos de 10 y 24 studs.
+
 ## 2026-10-15 — Auto: raycast con fuerzas, neumático con tope y AWD con sesgo trasero
 **Decidió:** Nico
 **Issue:** #7, #8 (diseño: `docs/disenos/auto.md`)

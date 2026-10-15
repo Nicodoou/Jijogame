@@ -2,7 +2,14 @@
 
 **Issue:** #9
 **Requerimientos:** RC-1, RC-2, RC-3, RC-4, RC-5, RC-6, RC-7, RC-12
-**Estado:** aprobado
+**Estado:** en revisión (#37): decidido el cambio, falta actualizar la arquitectura
+
+> **Revisión del 2026-10-15 (#37).** Después de probar la ruta en Studio, Beni decidió que sea más de rally:
+> - trazado libre en un área acotada cerca del origen;
+> - perfil de cerros para la altura (pendiente máxima de 12° a 15°, dentro de una franja);
+> - ruta de 16 studs de ancho.
+>
+> Esto reemplaza la opción "arrancar en −120.000 y avanzar hacia +x" de "Distancia al origen", y el corredor de rumbo de E1 deja de aplicar. Las piezas con curvatura definida (E1), la generación en el cliente (G1) y todo el Terrain (T1) siguen igual. La arquitectura se actualiza en un WP nuevo (rediseño del secuenciador y del perfil de alturas). Ver `docs/decisiones.md`.
 
 ## Investigación
 
