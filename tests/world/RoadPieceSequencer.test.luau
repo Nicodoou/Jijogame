@@ -10,8 +10,8 @@ local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
 local SEED = 12345
 local PIECES = 40
 -- Semillas en las que, en las primeras piezas, la ruta usa el último recurso y retrocede.
-local LAST_RESORT_SEED = 39
-local BACKTRACK_SEED = 56
+local LAST_RESORT_SEED = 54
+local BACKTRACK_SEED = 54
 local BACKTRACK_PIECES = 60
 local LOOSE_STUDS = 0.001
 -- Un paso mide 2 studs sobre el plano, y en 3D un poco más si hay pendiente.

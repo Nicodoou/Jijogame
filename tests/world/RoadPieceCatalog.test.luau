@@ -4,15 +4,16 @@ local RoadPieceCatalog = require("../../src/world/core/RoadPieceCatalog")
 local WorldConfig = require("../../src/world/core/WorldConfig")
 
 local EXPECTED_WEIGHTS: { [RoadPieceCatalog.PieceKind]: number } = {
-	straight = 2,
-	gentleCurve = 4,
-	sharpCurve = 4,
+	straight = 1,
+	gentleCurve = 3,
+	sharpCurve = 6,
 	sCurve = 4,
-	hairpinPair = 2,
+	hairpinPair = 6,
+	uTurn = 6,
 }
 local MAX_LOBES = 2
 local MIN_STEPS_PER_LOBE = 2
-local HAIRPIN_MIN_TURN_DEGREES = 120
+local HAIRPIN_MIN_TURN_DEGREES = 150
 local HAIRPIN_MAX_TURN_DEGREES = 180
 
 local function findDefinition(kind: RoadPieceCatalog.PieceKind): RoadPieceCatalog.PieceDefinition
@@ -24,7 +25,7 @@ local function findDefinition(kind: RoadPieceCatalog.PieceKind): RoadPieceCatalo
 	error(`missing piece {kind}`)
 end
 
-Runner.test("the catalog has the five pieces of the design, each once, with their weights", function()
+Runner.test("the catalog has the six pieces, each once, with their weights", function()
 	local found = 0
 	for kind: RoadPieceCatalog.PieceKind, weight: number in EXPECTED_WEIGHTS do
 		Runner.expectEqual(findDefinition(kind).weight, weight)
@@ -72,13 +73,12 @@ Runner.test("every lobe is long enough to hold its ramps", function()
 	end
 end)
 
-Runner.test("only the hairpin pair has a turn, between 120 and 180 degrees, and a radius between 60 and 84", function()
+Runner.test("only the hairpin pair and the U turn have a turn, between 150 and 180 degrees", function()
 	for _, definition in RoadPieceCatalog.definitions do
-		if definition.kind == "hairpinPair" then
+		if definition.kind == "hairpinPair" or definition.kind == "uTurn" then
 			Runner.expectEqual(definition.minTurnDegrees, HAIRPIN_MIN_TURN_DEGREES)
 			Runner.expectEqual(definition.maxTurnDegrees, HAIRPIN_MAX_TURN_DEGREES)
-			Runner.expectEqual(definition.minRadiusStuds, WorldConfig.MIN_CURVE_RADIUS_STUDS)
-			Runner.expectEqual(definition.maxRadiusStuds, 84)
+			Runner.expectEqual(definition.minRadiusStuds >= WorldConfig.MIN_CURVE_RADIUS_STUDS, true)
 		else
 			Runner.expectEqual(definition.minTurnDegrees, nil)
 			Runner.expectEqual(definition.maxTurnDegrees, nil)
@@ -86,11 +86,29 @@ Runner.test("only the hairpin pair has a turn, between 120 and 180 degrees, and 
 	end
 end)
 
-Runner.test("the simple curves are the gentle and the sharp ones, and nothing else", function()
-	for _, definition in RoadPieceCatalog.definitions do
-		local isExpected = definition.kind == "gentleCurve" or definition.kind == "sharpCurve"
-		Runner.expectEqual(definition.isSimpleCurve, isExpected)
+Runner.test("the hairpin pair has the radius between 60 and 84 and the U turn the one between 60 and 85", function()
+	Runner.expectEqual(findDefinition("hairpinPair").maxRadiusStuds, 84)
+	Runner.expectEqual(findDefinition("uTurn").maxRadiusStuds, 85)
+end)
+
+Runner.test(
+	"the simple curves are the gentle, the sharp and the U turn, and the U turn needs the target far to the side",
+	function()
+		for _, definition in RoadPieceCatalog.definitions do
+			local isExpected = definition.kind == "gentleCurve"
+				or definition.kind == "sharpCurve"
+				or definition.kind == "uTurn"
+			Runner.expectEqual(definition.isSimpleCurve, isExpected)
+			Runner.expectEqual(definition.minHeadingErrorDegrees ~= nil, definition.kind == "uTurn")
+		end
 	end
+)
+
+Runner.test("only the hairpin pair turns back, and the straights are short", function()
+	for _, definition in RoadPieceCatalog.definitions do
+		Runner.expectEqual(definition.turnsBack, definition.kind == "hairpinPair")
+	end
+	Runner.expectEqual(findDefinition("straight").maxLengthStuds <= 100, true)
 end)
 
 Runner.finish()

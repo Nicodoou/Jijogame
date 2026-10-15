@@ -32,6 +32,15 @@ local function getMaxCurvature(piece: RoadPiece): number
 	return largest
 end
 
+local function getDefinition(kind: RoadPieceCatalog.PieceKind): RoadPieceCatalog.PieceDefinition
+	for _, definition in RoadPieceCatalog.definitions do
+		if definition.kind == kind then
+			return definition
+		end
+	end
+	error(`missing piece {kind}`)
+end
+
 local function drawMany(definition: RoadPieceCatalog.PieceDefinition, seed: number): { RoadPiece }
 	local random = SeededRandom.new(seed)
 	local pieces = {}
@@ -85,15 +94,14 @@ Runner.test("an S curve has two lobes and the other curves have one", function()
 end)
 
 Runner.test(
-	"a hairpin pair turns 120 to 180 degrees each way with a straight bit between, and ends facing as it started",
+	"a hairpin pair turns 150 to 180 degrees each way with a straight bit between, and ends facing as it started",
 	function()
-		local definition = RoadPieceCatalog.definitions[#RoadPieceCatalog.definitions]
-		for _, piece in drawMany(definition, 5) do
+		for _, piece in drawMany(getDefinition("hairpinPair"), 5) do
 			Runner.expectEqual(#piece.parts, 3)
 			local firstEnd = RoadPieceProfile.getPartSteps(piece.parts[1])
 			local secondStart = firstEnd + RoadPieceProfile.getPartSteps(piece.parts[2])
 			local firstTurn = getHeadingChange(piece, 0, firstEnd)
-			Runner.expectEqual(firstTurn >= math.rad(120) - TOLERANCE and firstTurn <= math.rad(180) + TOLERANCE, true)
+			Runner.expectEqual(firstTurn >= math.rad(150) - TOLERANCE and firstTurn <= math.rad(180) + TOLERANCE, true)
 			Runner.expectEqual(piece.parts[2].peakCurvature, 0)
 			Runner.expectNear(getHeadingChange(piece, secondStart, piece.totalSteps), -firstTurn, TOLERANCE)
 			Runner.expectNear(getHeadingChange(piece, 0, piece.totalSteps), 0, TOLERANCE)
@@ -149,7 +157,7 @@ Runner.test("a shortened piece keeps its curvature, is shorter and still ends wi
 	for _, definition in RoadPieceCatalog.definitions do
 		for _, piece in drawMany(definition, 9) do
 			local shorter = RoadPieceBuilder.shorten(piece)
-			if definition.kind == "hairpinPair" then
+			if definition.kind == "hairpinPair" or definition.kind == "uTurn" then
 				Runner.expectEqual(shorter, nil)
 			else
 				local shortened = shorter :: RoadPiece
@@ -200,6 +208,16 @@ Runner.test("a straight piece goes straight for the steps asked", function()
 	Runner.expectEqual(straight.kind, "straight")
 	Runner.expectEqual(straight.totalSteps, WorldConfig.EMERGENCY_STRAIGHT_STEPS)
 	Runner.expectEqual(getMaxCurvature(straight), 0)
+end)
+
+Runner.test("a U turn is a single lobe that turns 150 to 180 degrees with a radius between 60 and 85", function()
+	for _, piece in drawMany(getDefinition("uTurn"), 10) do
+		Runner.expectEqual(#piece.parts, 1)
+		local turn = getHeadingChange(piece, 0, piece.totalSteps)
+		Runner.expectEqual(turn >= math.rad(150) - TOLERANCE and turn <= math.rad(180) + TOLERANCE, true)
+		Runner.expectEqual(piece.parts[1].peakCurvature >= 1 / 85 - TOLERANCE, true)
+		Runner.expectEqual(piece.parts[1].peakCurvature <= MAX_CURVATURE + TOLERANCE, true)
+	end
 end)
 
 Runner.finish()

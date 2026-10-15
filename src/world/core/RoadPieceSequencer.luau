@@ -103,6 +103,7 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 		local steering: RoadPieceSelector.Steering = {
 			headingErrorRadians = RoadFrame.wrapAngleRadians(headingToTarget - state.heading),
 			lateralOffsetStuds = lateralOffset,
+			previousKind = if #checkpoints > 0 then checkpoints[#checkpoints].pieceKind else nil,
 		}
 		local definition = RoadPieceSelector.pickDefinition(random, steering)
 		local turnSign = RoadPieceSelector.pickTurnSign(random, steering, definition)

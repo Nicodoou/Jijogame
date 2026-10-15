@@ -10,8 +10,13 @@ local LEG_STUDS = 3000
 local FILLER_ORIGIN_STUDS = 1e6
 local FILLER_SPACING_STUDS = 10
 local NO_TOLERANCE = 0
+-- Más cerca que la distancia cercana.
+local CLOSE_STUDS = 10
 -- Primer y último desfase, en muestras, que cuentan como no vecinos; y una muestra de más para llegar a un sondeo.
-local FIRST_NON_NEIGHBOR_OFFSET = WorldConfig.LIVE_NEIGHBOR_ARC_STUDS // STEP_STUDS + 1
+local FIRST_NEAR_OFFSET = WorldConfig.LIVE_NEAR_ARC_STUDS // STEP_STUDS + 1
+local FIRST_FAR_OFFSET = WorldConfig.LIVE_NEIGHBOR_ARC_STUDS // STEP_STUDS + 1
+-- Separación que cumple la distancia cercana pero no la lejana.
+local BETWEEN_SEPARATION_STUDS = (WorldConfig.LIVE_NEAR_CLEARANCE_STUDS + WorldConfig.LIVE_CLEARANCE_STUDS) / 2
 local LAST_OFFSET = WorldConfig.LIVE_LOOKBACK_STUDS // STEP_STUDS
 
 -- Va hacia +x y vuelve por otra línea a `separation` studs: una ida y vuelta.
@@ -28,14 +33,14 @@ local function createOutAndBack(separation: number): ClearanceCheck.Polyline
 	return line
 end
 
--- Muestras lejísimos entre sí, salvo dos: una vieja y un punto de sondeo, a 10 studs, en los lugares pedidos.
-local function createPair(olderId: number, probeId: number): ClearanceCheck.Polyline
+-- Muestras lejísimos entre sí, salvo dos: una vieja y un punto de sondeo, a `separation` studs, en los lugares pedidos.
+local function createPair(olderId: number, probeId: number, separation: number): ClearanceCheck.Polyline
 	local line: ClearanceCheck.Polyline = { xs = {}, zs = {} }
 	for id = 1, probeId do
 		line.xs[id] = FILLER_ORIGIN_STUDS + id * FILLER_SPACING_STUDS
 		line.zs[id] = FILLER_ORIGIN_STUDS
 	end
-	line.xs[olderId], line.zs[olderId] = 10, 0
+	line.xs[olderId], line.zs[olderId] = separation, 0
 	line.xs[probeId], line.zs[probeId] = 0, 0
 	return line
 end
@@ -80,18 +85,28 @@ Runner.test("a tight loop that stays inside the neighbor distance is not a viola
 	Runner.expectEqual(ClearanceCheck.measure(line, NO_TOLERANCE).violationCount, 0)
 end)
 
-Runner.test("samples exactly at the first non neighbor offset count, one closer do not", function()
+Runner.test("samples exactly at the first near offset count, one closer do not", function()
+	local probeId = 1 + 4 * 51
+	Runner.expectEqual(probeId - FIRST_NEAR_OFFSET, 4)
+	Runner.expectEqual(ClearanceCheck.measure(createPair(4, probeId, CLOSE_STUDS), NO_TOLERANCE).violationCount, 1)
+	Runner.expectEqual(ClearanceCheck.measure(createPair(5, probeId, CLOSE_STUDS), NO_TOLERANCE).violationCount, 0)
+end)
+
+Runner.test("between the near and the far offset only the near clearance is asked for", function()
 	local probeId = 1 + 4 * 151
-	Runner.expectEqual(probeId - FIRST_NON_NEIGHBOR_OFFSET, 4)
-	Runner.expectEqual(ClearanceCheck.measure(createPair(4, probeId), NO_TOLERANCE).violationCount, 1)
-	Runner.expectEqual(ClearanceCheck.measure(createPair(5, probeId), NO_TOLERANCE).violationCount, 0)
+	Runner.expectEqual(probeId - FIRST_FAR_OFFSET, 4)
+	local nearOnly = createPair(5, probeId, BETWEEN_SEPARATION_STUDS)
+	Runner.expectEqual(ClearanceCheck.measure(nearOnly, NO_TOLERANCE).violationCount, 0)
+	Runner.expectEqual(ClearanceCheck.measure(createPair(5, probeId, CLOSE_STUDS), NO_TOLERANCE).violationCount, 1)
+	local far = createPair(4, probeId, BETWEEN_SEPARATION_STUDS)
+	Runner.expectEqual(ClearanceCheck.measure(far, NO_TOLERANCE).violationCount, 1)
 end)
 
 Runner.test("samples exactly at the last offset count, one farther do not", function()
 	local probeId = 1 + 4 * 501
 	Runner.expectEqual(probeId - LAST_OFFSET, 5)
-	Runner.expectEqual(ClearanceCheck.measure(createPair(5, probeId), NO_TOLERANCE).violationCount, 1)
-	Runner.expectEqual(ClearanceCheck.measure(createPair(4, probeId), NO_TOLERANCE).violationCount, 0)
+	Runner.expectEqual(ClearanceCheck.measure(createPair(5, probeId, CLOSE_STUDS), NO_TOLERANCE).violationCount, 1)
+	Runner.expectEqual(ClearanceCheck.measure(createPair(4, probeId, CLOSE_STUDS), NO_TOLERANCE).violationCount, 0)
 end)
 
 Runner.test("an empty or single sample road has nothing to measure", function()

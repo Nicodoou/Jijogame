@@ -13,7 +13,7 @@ local WorldConfig = require("../../src/world/core/WorldConfig")
 local STEPS_PER_SEGMENT = RoadFrame.getStepsPerSegment()
 local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
 -- En esta semilla la ruta retrocede dentro de los primeros 70 tramos (ver RoadPieceSequencer.test.luau).
-local BACKTRACK_SEED = 56
+local BACKTRACK_SEED = 54
 local BACKTRACK_SEGMENTS = 70
 local OTHER_SEED = 7
 

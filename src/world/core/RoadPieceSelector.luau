@@ -13,20 +13,29 @@ type PieceDefinition = RoadPieceCatalog.PieceDefinition
 export type Steering = {
 	headingErrorRadians: number,
 	lateralOffsetStuds: number,
+	-- Clase de la pieza anterior, si hubo. Después de una recta no se sortea otra, para que no se encadenen.
+	previousKind: RoadPieceCatalog.PieceKind?,
 }
 
 local CURVES_ONLY_ERROR_RADIANS = math.rad(WorldConfig.SEQUENCER_CURVES_ONLY_ERROR_DEGREES)
 local FULL_PULL_ERROR_RADIANS = math.rad(WorldConfig.SEQUENCER_FULL_PULL_ERROR_DEGREES)
 local ALWAYS_TOWARD_ERROR_RADIANS = math.rad(WorldConfig.SEQUENCER_ALWAYS_TOWARD_ERROR_DEGREES)
 local OFF_CENTER_STUDS = WorldConfig.LOCAL_DEVIATION_MAX_STUDS * WorldConfig.SEQUENCER_OFF_CENTER_FRACTION
-local HAIRPIN_MAX_OFFSET_STUDS = WorldConfig.LOCAL_DEVIATION_MAX_STUDS
-	* WorldConfig.SEQUENCER_HAIRPIN_MAX_OFFSET_FRACTION
+local TURN_BACK_MAX_OFFSET_STUDS = WorldConfig.LOCAL_DEVIATION_MAX_STUDS
+	* WorldConfig.SEQUENCER_TURN_BACK_MAX_OFFSET_FRACTION
 
 local function isAllowed(definition: PieceDefinition, steering: Steering): boolean
+	local minimumError = definition.minHeadingErrorDegrees
+	if minimumError ~= nil and math.abs(steering.headingErrorRadians) < math.rad(minimumError) then
+		return false
+	end
+	if definition.kind == "straight" and steering.previousKind == "straight" then
+		return false
+	end
 	if math.abs(steering.headingErrorRadians) > CURVES_ONLY_ERROR_RADIANS then
 		return definition.isSimpleCurve
 	end
-	return definition.kind ~= "hairpinPair" or math.abs(steering.lateralOffsetStuds) < HAIRPIN_MAX_OFFSET_STUDS
+	return not definition.turnsBack or math.abs(steering.lateralOffsetStuds) < TURN_BACK_MAX_OFFSET_STUDS
 end
 
 local RoadPieceSelector = {}

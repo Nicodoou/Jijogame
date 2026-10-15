@@ -281,10 +281,10 @@ Runner.test("a far position near the window edge is checked by the general searc
 	local path = createLoadedPath()
 	local query = RoadQuery.new(path)
 	local samples = collectSamples(path)
-	local cursor = query.findNearest(samples[100].position, nil) :: RoadQueryResult
-	local sample = samples[100]
+	local cursor = query.findNearest(samples[200].position, nil) :: RoadQueryResult
+	local sample = samples[200]
 	local right = vector.create(-math.sin(sample.heading), 0, math.cos(sample.heading))
-	local position = sample.position + right * 400
+	local position = sample.position + right * 100
 	local distance = findNearestByBruteForce(samples, position)
 	local result = query.findNearest(position, cursor) :: RoadQueryResult
 	Runner.expectNear(math.abs(result.lateralOffset), distance :: number, TOLERANCE)

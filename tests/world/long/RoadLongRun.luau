@@ -25,5 +25,11 @@ print(
 )
 print(`curvas cerradas por km: {report.sharpCurvesPerKm}, horquillas por km: {report.hairpinsPerKm}`)
 print(`ventanas de 2.000 studs con más de 60 de desnivel: {report.hilliestWindowCount} de {report.heightWindowCount}`)
+print(`ventanas de 2.000 studs con giro neto > 180°: {report.bigTurnWindowPercent}%`)
+print(`vueltas en U por km: {report.uTurnsPerKm}`)
+print(`recta más larga: {report.longestStraightStuds} studs, promedio: {report.meanStraightStuds}`)
+print(
+	`recorrido con pendiente > 10°: {report.steepPercent}%, largo medio de cada subida o bajada: {report.meanClimbStuds} studs`
+)
 
 Runner.finish()

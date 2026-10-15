@@ -73,20 +73,34 @@ local function drawCurve(random: SeededRandom.SeededRandom, definition: PieceDef
 	)
 end
 
--- Horquilla para un lado, recta corta y horquilla para el otro: el rumbo neto es cero. El giro de cada horquilla se
--- reparte en pasos de curvatura constante, y su cantidad se acota con los radios mínimo y máximo.
-local function drawHairpinPair(random: SeededRandom.SeededRandom, definition: PieceDefinition): RoadPiece
+-- Una vuelta: un lóbulo que gira entre minTurnDegrees y maxTurnDegrees con radio constante. El giro se reparte en
+-- pasos de curvatura constante, y su cantidad se acota con los radios mínimo y máximo, así la curvatura nunca pasa del
+-- límite. Devuelve la curvatura, los pasos del lóbulo y los de su rampa.
+local function drawTurn(random: SeededRandom.SeededRandom, definition: PieceDefinition): (number, number, number)
 	local minTurn, maxTurn =
 		math.rad(definition.minTurnDegrees :: number), math.rad(definition.maxTurnDegrees :: number)
 	local turnRadians = lerp(minTurn, maxTurn, random.nextNumber())
 	local radiusStuds = lerp(definition.minRadiusStuds, definition.maxRadiusStuds, random.nextNumber())
-	local gapSteps = random.nextInteger(definition.minLengthStuds, definition.maxLengthStuds) // STEP_STUDS
 	local fewestTurnSteps = math.ceil(turnRadians * definition.minRadiusStuds / STEP_STUDS)
 	local mostTurnSteps = math.floor(turnRadians * definition.maxRadiusStuds / STEP_STUDS)
 	local turnSteps = math.clamp(math.round(turnRadians * radiusStuds / STEP_STUDS), fewestTurnSteps, mostTurnSteps)
 	local rampSteps = math.max(1, math.round(definition.rampFraction * turnSteps))
-	local peakCurvature = turnRadians / (turnSteps * STEP_STUDS)
-	local lobeSteps = turnSteps + rampSteps
+	return turnRadians / (turnSteps * STEP_STUDS), turnSteps + rampSteps, rampSteps
+end
+
+-- Una sola vuelta de unos 180°, sin exigir la vuelta en sentido contrario.
+local function drawUTurn(random: SeededRandom.SeededRandom, definition: PieceDefinition): RoadPiece
+	local peakCurvature, lobeSteps, rampSteps = drawTurn(random, definition)
+	return RoadPieceProfile.create(
+		definition.kind,
+		{ createPart(peakCurvature, lobeSteps, rampSteps, 1, definition.rampFraction) }
+	)
+end
+
+-- Horquilla para un lado, recta corta y horquilla para el otro: el rumbo neto es cero.
+local function drawHairpinPair(random: SeededRandom.SeededRandom, definition: PieceDefinition): RoadPiece
+	local peakCurvature, lobeSteps, rampSteps = drawTurn(random, definition)
+	local gapSteps = random.nextInteger(definition.minLengthStuds, definition.maxLengthStuds) // STEP_STUDS
 	return RoadPieceProfile.create(definition.kind, {
 		createPart(peakCurvature, lobeSteps, rampSteps, 1, definition.rampFraction),
 		createStraightPart(gapSteps),
@@ -111,6 +125,8 @@ function RoadPieceBuilder.draw(random: SeededRandom.SeededRandom, definition: Pi
 		return drawStraight(random, definition)
 	elseif definition.kind == "hairpinPair" then
 		return drawHairpinPair(random, definition)
+	elseif definition.kind == "uTurn" then
+		return drawUTurn(random, definition)
 	end
 	return drawCurve(random, definition)
 end
@@ -127,9 +143,9 @@ function RoadPieceBuilder.flip(piece: RoadPiece): RoadPiece
 end
 
 -- La misma pieza con la mitad de largo en cada lóbulo y la misma curvatura. Devuelve nil si no se puede acortar: la
--- horquilla doble tiene el giro fijado por su forma.
+-- horquilla doble y la vuelta en U tienen el giro fijado por su forma.
 function RoadPieceBuilder.shorten(piece: RoadPiece): RoadPiece?
-	if piece.kind == "hairpinPair" then
+	if piece.kind == "hairpinPair" or piece.kind == "uTurn" then
 		return nil
 	end
 	local parts = {}

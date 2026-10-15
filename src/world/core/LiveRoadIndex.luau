@@ -1,7 +1,8 @@
 --!strict
 -- Ruta viva: grilla con las muestras recientes del eje y su arcLength. Responde si un punto nuevo respeta el anti-cruce:
 -- no puede quedar a menos de LIVE_CLEARANCE_STUDS de una muestra cuyo arcLength lo preceda en más de
--- LIVE_NEIGHBOR_ARC_STUDS (las más cercanas sobre el eje son vecinas y siempre están cerca) y hasta LIVE_LOOKBACK_STUDS.
+-- LIVE_NEIGHBOR_ARC_STUDS (las más cercanas sobre el eje son vecinas y siempre están cerca) y hasta LIVE_LOOKBACK_STUDS,
+-- ni a menos de LIVE_NEAR_CLEARANCE_STUDS de una que lo preceda en más de LIVE_NEAR_ARC_STUDS.
 -- Guarda además LIVE_BACKTRACK_MEMORY_STUDS más hacia atrás, para poder retroceder y volver a mirar esas muestras.
 
 local WorldConfig = require("./WorldConfig")
@@ -23,6 +24,8 @@ local CELL_STUDS = WorldConfig.LIVE_CLEARANCE_STUDS
 local KEY_STRIDE = WorldConfig.ROAD_QUERY_GRID_KEY_STRIDE
 local CLEARANCE_SQUARED = WorldConfig.LIVE_CLEARANCE_STUDS ^ 2
 local NEIGHBOR_ARC_STUDS = WorldConfig.LIVE_NEIGHBOR_ARC_STUDS
+local NEAR_ARC_STUDS = WorldConfig.LIVE_NEAR_ARC_STUDS
+local NEAR_CLEARANCE_SQUARED = WorldConfig.LIVE_NEAR_CLEARANCE_STUDS ^ 2
 local LOOKBACK_STUDS = WorldConfig.LIVE_LOOKBACK_STUDS
 local KEPT_ARC_STUDS = LOOKBACK_STUDS + WorldConfig.LIVE_BACKTRACK_MEMORY_STUDS
 -- Anillo de muestras: cada una ocupa el lugar `id % RING_SIZE`, que ya se liberó cuando llega el id nuevo.
@@ -97,16 +100,20 @@ function LiveRoadIndexModule.new(): LiveRoadIndex
 	end
 
 	-- Las muestras de la celda van de las más viejas a las más nuevas: se saltean las que pasaron el límite hacia atrás y se
-	-- corta en la primera que es vecina.
+	-- corta en la primera que es vecina. Las que están a más de NEAR_ARC_STUDS y hasta NEIGHBOR_ARC_STUDS solo piden no
+	-- cruzarse (NEAR_CLEARANCE_STUDS): así la ruta puede cerrar un círculo o una horquilla, pero no pasar por encima de sí misma.
 	local function isCellClear(cell: Cell, x: number, z: number, arcLength: number): boolean
 		for position = cell.head, cell.last do
 			local slot = cell[position] % RING_SIZE + 1
 			local arcDifference = arcLength - arcs[slot]
-			if arcDifference <= NEIGHBOR_ARC_STUDS then
+			if arcDifference <= NEAR_ARC_STUDS then
 				break
 			elseif arcDifference <= LOOKBACK_STUDS then
 				local offsetX, offsetZ = x - xs[slot], z - zs[slot]
-				if offsetX * offsetX + offsetZ * offsetZ < CLEARANCE_SQUARED then
+				local required = if arcDifference <= NEIGHBOR_ARC_STUDS
+					then NEAR_CLEARANCE_SQUARED
+					else CLEARANCE_SQUARED
+				if offsetX * offsetX + offsetZ * offsetZ < required then
 					return false
 				end
 			end

@@ -14,6 +14,7 @@ local RoadIntegrator = require("./RoadIntegrator")
 local RoadPieceBuilder = require("./RoadPieceBuilder")
 local RoadPieceCatalog = require("./RoadPieceCatalog")
 local RoadPieceProfile = require("./RoadPieceProfile")
+local RoadPieceSelector = require("./RoadPieceSelector")
 local WorldConfig = require("./WorldConfig")
 
 type IntegratorState = RoadIntegrator.IntegratorState
@@ -35,6 +36,8 @@ export type RoadPiecePreview = {
 }
 
 local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
+-- Una pieza que arranca afuera del túnel y sigue en paralelo a la guía no cuenta como alejarse por el redondeo.
+local DEVIATION_TOLERANCE_STUDS = 1
 local AREA_SQUARED = WorldConfig.AREA_RADIUS_STUDS ^ 2
 local MAX_RELATIVE_HEADING_RADIANS = math.rad(WorldConfig.MAX_RELATIVE_HEADING_DEGREES)
 local ESCAPE_MIN_ERROR_RADIANS = math.rad(WorldConfig.ESCAPE_MIN_HEADING_ERROR_DEGREES)
@@ -52,18 +55,38 @@ function RoadPiecePreviewModule.new(
 
 	-- La pieza no puede alejar el rumbo de la guía más que el límite, ni más que lo que ya estaba al empezar.
 	local function getHeadingLimit(start: IntegratorState, piece: RoadPiece, guideSegment: number): number
-		if piece.kind == "hairpinPair" then
+		if RoadPieceSelector.getDefinition(piece.kind).turnsBack then
 			return math.huge
 		end
 		local _, _, startSegment = guide.project(start.x, start.z, guideSegment)
 		return math.max(MAX_RELATIVE_HEADING_RADIANS, getRelativeHeading(start.heading, startSegment))
 	end
 
+	-- Hasta dónde puede alejarse una pieza de la guía: el túnel (más ancho para las piezas que dan la vuelta, que desplazan la
+	-- ruta hacia un costado) o, si ya empezó afuera, lo que ya estaba. Así una pieza nunca empeora un desvío.
+	local function getDeviationLimit(
+		position: IntegratorState,
+		guideSegment: number,
+		tunnel: number,
+		tolerance: number
+	): number
+		local startOffset = guide.project(position.x, position.z, guideSegment)
+		return math.max(tunnel, math.abs(startOffset) + tolerance)
+	end
+
+	local function getTunnel(piece: RoadPiece): number
+		if RoadPieceSelector.getDefinition(piece.kind).turnsBack then
+			return WorldConfig.LOCAL_DEVIATION_MAX_STUDS + WorldConfig.TURN_BACK_EXTRA_DEVIATION_STUDS
+		end
+		return WorldConfig.LOCAL_DEVIATION_MAX_STUDS
+	end
+
 	local function walk(
 		start: IntegratorState,
 		piece: RoadPiece,
 		startSegment: number,
-		headingLimit: number
+		headingLimit: number,
+		deviationLimit: number
 	): (PreviewResult?, RejectionReason?)
 		local state = table.clone(start)
 		local samples = table.create(piece.totalSteps)
@@ -75,7 +98,7 @@ function RoadPiecePreviewModule.new(
 			end
 			local lateralOffset, _, projectedSegment = guide.project(state.x, state.z, segment)
 			segment = projectedSegment
-			if math.abs(lateralOffset) > WorldConfig.LOCAL_DEVIATION_MAX_STUDS then
+			if math.abs(lateralOffset) > deviationLimit then
 				return nil, "deviation"
 			elseif not index.isClear(state.x, state.z, state.sampleIndex * STEP_STUDS) then
 				return nil, "crowded"
@@ -104,8 +127,18 @@ function RoadPiecePreviewModule.new(
 		if math.abs(headingError) <= ESCAPE_MIN_ERROR_RADIANS then
 			return true
 		end
-		local escape =
-			walk(finalState, RoadPieceBuilder.createTurnOfAtLeast(headingError), result.guideSegment, math.huge)
+		local escape = walk(
+			finalState,
+			RoadPieceBuilder.createTurnOfAtLeast(headingError),
+			result.guideSegment,
+			math.huge,
+			getDeviationLimit(
+				finalState,
+				result.guideSegment,
+				WorldConfig.LOCAL_DEVIATION_MAX_STUDS,
+				DEVIATION_TOLERANCE_STUDS
+			)
+		)
 		return escape ~= nil
 	end
 
@@ -114,8 +147,13 @@ function RoadPiecePreviewModule.new(
 		piece: RoadPiece,
 		guideSegment: number
 	): (PreviewResult?, RejectionReason?)
-		local result: PreviewResult?, reason: RejectionReason? =
-			walk(start, piece, guideSegment, getHeadingLimit(start, piece, guideSegment))
+		local result: PreviewResult?, reason: RejectionReason? = walk(
+			start,
+			piece,
+			guideSegment,
+			getHeadingLimit(start, piece, guideSegment),
+			getDeviationLimit(start, guideSegment, getTunnel(piece), DEVIATION_TOLERANCE_STUDS)
+		)
 		if result == nil then
 			return nil, reason
 		elseif not hasEscape(result) then

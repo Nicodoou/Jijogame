@@ -97,11 +97,14 @@ Runner.test("the slope, its change per step and the height respect their limits 
 	end
 end)
 
-Runner.test("the hills are real: the height ranges over more than 100 studs and the slope gets steep", function()
-	local summary = simulate(HillProfile.new(1), WorldConfig.START_POSITION.y, 0, SIMULATED_STEPS)
-	Runner.expectEqual(summary.highestHeight - summary.lowestHeight > 100, true)
-	Runner.expectEqual(summary.largestSlope > MAX_SLOPE / 2, true)
-end)
+Runner.test(
+	"the hills are short and sharp: the slope reaches the maximum and the height ranges over more than 50 studs",
+	function()
+		local summary = simulate(HillProfile.new(1), WorldConfig.START_POSITION.y, 0, SIMULATED_STEPS)
+		Runner.expectEqual(summary.highestHeight - summary.lowestHeight > 50, true)
+		Runner.expectEqual(summary.largestSlope > MAX_SLOPE * 0.95, true)
+	end
+)
 
 Runner.test("with tall hills in a narrow band the road reaches both edges and never leaves the band", function()
 	for seed = 1, SIMULATED_SEEDS do

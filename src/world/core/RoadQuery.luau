@@ -29,9 +29,9 @@ local STEPS_PER_SEGMENT = RoadFrame.getStepsPerSegment()
 local CELL_STUDS = WorldConfig.ROAD_QUERY_GRID_CELL_STUDS
 local MAX_DISTANCE_SQUARED = WorldConfig.ROAD_QUERY_MAX_DISTANCE_STUDS ^ 2
 local WINDOW_SAMPLES = WorldConfig.ROAD_QUERY_CURSOR_WINDOW_SAMPLES
--- Dentro de este radio el punto más cercano del eje es único (la curvatura está acotada), así que un mínimo local
--- de la ventana es también el global.
-local UNIQUE_NEAREST_SQUARED = WorldConfig.MIN_CURVE_RADIUS_STUDS ^ 2
+-- Dentro de este radio el punto más cercano del eje es único: la curvatura está acotada y las partes no vecinas de la ruta
+-- están a LIVE_CLEARANCE_STUDS o más, así que un mínimo local de la ventana es también el global.
+local UNIQUE_NEAREST_SQUARED = math.min(WorldConfig.MIN_CURVE_RADIUS_STUDS, WorldConfig.LIVE_CLEARANCE_STUDS / 2) ^ 2
 local MAX_RING = math.ceil((WorldConfig.ROAD_QUERY_MAX_DISTANCE_STUDS + STEP_STUDS) / CELL_STUDS)
 
 local function isFinite(value: number): boolean

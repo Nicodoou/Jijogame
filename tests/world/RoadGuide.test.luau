@@ -8,7 +8,8 @@ local WorldConfig = require("../../src/world/core/WorldConfig")
 
 local TOLERANCE = 1e-3
 local STEP = WorldConfig.GUIDE_STEP_STUDS
-local MAX_ALTERNATIVE_TURN = math.rad(math.max(table.unpack(WorldConfig.GUIDE_ALTERNATIVE_TURNS_DEGREES)))
+local MAX_ALTERNATIVE_TURN =
+	math.rad(math.max(WorldConfig.GUIDE_MAX_TURN_DEGREES, table.unpack(WorldConfig.GUIDE_ALTERNATIVE_TURNS_DEGREES)))
 local LIMIT_RADIUS = WorldConfig.AREA_RADIUS_STUDS - WorldConfig.GUIDE_EDGE_MARGIN_STUDS
 -- Con esta longitud la guía da varias vueltas al área y retrocede más de una vez.
 local LONG_GUIDE_STUDS = 120 * STEP
@@ -176,6 +177,21 @@ Runner.test("a hint outside the guide is brought inside it", function()
 	local _, highArc = guide.project(x, z, 5000)
 	Runner.expectEqual(lowArc >= 0 and lowArc <= 15 * STEP, true)
 	Runner.expectEqual(highArc >= 0 and highArc <= 15 * STEP, true)
+end)
+
+Runner.test("the guide keeps turning to the same side most of the time, so it winds around in spirals", function()
+	local sameSide, total = 0, 0
+	for seed = 1, SEED_COUNT do
+		local guide = createGuide(seed, LONG_GUIDE_STUDS)
+		local previous = 0
+		for segment = 2, 119 do
+			local turn = guide.getSegmentHeading(segment) - guide.getSegmentHeading(segment - 1)
+			sameSide += if turn * previous > 0 then 1 else 0
+			total += 1
+			previous = turn
+		end
+	end
+	Runner.expectEqual(sameSide / total > 0.6, true)
 end)
 
 Runner.finish()

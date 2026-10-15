@@ -31,23 +31,24 @@ export type RoadGuide = {
 
 local STEP_STUDS = WorldConfig.GUIDE_STEP_STUDS
 local MAX_TURN_RADIANS = math.rad(WorldConfig.GUIDE_MAX_TURN_DEGREES)
+local MIN_TURN_RADIANS = math.rad(WorldConfig.GUIDE_MIN_TURN_DEGREES)
 local STEERING_RADIUS_STUDS = WorldConfig.AREA_RADIUS_STUDS - WorldConfig.AREA_STEERING_MARGIN_STUDS
 local LIMIT_RADIUS_STUDS = WorldConfig.AREA_RADIUS_STUDS - WorldConfig.GUIDE_EDGE_MARGIN_STUDS
 -- Cuántos puntos hacia atrás se comparan con uno nuevo: lo que alcanza la ruta viva más dos de colchón.
 local CLEARANCE_WINDOW_WAYPOINTS = math.ceil(WorldConfig.LIVE_LOOKBACK_STUDS / STEP_STUDS) + 2
 local CLEARANCE_STUDS = WorldConfig.GUIDE_CLEARANCE_STUDS
 
--- Alternativas en orden fijo: +30°, -30°, +60°, -60°, +90°, -90°.
-local function buildAlternativeTurns(): { number }
-	local turns = {}
+-- Alternativas en orden fijo: el giro sorteado y después, para cada ángulo de la lista, primero del mismo lado que el sorteado
+-- (así una vuelta que no entra se abre en vez de cambiar de sentido) y después del otro.
+local function buildCandidateTurns(drawn: number): { number }
+	local side = if drawn >= 0 then 1 else -1
+	local turns = { drawn }
 	for _, degrees in WorldConfig.GUIDE_ALTERNATIVE_TURNS_DEGREES do
-		table.insert(turns, math.rad(degrees))
-		table.insert(turns, -math.rad(degrees))
+		table.insert(turns, side * math.rad(degrees))
+		table.insert(turns, -side * math.rad(degrees))
 	end
 	return turns
 end
-
-local ALTERNATIVE_TURNS = buildAlternativeTurns()
 
 -- Cerca del borde, el giro sorteado se inclina hacia el centro del área.
 local function steerTowardCenter(turn: number, last: vector, heading: number): number
@@ -69,6 +70,8 @@ function RoadGuideModule.new(random: SeededRandom.SeededRandom): RoadGuide
 	-- headings[i] es el rumbo con el que se llegó al punto i.
 	local headings: { number } = { RoadFrame.getStartHeadingRadians() }
 	local statistics: GuideStatistics = { backtrackCount = 0, discardedWaypointCount = 0, maxDiscardedAtOnce = 0 }
+	-- De qué lado giró el último punto de paso (+1 derecha, -1 izquierda); el primero sigue a la izquierda.
+	local lastTurnSide = -1
 	local failStreak = 0
 	local longestCount = 1
 
@@ -100,16 +103,17 @@ function RoadGuideModule.new(random: SeededRandom.SeededRandom): RoadGuide
 	local function tryToGrow(): boolean
 		local count = #waypoints
 		local last, heading = waypoints[count], headings[count]
-		local drawn = (random.nextNumber() * 2 - 1) * MAX_TURN_RADIANS
-		local candidates = { steerTowardCenter(drawn, last, heading) }
-		table.move(ALTERNATIVE_TURNS, 1, #ALTERNATIVE_TURNS, 2, candidates)
-		for _, turn in candidates do
+		local keepsSide = random.nextNumber() < WorldConfig.GUIDE_TURN_PERSISTENCE
+		local side = if keepsSide then lastTurnSide else -lastTurnSide
+		local drawn = side * (MIN_TURN_RADIANS + random.nextNumber() * (MAX_TURN_RADIANS - MIN_TURN_RADIANS))
+		for _, turn in buildCandidateTurns(steerTowardCenter(drawn, last, heading)) do
 			local newHeading = heading + turn
 			local candidate =
 				vector.create(last.x + STEP_STUDS * math.cos(newHeading), 0, last.z + STEP_STUDS * math.sin(newHeading))
 			if isAcceptable(candidate) then
 				table.insert(waypoints, candidate)
 				table.insert(headings, newHeading)
+				lastTurnSide = if turn >= 0 then 1 else -1
 				return true
 			end
 		end

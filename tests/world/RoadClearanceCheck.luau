@@ -11,15 +11,16 @@ export type Polyline = {
 
 export type ClearanceReport = {
 	violationCount: number,
-	-- Menor distancia entre dos muestras no vecinas, o math.huge si no hubo ninguna.
+	-- Menor distancia entre dos muestras no vecinas lejanas, o math.huge si no hubo ninguna.
 	minimumDistance: number,
 }
 
 local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
 local CELL_STUDS = WorldConfig.LIVE_CLEARANCE_STUDS
 local KEY_STRIDE = WorldConfig.ROAD_QUERY_GRID_KEY_STRIDE
--- Primer y último desfase de muestras (en pasos) que cuentan como no vecinas.
-local NEAREST_NON_NEIGHBOR_OFFSET = WorldConfig.LIVE_NEIGHBOR_ARC_STUDS // STEP_STUDS + 1
+-- Desfases de muestras (en pasos): desde el primero no vecino cercano, desde el primero no vecino lejano y el último.
+local NEAREST_NON_NEIGHBOR_OFFSET = WorldConfig.LIVE_NEAR_ARC_STUDS // STEP_STUDS + 1
+local FAR_OFFSET = WorldConfig.LIVE_NEIGHBOR_ARC_STUDS // STEP_STUDS + 1
 local FARTHEST_OFFSET = WorldConfig.LIVE_LOOKBACK_STUDS // STEP_STUDS
 -- Se revisa una de cada tantas muestras: un cruce dura cientos de muestras seguidas.
 local PROBE_STRIDE = 4
@@ -67,7 +68,8 @@ end
 function ClearanceCheck.measure(line: Polyline, tolerance: number): ClearanceReport
 	local cells = buildGrid(line)
 	local report: ClearanceReport = { violationCount = 0, minimumDistance = math.huge }
-	local limit = WorldConfig.LIVE_CLEARANCE_STUDS - tolerance
+	local farLimit = WorldConfig.LIVE_CLEARANCE_STUDS - tolerance
+	local nearLimit = WorldConfig.LIVE_NEAR_CLEARANCE_STUDS - tolerance
 	for probe = 1, #line.xs, PROBE_STRIDE do
 		local x, z = line.xs[probe], line.zs[probe]
 		local cellX, cellZ = getCellCoordinate(x), getCellCoordinate(z)
@@ -79,8 +81,11 @@ function ClearanceCheck.measure(line: Polyline, tolerance: number): ClearanceRep
 					while position <= #cell and cell[position] <= probe - NEAREST_NON_NEIGHBOR_OFFSET do
 						local id = cell[position]
 						local distance = math.sqrt((x - line.xs[id]) ^ 2 + (z - line.zs[id]) ^ 2)
-						report.minimumDistance = math.min(report.minimumDistance, distance)
-						if distance < limit then
+						local isFar = probe - id >= FAR_OFFSET
+						if isFar then
+							report.minimumDistance = math.min(report.minimumDistance, distance)
+						end
+						if distance < (if isFar then farLimit else nearLimit) then
 							report.violationCount += 1
 						end
 						position += 1

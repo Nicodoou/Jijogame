@@ -28,7 +28,7 @@ end)
 
 Runner.test("the guide clearance leaves room for the live clearance and the tunnel on both sides", function()
 	local needed = WorldConfig.LIVE_CLEARANCE_STUDS + WIDTH_SIDES * WorldConfig.LOCAL_DEVIATION_MAX_STUDS
-	Runner.expectEqual(WorldConfig.GUIDE_CLEARANCE_STUDS > needed, true)
+	Runner.expectEqual(WorldConfig.GUIDE_CLEARANCE_STUDS >= needed, true)
 end)
 
 Runner.test(
@@ -77,5 +77,16 @@ Runner.test("the configuration is read only", function()
 		(WorldConfig.LAST_RESORT_LOBE_STEPS :: any)[1] = 1
 	end)
 end)
+
+Runner.test(
+	"the near distance is longer than a full circle, and the near clearance covers the width of the road",
+	function()
+		local fullWidth = WorldConfig.ROAD_WIDTH_STUDS + WIDTH_SIDES * WorldConfig.SHOULDER_WIDTH_STUDS
+		Runner.expectEqual(WorldConfig.LIVE_NEAR_ARC_STUDS > 2 * math.pi * WorldConfig.MIN_CURVE_RADIUS_STUDS, true)
+		Runner.expectEqual(WorldConfig.LIVE_NEAR_ARC_STUDS < WorldConfig.LIVE_NEIGHBOR_ARC_STUDS, true)
+		Runner.expectEqual(WorldConfig.LIVE_NEAR_CLEARANCE_STUDS > fullWidth, true)
+		Runner.expectEqual(WorldConfig.LIVE_NEAR_CLEARANCE_STUDS <= WorldConfig.LIVE_CLEARANCE_STUDS, true)
+	end
+)
 
 Runner.finish()

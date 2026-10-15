@@ -219,7 +219,7 @@ Runner.test("a piece that ends facing the target needs no escape", function()
 	local world = createWorld()
 	local state = createState(world, 0)
 	state.sampleIndex = FAR_START_STEPS
-	local free = world.preview.preview(state, RoadPieceBuilder.createStraight(100), 1) :: RoadPiecePreview.PreviewResult
+	local free = world.preview.preview(state, RoadPieceBuilder.createStraight(20), 1) :: RoadPiecePreview.PreviewResult
 	local finalState = free.endState
 	local targetX, targetZ = world.guide.getPointAt(free.guideArcLength + WorldConfig.GUIDE_TARGET_AHEAD_STUDS)
 	local headingError =
@@ -230,7 +230,39 @@ Runner.test("a piece that ends facing the target needs no escape", function()
 		finalState.z + (WorldConfig.LIVE_CLEARANCE_STUDS + 15) * math.sin(finalState.heading),
 		OLD_ARC_STUDS
 	)
-	Runner.expectEqual(world.preview.preview(state, RoadPieceBuilder.createStraight(100), 1) ~= nil, true)
+	Runner.expectEqual(world.preview.preview(state, RoadPieceBuilder.createStraight(20), 1) ~= nil, true)
+end)
+
+-- El estado de createState corrido `offset` studs hacia la derecha de la guía.
+local function createShiftedState(world: World, offsetDegrees: number, offset: number): RoadIntegrator.IntegratorState
+	local state = createState(world, 0)
+	local guideHeading = state.heading
+	state.x -= math.sin(guideHeading) * offset
+	state.z += math.cos(guideHeading) * offset
+	state.heading += math.rad(offsetDegrees)
+	return state
+end
+
+Runner.test("a hairpin pair may end beyond the tunnel, up to the extra allowance", function()
+	local world = createWorld()
+	local result =
+		world.preview.preview(createState(world, 0), getDrawnPiece("hairpinPair"), 1) :: RoadPiecePreview.PreviewResult
+	local endOffset = world.guide.project(result.endState.x, result.endState.z, result.guideSegment)
+	Runner.expectEqual(math.abs(endOffset) > WorldConfig.LOCAL_DEVIATION_MAX_STUDS, true)
+	Runner.expectEqual(
+		math.abs(endOffset) <= WorldConfig.LOCAL_DEVIATION_MAX_STUDS + WorldConfig.TURN_BACK_EXTRA_DEVIATION_STUDS,
+		true
+	)
+end)
+
+Runner.test("a piece that starts outside the tunnel may stay there but not get further out", function()
+	local world = createWorld()
+	local outside = WorldConfig.LOCAL_DEVIATION_MAX_STUDS + 30
+	Runner.expectEqual(
+		world.preview.preview(createShiftedState(world, 0, outside), RoadPieceBuilder.createStraight(40), 1) ~= nil,
+		true
+	)
+	expectRejected(world, createShiftedState(world, 10, outside), RoadPieceBuilder.createStraight(40), "deviation")
 end)
 
 Runner.finish()

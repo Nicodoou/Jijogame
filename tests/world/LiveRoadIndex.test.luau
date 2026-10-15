@@ -6,6 +6,8 @@ local WorldConfig = require("../../src/world/core/WorldConfig")
 
 local CLEARANCE = WorldConfig.LIVE_CLEARANCE_STUDS
 local NEIGHBOR_ARC = WorldConfig.LIVE_NEIGHBOR_ARC_STUDS
+local NEAR_ARC = WorldConfig.LIVE_NEAR_ARC_STUDS
+local NEAR_CLEARANCE = WorldConfig.LIVE_NEAR_CLEARANCE_STUDS
 local LOOKBACK = WorldConfig.LIVE_LOOKBACK_STUDS
 local KEPT_ARC = LOOKBACK + WorldConfig.LIVE_BACKTRACK_MEMORY_STUDS
 local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
@@ -36,13 +38,19 @@ Runner.test("a point exactly at the clearance distance is clear and a hair close
 	Runner.expectEqual(isClearAt(0, queryArc), false)
 end)
 
-Runner.test(
-	"samples at exactly the neighbor distance along the axis are neighbors, one step farther are not",
-	function()
-		Runner.expectEqual(isClearAt(1, NEIGHBOR_ARC), true)
-		Runner.expectEqual(isClearAt(1, NEIGHBOR_ARC + STEP_STUDS), false)
-	end
-)
+Runner.test("samples at exactly the near distance along the axis are neighbors, one step farther are not", function()
+	Runner.expectEqual(isClearAt(1, NEAR_ARC), true)
+	Runner.expectEqual(isClearAt(1, NEAR_ARC + STEP_STUDS), false)
+end)
+
+Runner.test("between the near and the neighbor distance a sample only has to be not crossed, not kept far", function()
+	local queryArc = NEAR_ARC + STEP_STUDS
+	Runner.expectEqual(isClearAt(NEAR_CLEARANCE, queryArc), true)
+	Runner.expectEqual(isClearAt(NEAR_CLEARANCE - JUST_INSIDE, queryArc), false)
+	Runner.expectEqual(isClearAt(NEAR_CLEARANCE, NEIGHBOR_ARC), true)
+	Runner.expectEqual(isClearAt(NEAR_CLEARANCE, NEIGHBOR_ARC + STEP_STUDS), (NEAR_CLEARANCE >= CLEARANCE))
+	Runner.expectEqual(isClearAt(0, NEIGHBOR_ARC), false)
+end)
 
 Runner.test(
 	"samples farther along the axis than the lookback are not looked at, exactly at the lookback they are",
@@ -54,12 +62,12 @@ Runner.test(
 
 Runner.test("neighbors on the axis never count, however close they are", function()
 	local index = LiveRoadIndex.new()
-	for step = 0, NEIGHBOR_ARC // STEP_STUDS do
+	for step = 0, NEAR_ARC // STEP_STUDS do
 		index.add(step * STEP_STUDS, 0, step * STEP_STUDS)
 	end
-	Runner.expectEqual(index.isClear(600, 0, NEIGHBOR_ARC), true)
-	Runner.expectEqual(index.isClear(600, 0, NEIGHBOR_ARC + STEP_STUDS), true)
-	Runner.expectEqual(index.isClear(0, 0, NEIGHBOR_ARC + STEP_STUDS), false)
+	Runner.expectEqual(index.isClear(200, 0, NEAR_ARC), true)
+	Runner.expectEqual(index.isClear(200, 0, NEAR_ARC + STEP_STUDS), true)
+	Runner.expectEqual(index.isClear(0, 0, NEAR_ARC + STEP_STUDS), false)
 end)
 
 Runner.test("a sample in a neighboring cell is found, also with negative coordinates and across the origin", function()
@@ -146,8 +154,9 @@ Runner.test("it answers like a search over every sample, on a scattered road", f
 		local expected = true
 		for id = 1, RANDOM_SAMPLES do
 			local arcDifference = arc - arcs[id]
-			if arcDifference > NEIGHBOR_ARC and arcDifference <= LOOKBACK then
-				expected = expected and (x - xs[id]) ^ 2 + (z - zs[id]) ^ 2 >= CLEARANCE ^ 2
+			if arcDifference > NEAR_ARC and arcDifference <= LOOKBACK then
+				local required = if arcDifference <= NEIGHBOR_ARC then NEAR_CLEARANCE else CLEARANCE
+				expected = expected and (x - xs[id]) ^ 2 + (z - zs[id]) ^ 2 >= required ^ 2
 			end
 		end
 		Runner.expectEqual(index.isClear(x, z, arc), expected)

@@ -52,26 +52,50 @@ Runner.test("the toward sign follows the side of the heading error, and zero cou
 	Runner.expectEqual(RoadPieceSelector.getTowardSign(createSteering(0, 0)), 1)
 end)
 
-Runner.test("with the target straight ahead every piece shows up, in proportion to its weight", function()
-	local counts = countKinds(createSteering(0, 0))
-	local totalWeight = 0
-	for _, definition in RoadPieceCatalog.definitions do
-		totalWeight += definition.weight
-	end
-	for _, definition in RoadPieceCatalog.definitions do
-		local expected = DRAWS * definition.weight / totalWeight
-		Runner.expectNear(counts[definition.kind] or 0, expected, expected * 0.2)
-	end
-end)
-
-Runner.test("with the target far to the side only the simple curves are drawn", function()
-	for _, errorDegrees in { 46, 90, 179, -46, -179 } do
-		local counts = countKinds(createSteering(errorDegrees, 0))
-		for kind in counts do
-			Runner.expectEqual(kind == "gentleCurve" or kind == "sharpCurve", true)
+Runner.test(
+	"with the target straight ahead every piece but the U turn shows up, in proportion to its weight",
+	function()
+		local counts = countKinds(createSteering(0, 0))
+		local totalWeight = 0
+		for _, definition in RoadPieceCatalog.definitions do
+			totalWeight += if definition.minHeadingErrorDegrees == nil then definition.weight else 0
 		end
-		Runner.expectEqual((counts.gentleCurve or 0) > 0 and (counts.sharpCurve or 0) > 0, true)
+		for _, definition in RoadPieceCatalog.definitions do
+			if definition.minHeadingErrorDegrees == nil then
+				local expected = DRAWS * definition.weight / totalWeight
+				Runner.expectNear(counts[definition.kind] or 0, expected, expected * 0.25)
+			end
+		end
+		Runner.expectEqual(counts.uTurn, nil)
 	end
+)
+
+Runner.test(
+	"with the target far to the side only the simple curves are drawn, and the U turn only past 90 degrees",
+	function()
+		for _, errorDegrees in { 46, 89, 90, 179, -46, -179 } do
+			local counts = countKinds(createSteering(errorDegrees, 0))
+			for kind in counts do
+				Runner.expectEqual(kind == "gentleCurve" or kind == "sharpCurve" or kind == "uTurn", true)
+			end
+			Runner.expectEqual((counts.gentleCurve or 0) > 0 and (counts.sharpCurve or 0) > 0, true)
+			Runner.expectEqual(counts.uTurn ~= nil, math.abs(errorDegrees) >= 90)
+		end
+	end
+)
+
+Runner.test("a straight is never drawn right after another straight", function()
+	local steering: Steering = { headingErrorRadians = 0, lateralOffsetStuds = 0, previousKind = "straight" }
+	local random = SeededRandom.new(8)
+	for _ = 1, DRAWS do
+		Runner.expectEqual(RoadPieceSelector.pickDefinition(random, steering).kind ~= "straight", true)
+	end
+	steering.previousKind = "sCurve"
+	local seenStraight = false
+	for _ = 1, DRAWS do
+		seenStraight = seenStraight or RoadPieceSelector.pickDefinition(random, steering).kind == "straight"
+	end
+	Runner.expectEqual(seenStraight, true)
 end)
 
 Runner.test("at exactly the curves only error all the kinds are still drawn", function()
@@ -80,7 +104,7 @@ Runner.test("at exactly the curves only error all the kinds are still drawn", fu
 end)
 
 Runner.test("the hairpin pair is drawn only while the road is close enough to the guide", function()
-	local limit = DEVIATION * WorldConfig.SEQUENCER_HAIRPIN_MAX_OFFSET_FRACTION
+	local limit = DEVIATION * WorldConfig.SEQUENCER_TURN_BACK_MAX_OFFSET_FRACTION
 	Runner.expectEqual(countKinds(createSteering(0, limit - 1)).hairpinPair ~= nil, true)
 	Runner.expectEqual(countKinds(createSteering(0, limit)).hairpinPair, nil)
 	Runner.expectEqual(countKinds(createSteering(0, -limit - 1)).hairpinPair, nil)

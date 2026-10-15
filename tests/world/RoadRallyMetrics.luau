@@ -13,6 +13,13 @@ local QUADRANT_COUNT = 4
 local FULL_TURN_RADIANS = 2 * math.pi
 local MIN_NET_TURN_RADIANS = math.pi
 local MIN_HEIGHT_VARIATION_STUDS = 60
+local U_TURN_STUDS = 300
+local U_TURN_SAMPLES = U_TURN_STUDS // WorldConfig.INTEGRATION_STEP_STUDS
+local U_TURN_MIN_RADIANS = math.rad(150)
+-- Radio de más de 1.000 studs: recta a todos los efectos.
+local STRAIGHT_MAX_CURVATURE = 0.001
+local STRAIGHT_MIN_STUDS = 20
+local STEEP_SLOPE_RADIANS = math.rad(10)
 
 local RoadRallyMetrics = {}
 
@@ -54,6 +61,70 @@ function RoadRallyMetrics.countHeightWindows(road: { RoadPath.RoadSample }): (nu
 		hillyCount += if highest - lowest > MIN_HEIGHT_VARIATION_STUDS then 1 else 0
 	end
 	return windowCount, hillyCount
+end
+
+-- Cuántas ventanas de 2.000 studs hay y en cuántas el rumbo gira más de 180° de punta a punta.
+function RoadRallyMetrics.countBigTurnWindows(road: { RoadPath.RoadSample }): (number, number)
+	local windowCount, bigCount = 0, 0
+	for first = 1, #road - WINDOW_SAMPLES, WINDOW_STRIDE_SAMPLES do
+		windowCount += 1
+		local netTurn = math.abs(road[first + WINDOW_SAMPLES].heading - road[first].heading)
+		bigCount += if netTurn > MIN_NET_TURN_RADIANS then 1 else 0
+	end
+	return windowCount, bigCount
+end
+
+-- Cuántas vueltas en U hay: un giro neto de al menos 150° en no más de 300 studs de arco. Después de contar una, se
+-- sigue desde el final de su ventana, así una misma vuelta no se cuenta dos veces.
+function RoadRallyMetrics.countUTurns(road: { RoadPath.RoadSample }): number
+	local count = 0
+	local first = 1
+	while first + U_TURN_SAMPLES <= #road do
+		local netTurn = math.abs(road[first + U_TURN_SAMPLES].heading - road[first].heading)
+		if netTurn >= U_TURN_MIN_RADIANS then
+			count += 1
+			first += U_TURN_SAMPLES
+		else
+			first += 1
+		end
+	end
+	return count
+end
+
+-- Tramos rectos (curvatura casi cero) de al menos STRAIGHT_MIN_STUDS: cuántos hay, el largo total y el más largo.
+function RoadRallyMetrics.measureStraights(road: { RoadPath.RoadSample }): (number, number, number)
+	local count, totalStuds, longestStuds = 0, 0, 0
+	local runStart: number? = nil
+	for index = 1, #road + 1 do
+		local isStraight = index <= #road and math.abs(road[index].curvature) < STRAIGHT_MAX_CURVATURE
+		if isStraight and runStart == nil then
+			runStart = index
+		elseif not isStraight and runStart ~= nil then
+			local lengthStuds = (index - runStart) * WorldConfig.INTEGRATION_STEP_STUDS
+			if lengthStuds >= STRAIGHT_MIN_STUDS then
+				count += 1
+				totalStuds += lengthStuds
+			end
+			longestStuds = math.max(longestStuds, lengthStuds)
+			runStart = nil
+		end
+	end
+	return count, totalStuds, longestStuds
+end
+
+-- Lomas: muestras con pendiente de más de 10°, y cuántas subidas o bajadas hay (una por cada signo de pendiente seguido)
+-- con su largo total.
+function RoadRallyMetrics.measureHills(road: { RoadPath.RoadSample }): (number, number, number)
+	local steepCount, climbCount, previousSign = 0, 0, 0
+	for _, sample in road do
+		steepCount += if math.abs(sample.slope) > STEEP_SLOPE_RADIANS then 1 else 0
+		local sign = if sample.slope > 0 then 1 elseif sample.slope < 0 then -1 else 0
+		if sign ~= 0 and sign ~= previousSign then
+			climbCount += 1
+		end
+		previousSign = if sign ~= 0 then sign else previousSign
+	end
+	return steepCount, climbCount, #road
 end
 
 return RoadRallyMetrics
