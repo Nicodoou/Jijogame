@@ -65,6 +65,32 @@ No hay fuentes de desarrolladores [NC]. Las guías de jugadores de Forza describ
    **Además:** la superficie de un relleno de Terrain queda unos 2 studs por encima del límite pedido. El Agente B lo calibra en su WP del terreno. El auto toma la altura **del rayo**, nunca de los datos de la ruta.
 5. Costo en un celular de gama media.
 
+### Resultados del experimento `exp/auto-fisica` (#32)
+
+Rama [`exp/auto-fisica`](https://github.com/Nicodoou/Jijogame/tree/exp/auto-fisica) (commit `72bf301`), corrida por el subagente `experimentador` en un Baseplate, en modo Play y del lado del servidor. Para simular 30 FPS se ocupó cada frame con una espera activa. El orquestador repitió dos casos clave y coinciden.
+
+| Punto | Resultado |
+| --- | --- |
+| 1. `VectorForce` contra `ApplyImpulse` | **`VectorForce` rige todos los pasos de física del frame [V]:** Δv/(F/m·dt) = 1,00 a 60 y a 30 FPS. `ApplyImpulse(F·dt)` da lo mismo en una parte libre. |
+| 2. Suspensión por raycast a 30 FPS | **Estable con `VectorForce` por rueda** (`ApplyAtCenterOfMass = false`, con un `Attachment` en cada rueda): las 9 combinaciones de 1,5, 2,5 y 4 Hz con amortiguación de 0,3, 0,6 y 1,0 quedan estables a 30 y a 60 FPS. La variación de altura en reposo es menor a 0,001 studs y asientan en menos de 1,4 s. **Con `ApplyImpulseAtPosition` no:** a 30 FPS ninguna pasa (deriva de 0,1 a 0,4 studs). |
+| 2b. **Hallazgo crítico** | Con el chasis casi quieto, el motor congela su estado durante varios frames (probablemente el ensamble "se duerme") y la suspensión con `VectorForce` **diverge**: el auto sale disparado. Se resuelve con un **impulso mínimo por frame** (`ApplyImpulse(Vector3.new(0, 0.001, 0))`). El orquestador lo repitió: sin el impulso, deriva de 23 studs; con él, variación de 0,002 studs a 30 FPS. |
+| 2c. Límite de rigidez a 30 FPS | Hasta **4 Hz** hay margen. 6 Hz asienta con amortiguación de 0,3 o 0,6; 8 Hz o más diverge. Más amortiguación no extiende el límite. |
+| 2d. `Fixed` contra `Adaptive` | **No concluyente.** `PhysicsSteppingMethod` no se puede leer ni escribir desde un script, y no se sabe con qué modo corrieron las mediciones. Se cambia a mano en las propiedades de `Workspace`. |
+| 3. Costo por frame (PC) | 65 a 85 µs típicos para 4 rayos con sus fuerzas: entre 0,4% y 0,7% de un frame. **En celular: pendiente** (prueba manual). |
+
+**Consecuencias para la arquitectura:**
+- las fuerzas se aplican con un `VectorForce` por rueda;
+- el adaptador da un impulso mínimo por frame para que el chasis no se duerma;
+- la suspensión se limita a **4 Hz** como máximo, por parámetro.
+
+Queda pendiente probar:
+- `Fixed` contra `Adaptive`, a mano;
+- con el dueño de red en el cliente;
+- sobre Terrain, con fuerzas laterales;
+- en un celular.
+
+Eso va como pruebas del WP del auto, no como experimento previo.
+
 ## Opciones
 
 Hay tres decisiones: **el modelo de física** (#7), **el modelo de neumático** y **el tipo de tracción** (#8).
