@@ -1,0 +1,6 @@
+std = "roblox"
+exclude = [
+	"src/*/core/**",
+	"src/shared/contracts/**",
+	"tests/**",
+]
