@@ -70,6 +70,45 @@ local function airborneWheel(context: StepContext, wheel: WheelState, steerAngle
 	return output, { slipRatio = 0, slipAngleRadians = 0, isSliding = false, surface = nil }
 end
 
+-- Freno y resistencia al rodar de una rueda, con el tope por paso compartido: juntos no pueden frenar
+-- más de lo que la rueda lleva de velocidad.
+local function opposingLongitudinal(
+	context: StepContext,
+	wheel: WheelState,
+	isFront: boolean,
+	longitudinalSpeed: number,
+	load: number,
+	driveState: VehicleState
+): number
+	local settings = context.settings
+	local brake = Drivetrain.brakeForce(
+		driveState,
+		context.controls,
+		context.mass,
+		isFront,
+		longitudinalSpeed,
+		load,
+		context.stepSeconds,
+		settings
+	)
+	local limit = VehicleMath.opposingForceLimit(context.mass, #settings.WHEELS, longitudinalSpeed, context.stepSeconds)
+	local rollingDirection = math.clamp(longitudinalSpeed / settings.BRAKE_REGULARIZATION_SPEED, -1, 1)
+	local rolling = math.min(wheel.rollingResistance * load, math.max(0, limit - math.abs(brake)))
+	return brake - rollingDirection * rolling
+end
+
+local function opposingLateral(
+	context: StepContext,
+	wheel: WheelState,
+	slipAngle: number,
+	lateralSpeed: number,
+	load: number
+): number
+	local settings = context.settings
+	local limit = VehicleMath.opposingForceLimit(context.mass, #settings.WHEELS, lateralSpeed, context.stepSeconds)
+	return math.clamp(Tire.lateralForce(slipAngle, load, wheel.gripMultiplier, settings), -limit, limit)
+end
+
 local function groundedWheel(
 	context: StepContext,
 	index: number,
@@ -86,27 +125,10 @@ local function groundedWheel(
 	local longitudinalSpeed = vector.dot(velocity, forwardAxis)
 	local lateralSpeed = vector.dot(velocity, sideAxis)
 	local slipAngle = Tire.slipAngle(lateralSpeed, longitudinalSpeed, settings)
-	local wheelCount = #settings.WHEELS
-	local brake = Drivetrain.brakeForce(
-		driveState,
-		context.controls,
-		context.mass,
-		isFront,
-		longitudinalSpeed,
-		load,
-		context.stepSeconds,
-		settings
-	)
-	local rollingLimit =
-		VehicleMath.opposingForceLimit(context.mass, wheelCount, longitudinalSpeed, context.stepSeconds)
-	local rollingDirection = math.clamp(longitudinalSpeed / settings.BRAKE_REGULARIZATION_SPEED, -1, 1)
-	local rolling = rollingDirection
-		* math.min(wheel.rollingResistance * load, math.max(0, rollingLimit - math.abs(brake)))
-	local lateralLimit = VehicleMath.opposingForceLimit(context.mass, wheelCount, lateralSpeed, context.stepSeconds)
-	local limitedLateral =
-		math.clamp(Tire.lateralForce(slipAngle, load, wheel.gripMultiplier, settings), -lateralLimit, lateralLimit)
+	local brakeAndRolling = opposingLongitudinal(context, wheel, isFront, longitudinalSpeed, load, driveState)
+	local limitedLateral = opposingLateral(context, wheel, slipAngle, lateralSpeed, load)
 	local longitudinal, lateral, slipRatio, isSliding = Tire.combine(
-		driveShare + brake - rolling,
+		driveShare + brakeAndRolling,
 		limitedLateral,
 		load,
 		wheel.gripMultiplier,
