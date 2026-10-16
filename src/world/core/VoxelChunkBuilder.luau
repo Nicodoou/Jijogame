@@ -5,6 +5,10 @@
 --
 -- La ocupación se calcula para (altura - TERRAIN_SURFACE_OFFSET_STUDS): en Studio la superficie del Terrain queda esos
 -- studs más arriba de la que dice la ocupación (medido, ver terreno.md).
+--
+-- Capas: el material de la superficie ocupa el vóxel de la superficie y los de abajo hasta TERRAIN_TOP_LAYER_STUDS; más
+-- abajo va el material profundo. Si fuera solo el vóxel de arriba, en pendiente (escalones de un vóxel) ese vóxel queda
+-- casi vacío y Roblox dibuja el de abajo: asomarían manchones de tierra en el camino y en el pasto.
 
 local BiomeBlend = require("./BiomeBlend")
 local BiomeMap = require("./BiomeMap")
@@ -58,13 +62,17 @@ local CHUNK_VOXELS = WorldConfig.CHUNK_SIZE_STUDS // VOXEL_STUDS
 local COLUMN_COUNT = CHUNK_VOXELS * CHUNK_VOXELS
 local SURFACE_OFFSET_STUDS = WorldConfig.TERRAIN_SURFACE_OFFSET_STUDS
 local DEPTH_STUDS = WorldConfig.TERRAIN_DEPTH_STUDS
+local TOP_LAYER_VOXELS = WorldConfig.TERRAIN_TOP_LAYER_STUDS / VOXEL_STUDS
 local HALF = 0.5
 -- Un paso de preparación, una fila de columnas por cada x y una fila de vóxeles por cada x.
 local PREPARE_STEPS = 1
 local TOTAL_STEPS = PREPARE_STEPS + 2 * CHUNK_VOXELS
 -- Claves de material propias: el adaptador las traduce a Enum.Material.
 local AIR_MATERIAL = "Air"
-local ROAD_MATERIAL = "Ground"
+-- El camino es de tierra oscura: material Mud pintado de marrón por el adaptador (WP-11). La banquina lleva el material
+-- del bioma, como el resto del suelo.
+local ROAD_MATERIAL = "Mud"
+local ROAD_HALF_WIDTH_STUDS = WorldConfig.ROAD_WIDTH_STUDS / 2
 local MUD_SURFACE = "Mud"
 
 local VoxelChunkBuilderModule = {}
@@ -75,6 +83,8 @@ function VoxelChunkBuilderModule.new(dependencies: Dependencies): VoxelChunkBuil
 	local tables = VoxelTables.new(CHUNK_VOXELS, CHUNK_VOXELS, AIR_MATERIAL)
 	local columnSurfaceVoxels = table.create(COLUMN_COUNT, 0)
 	local columnFillHeights = table.create(COLUMN_COUNT, 0)
+	-- Primer vóxel de la capa de superficie de cada columna (el más bajo que lleva el material de arriba).
+	local columnTopFloorVoxels = table.create(COLUMN_COUNT, 0)
 	local columnTopMaterials = table.create(COLUMN_COUNT, AIR_MATERIAL)
 	local columnDeepMaterials = table.create(COLUMN_COUNT, AIR_MATERIAL)
 	local result: ChunkVoxels = {
@@ -105,6 +115,25 @@ function VoxelChunkBuilderModule.new(dependencies: Dependencies): VoxelChunkBuil
 		highestVoxelY, lowestHeight = -math.huge, math.huge
 	end
 
+	-- Material de la superficie: camino sobre la ruta; en la banquina y afuera, el del bioma, salvo el barro (que solo
+	-- aparece fuera de la banquina).
+	local function pickTopMaterial(
+		weights: BiomeTypes.BiomeWeights,
+		x: number,
+		z: number,
+		beyondShoulder: number,
+		axisDistance: number
+	): string
+		if beyondShoulder == 0 then
+			if axisDistance <= ROAD_HALF_WIDTH_STUDS then
+				return ROAD_MATERIAL
+			end
+		elseif picker.pickOffroadSurface(weights, x, z, beyondShoulder) == MUD_SURFACE then
+			return MUD_SURFACE
+		end
+		return picker.pickMaterial(weights, x, z)
+	end
+
 	-- Altura y materiales de las columnas de una fila de x.
 	local function measureColumnRow(row: number)
 		local originX, originZ = ChunkGrid.getOriginStuds(result.chunkX), ChunkGrid.getOriginStuds(result.chunkZ)
@@ -112,20 +141,16 @@ function VoxelChunkBuilderModule.new(dependencies: Dependencies): VoxelChunkBuil
 		for column = 1, CHUNK_VOXELS do
 			local z = originZ + (column - HALF) * VOXEL_STUDS
 			local weights = biomeMap.getWeightsInArea(x, z)
-			local height, beyondShoulder = heightField.sampleColumn(x, z, weights)
+			local height, beyondShoulder, axisDistance = heightField.sampleColumn(x, z, weights)
 			local index = (row - 1) * CHUNK_VOXELS + column
 			local fillHeight = (height - SURFACE_OFFSET_STUDS) / VOXEL_STUDS
 			-- El vóxel más alto con algo de terreno: si la superficie cae justo en un borde, es el de abajo.
 			local surfaceVoxel = math.ceil(fillHeight) - 1
 			columnFillHeights[index], columnSurfaceVoxels[index] = fillHeight, surfaceVoxel
+			-- Lleva el material de arriba todo vóxel cuyo borde superior queda a menos de TOP_LAYER_VOXELS bajo el relleno.
+			columnTopFloorVoxels[index] = math.floor(fillHeight - TOP_LAYER_VOXELS)
 			columnDeepMaterials[index] = BiomeBlend.pickDeepMaterial(weights, catalog)
-			if beyondShoulder == 0 then
-				columnTopMaterials[index] = ROAD_MATERIAL
-			elseif picker.pickOffroadSurface(weights, x, z, beyondShoulder) == MUD_SURFACE then
-				columnTopMaterials[index] = MUD_SURFACE
-			else
-				columnTopMaterials[index] = picker.pickMaterial(weights, x, z)
-			end
+			columnTopMaterials[index] = pickTopMaterial(weights, x, z, beyondShoulder, axisDistance)
 			highestVoxelY = math.max(highestVoxelY, surfaceVoxel + 1)
 			lowestHeight = math.min(lowestHeight, height)
 		end
@@ -146,14 +171,15 @@ function VoxelChunkBuilderModule.new(dependencies: Dependencies): VoxelChunkBuil
 		for column = 1, CHUNK_VOXELS do
 			local index = (row - 1) * CHUNK_VOXELS + column
 			local fillHeight, surfaceVoxel = columnFillHeights[index], columnSurfaceVoxels[index]
+			local topFloorVoxel = columnTopFloorVoxels[index]
 			local topMaterial, deepMaterial = columnTopMaterials[index], columnDeepMaterials[index]
 			for layer = 1, result.sizeY do
 				local voxel = lowestVoxelY + layer - 1
 				occupancyLayers[layer][column] = math.clamp(fillHeight - voxel, 0, 1)
-				materialLayers[layer][column] = if voxel == surfaceVoxel
-					then topMaterial
-					elseif voxel < surfaceVoxel then deepMaterial
-					else AIR_MATERIAL
+				materialLayers[layer][column] = if voxel > surfaceVoxel
+					then AIR_MATERIAL
+					elseif voxel >= topFloorVoxel then topMaterial
+					else deepMaterial
 			end
 		end
 	end

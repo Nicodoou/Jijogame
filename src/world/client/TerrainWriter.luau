@@ -66,6 +66,9 @@ local function newMaterialTranslator(
 end
 
 function TerrainWriter.new(terrain: Terrain): WorldPlanner.ChunkSink
+	-- El camino es Mud: se pinta de marrón oscuro (el color es global del Terrain). Hoy el Mud solo se usa en el camino.
+	local roadColor = WorldConfig.ROAD_COLOR_RGB
+	terrain:SetMaterialColor(Enum.Material.Mud, Color3.fromRGB(roadColor[1], roadColor[2], roadColor[3]))
 	local translateMaterials = newMaterialTranslator(WorldConfig.CHUNK_SIZE_STUDS // VOXEL_STUDS)
 
 	local function writeChunk(voxels: VoxelChunkBuilder.ChunkVoxels)

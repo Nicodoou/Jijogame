@@ -4,6 +4,8 @@ local WorldConfig = require("../../src/world/core/WorldConfig")
 
 local WIDTH_SIDES = 2
 
+local MAX_DARK_CHANNEL = 128
+
 Runner.test("the minimum curve radius is bigger than half the road plus the shoulder", function()
 	local halfRoadWithShoulder = WorldConfig.ROAD_WIDTH_STUDS / 2 + WorldConfig.SHOULDER_WIDTH_STUDS
 	Runner.expectEqual(WorldConfig.MIN_CURVE_RADIUS_STUDS > halfRoadWithShoulder, true)
@@ -174,6 +176,18 @@ Runner.test("the world is ready in a radius that fits in one chunk and the surfa
 	Runner.expectEqual(WorldConfig.WORLD_READY_RADIUS_STUDS <= WorldConfig.CHUNK_SIZE_STUDS, true)
 	Runner.expectEqual(WorldConfig.TERRAIN_SURFACE_OFFSET_STUDS < WorldConfig.TERRAIN_VOXEL_STUDS, true)
 	Runner.expectEqual(WorldConfig.SPAWN_ARC_LENGTH_STUDS > 0, true)
+end)
+
+Runner.test("the surface layer is a whole number of voxels and the road color is a dark brown (three bytes)", function()
+	local layerVoxels = WorldConfig.TERRAIN_TOP_LAYER_STUDS / WorldConfig.TERRAIN_VOXEL_STUDS
+	Runner.expectEqual(layerVoxels >= 1 and layerVoxels == math.floor(layerVoxels), true)
+	Runner.expectEqual(#WorldConfig.ROAD_COLOR_RGB, 3)
+	for _, channel in WorldConfig.ROAD_COLOR_RGB do
+		Runner.expectEqual(channel == math.floor(channel) and channel >= 0 and channel <= 255, true)
+	end
+	local red, green, blue = WorldConfig.ROAD_COLOR_RGB[1], WorldConfig.ROAD_COLOR_RGB[2], WorldConfig.ROAD_COLOR_RGB[3]
+	Runner.expectEqual(red > green and green > blue, true)
+	Runner.expectEqual(red <= MAX_DARK_CHANNEL, true)
 end)
 
 Runner.test("the work budget decays slowly and a frame budget is a few milliseconds", function()

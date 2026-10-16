@@ -27,9 +27,9 @@ export type TerrainHeightField = {
 	getInfluenceStuds: () -> number,
 	-- Firma de los bloques cargados por `setArea`: cambia cuando entra o sale ruta que influye en la zona.
 	getAreaSignature: () -> number,
-	-- Altura del terreno en la columna y distancia entre la columna y el borde de la banquina (0 sobre la ruta y la
-	-- banquina, math.huge si no hay ruta al alcance).
-	sampleColumn: (x: number, z: number, weights: BiomeWeights) -> (number, number),
+	-- Altura del terreno en la columna, distancia entre la columna y el borde de la banquina (0 sobre la ruta y la
+	-- banquina, math.huge si no hay ruta al alcance) y distancia al eje de la ruta viva más cercana (math.huge si no hay).
+	sampleColumn: (x: number, z: number, weights: BiomeWeights) -> (number, number, number),
 }
 
 local SHOULDER_EDGE_STUDS = WorldConfig.ROAD_WIDTH_STUDS / 2 + WorldConfig.SHOULDER_WIDTH_STUDS
@@ -130,15 +130,15 @@ function TerrainHeightFieldModule.new(
 		end
 	end
 
-	-- Altura de la ruta si la columna cae sobre ella o su banquina: la del bloque más cercano, o nil.
-	local function findRoadHeight(): number?
+	-- Altura de la ruta y distancia al eje si la columna cae sobre ella o su banquina: las del bloque más cercano, o nil.
+	local function findRoadHeight(): (number?, number)
 		local nearest, nearestHeight = SHOULDER_EDGE_STUDS, nil
 		for slot = 1, #areaBlocks do
 			if distances[slot] <= nearest then
 				nearest, nearestHeight = distances[slot], heights[slot]
 			end
 		end
-		return nearestHeight
+		return nearestHeight, nearest
 	end
 
 	-- Altura base fuera de la ruta y distancia al borde de la banquina del bloque más cercano.
@@ -163,17 +163,18 @@ function TerrainHeightFieldModule.new(
 		return roadsHeight + ambientShare * (AMBIENT_HEIGHT_STUDS - roadsHeight), nearestBeyondShoulder
 	end
 
-	local function sampleColumn(x: number, z: number, weights: BiomeWeights): (number, number)
+	local function sampleColumn(x: number, z: number, weights: BiomeWeights): (number, number, number)
 		measureBlocks(x, z)
-		local roadHeight = findRoadHeight()
+		local roadHeight, axisDistance = findRoadHeight()
 		if roadHeight ~= nil then
-			return roadHeight, 0
+			return roadHeight, 0, axisDistance
 		end
 		local base, nearestBeyondShoulder = blendRoadHeights()
 		local hillShare = smoothStep(math.min(nearestBeyondShoulder / BLEND_STUDS, 1))
 		local amplitudeScale = BiomeBlend.blendNumber(weights, catalog, getAmplitudeScale)
 		local roughness = BiomeBlend.blendNumber(weights, catalog, getRoughness)
-		return base + hillShare * hills.getHeight(x, z, amplitudeScale, roughness), nearestBeyondShoulder
+		local height = base + hillShare * hills.getHeight(x, z, amplitudeScale, roughness)
+		return height, nearestBeyondShoulder, SHOULDER_EDGE_STUDS + nearestBeyondShoulder
 	end
 
 	return {
