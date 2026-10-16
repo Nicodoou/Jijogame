@@ -35,3 +35,25 @@ Lo que está en curso, lo que sigue, lo que queda para después del MVP y las pr
 
 ## Calles infinitas (Agente B, con Beni)
 
+### En curso
+- **Terreno real (WP-6, PR #70):** el auto de A ya anda sobre nuestras rutas. Nico lo manejó y aprobó la prueba, y A aprobó lo técnico. Falta la aprobación de Beni para mergear. En Studio apareció un bug, la ruta quedaba enterrada bajo el terreno con frames caros; ya está arreglado y registrado en `docs/bugs/2026-10-16-ruta-enterrada.md`.
+- **Camino de ripio claro (WP-11, #73, PR #74):** el camino casi no se distinguía del terreno, y Beni eligió `Limestone` para el camino y `Ground` para la banquina. El WP espera aprobación y el código va después del #70.
+
+### Próximo
+1. **Código del WP-11:** el material del camino y de la banquina en `VoxelChunkBuilder`.
+2. **Lomas a ojo:** con el arreglo del #57 las lomas grandes salen menos seguido (las ventanas de 2 km con más de 60 studs de desnivel bajaron del 37 % al 7 %). Se ajusta `HILL_AMPLITUDE_STUDS` manejando con Beni, sin pasar los 20° de pendiente máxima.
+3. **Deuda de documentación:** `terreno.md` y `ruta.md` todavía no describen el campo de alturas ni la ventana de ruta viva que salieron del WP-6.
+4. **Decorado del bosque:** árboles y rocas al costado de la ruta. Va con diseño completo (investigación, opciones y arquitectura): instancing, colisión por distancia y costo por frame.
+5. **Vista previa de la ruta (`VistaPreviaRuta`):** adaptarla o retirarla, ahora que el terreno real la reemplaza.
+
+### Después del MVP
+- **Varios biomas:** la infraestructura del WP-8 ya los soporta (catálogo, clima y mezcla). El MVP lleva solo el bosque (#56).
+- **Malla visual de la ruta (opción T2 de `terreno.md`):** borde prolijo y textura propia encima del Terrain, si el borde serruchado de 4 studs molesta.
+- **Saltos en la ruta (#37):** quedaron para que los decida Beni, junto con A (pendiente máxima y radio vertical de las crestas).
+
+### Preguntas de investigación abiertas
+- **Costo del terreno en un celular de gama media:** ¿cuánto cuestan `WriteVoxels` y la generación por frame, y cuánto congela el arranque síncrono de `WorldClient.new`? Prueba manual con un teléfono.
+- **Tirones al generar:** en el CLI, el peor paso de `generateStep` está entre 2,9 y 3,7 ms, y en Studio se vio un pico de 46 ms sin causa clara. Se mide con el MicroProfiler (etiqueta `WorldClient.step`) manejando de verdad.
+- **CI al límite:** `check-all` tarda unos 60 s y el WP pide menos de 60. ¿Se parten las pruebas largas o se paraleliza? Experimento en una rama `exp/`.
+- **Legibilidad del camino:** ¿alcanza el ripio claro, o hace falta además una banquina más marcada o pasto alto en el borde? Prueba de juego después del WP-11.
+- **Cuánta loma se siente rally:** amplitud y largo de subida que se disfruten sin que el auto se quede en las cuestas (ver el kickdown de A). Prueba de juego con Beni y Nico.
