@@ -25,8 +25,9 @@ local REST_SPIN_RADIANS_PER_SECOND = 0.01
 local REST_MAX_DRIFT_STUDS = 0.05
 local REST_MAX_SPEED = 0.05
 local CRUISE_SPEED = 60
--- Más rápido que STEER_LOW_SPEED, donde el máximo por velocidad ya bajó del de baja velocidad.
-local DRIFT_CHECK_SPEED = 100
+-- Con el centro de masa configurado, hace falta entrar así de rápido para derrapar más de 30° por encima de
+-- STEER_LOW_SPEED, que es donde el máximo por velocidad ya bajó del de baja velocidad.
+local DRIFT_CHECK_SPEED = 120
 local HANDBRAKE_SECONDS = 0.3
 local HANDBRAKE_TURN_SECONDS = 2.5
 local HANDBRAKE_DRIFT_DEGREES = 15
@@ -38,6 +39,8 @@ local CORNER_THROTTLE = 0.2
 local EXIT_SECONDS = 2
 local MIN_REAR_BIAS_DRIFT_GAIN_DEGREES = 10
 local WHEEL_COUNT = 4
+-- Mínimo traspaso de carga (en puntos de la parte delantera, de 0 a 1) al frenar o acelerar.
+local MIN_LOAD_TRANSFER_SHARE = 0.01
 local SHIFT_FORWARD_STUDS = 0.15
 local SHIFT_DOWN_STUDS = 0.3
 local SHIFT_SIDE_STUDS = 0.1
@@ -233,20 +236,50 @@ Runner.test(
 	end
 )
 
-Runner.test("3a. braking hard puts more load on the front wheels than on the rear ones", function()
-	local runner = ToyWorld.new({ initialForwardSpeed = CRUISE_SPEED })
-	local front = averageBetween(runner, controlsWith(0, 0, 1), 0.1, 0.25, frontLoad)
-	local runnerForRear = ToyWorld.new({ initialForwardSpeed = CRUISE_SPEED })
-	local rear = averageBetween(runnerForRear, controlsWith(0, 0, 1), 0.1, 0.25, rearLoad)
-	Runner.expectEqual(front > rear, true)
-	Runner.expectEqual(front > MASS * GRAVITY / 2, true)
+local function frontShareOf(world: ToyWorldInstance): number
+	return frontLoad(world) / (frontLoad(world) + rearLoad(world))
+end
+
+local function restingFrontShare(centerOfMass: vector?): number
+	local runner = ToyWorld.new({ centerOfMassOffset = centerOfMass })
+	runner.run(REST_SECONDS / 2, constant(IDLE))
+	return frontShareOf(runner.world)
+end
+
+local function averageFrontShare(
+	centerOfMass: vector?,
+	speed: number,
+	controls: VehicleControls,
+	from: number,
+	to: number
+)
+	return averageBetween(
+		ToyWorld.new({ initialForwardSpeed = speed, centerOfMassOffset = centerOfMass }),
+		controls,
+		from,
+		to,
+		frontShareOf
+	)
+end
+
+-- CP-2 habla del traspaso de carga, no de un valor absoluto: se mide contra la carga en reposo, con el centro de masa
+-- configurado (70/30) y con el centrado (50/50).
+local CENTERED = vector.create(0, 0, 0)
+
+Runner.test("3a. braking hard moves load to the front wheels with respect to rest", function()
+	for _, centerOfMass in { CENTERED, ToyWorld.configuredCenterOfMass(VehicleConfig) } do
+		local rest = restingFrontShare(centerOfMass)
+		local braking = averageFrontShare(centerOfMass, CRUISE_SPEED, controlsWith(0, 0, 1), 0.1, 0.25)
+		Runner.expectEqual(braking >= rest + MIN_LOAD_TRANSFER_SHARE, true)
+	end
 end)
 
-Runner.test("3b. accelerating puts more load on the rear wheels than on the front ones", function()
-	local front = averageBetween(ToyWorld.new({}), controlsWith(0, 1, 0), 0.3, 0.7, frontLoad)
-	local rear = averageBetween(ToyWorld.new({}), controlsWith(0, 1, 0), 0.3, 0.7, rearLoad)
-	Runner.expectEqual(rear > front, true)
-	Runner.expectEqual(rear > MASS * GRAVITY / 2, true)
+Runner.test("3b. accelerating moves load to the rear wheels with respect to rest", function()
+	for _, centerOfMass in { CENTERED, ToyWorld.configuredCenterOfMass(VehicleConfig) } do
+		local rest = restingFrontShare(centerOfMass)
+		local accelerating = averageFrontShare(centerOfMass, 0, controlsWith(0, 1, 0), 0.3, 0.7)
+		Runner.expectEqual(accelerating <= rest - MIN_LOAD_TRANSFER_SHARE, true)
+	end
 end)
 
 Runner.test("3c. in a corner the wheels on the outside carry more load", function()
