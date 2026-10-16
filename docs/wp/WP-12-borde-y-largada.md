@@ -37,7 +37,7 @@ Probando en Studio aparecieron dos problemas (#80):
   - `tests/world/`.
 - **Supuestos vigentes:**
   - el terreno salva como mucho `TERRAIN_MAX_SLOPE_DEGREES` (62°);
-  - según A, el auto no trepa más de unos 35° en pasto (agarre 0,7);
+  - el auto no trepa más de unos 35° en pasto: es una estimación del Agente B, porque con agarre 0,7 sale atan(0,7) ≈ 35°. Hay que confirmarla con A;
   - el corredor generado llega a 160 studs de la ruta viva, y el alcance de la ruta sobre la altura (`TERRAIN_ROAD_REACH_STUDS`) a 192.
 
 ## Entregables (todo en `src/world/core/` y `tests/world/`)
