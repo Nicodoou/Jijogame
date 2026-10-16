@@ -5,6 +5,9 @@
 return table.freeze({
 	ROAD_WIDTH_STUDS = 16,
 	SHOULDER_WIDTH_STUDS = 4,
+	-- Color del camino (material Mud del Terrain, que el adaptador pinta): un marrón oscuro de tierra de rally.
+	-- Se calibra a ojo en Studio.
+	ROAD_COLOR_RGB = table.freeze({ 86, 64, 44 }),
 	-- Tiene que ser mayor que la mitad del ancho más la banquina, o el eje cruzaría el borde de la propia curva.
 	MIN_CURVE_RADIUS_STUDS = 60,
 	-- Se confirma con el experimento de rampas de 15° y 20° antes de subirla más.
@@ -123,7 +126,8 @@ return table.freeze({
 	-- eje repetía el perfil cada 256 longitudes de onda (#57). En diagonal, la repetición exacta no existe (la tangente es irracional).
 	HILL_NOISE_DIRECTION_DEGREES = 20,
 
-	-- Manchones de barro: ruido con semilla, solo más allá de la banquina.
+	-- Manchones de barro: ruido con semilla, solo más allá de la banquina. Hoy ningún bioma los usa (el campo es solo pasto);
+	-- se retoman con el issue #78 (barro en bordes y curvas).
 	MUD_NOISE_SCALE_PER_STUD = 0.01,
 	MUD_NOISE_THRESHOLD = 0.2,
 	MUD_MIN_DISTANCE_FROM_SHOULDER_STUDS = 6,
@@ -169,6 +173,9 @@ return table.freeze({
 	TERRAIN_SURFACE_OFFSET_STUDS = 2,
 	-- Cuánto Terrain sólido queda bajo la superficie más baja de cada chunk.
 	TERRAIN_DEPTH_STUDS = 12,
+	-- Espesor de la capa de superficie: el material de la superficie ocupa también los vóxeles de abajo hasta esta
+	-- profundidad. En pendiente el vóxel de arriba queda casi vacío en cada escalón y Roblox muestra el de abajo.
+	TERRAIN_TOP_LAYER_STUDS = 8,
 	-- Ancho en el que el terreno pasa de plano (al lado de la banquina) a las colinas completas.
 	TERRAIN_BLEND_WIDTH_STUDS = 32,
 	-- Colinas: dos octavas de math.noise relativas a la altura de la ruta. La amplitud y la rugosidad se multiplican por las de los biomas.

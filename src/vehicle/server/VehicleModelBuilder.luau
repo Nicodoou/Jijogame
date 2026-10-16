@@ -1,10 +1,12 @@
 --!strict
--- Arma el modelo de cajas del auto, anclado, hasta que llegue el asset. Los nombres son los de VehicleParts.
+-- Arma el auto anclado: las cajas físicas (Body, ruedas y lastre) y, encima, el modelo visual. Los nombres son los de VehicleParts.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local VectorConversion = require(ReplicatedStorage.vehicle.shared.VectorConversion)
 local VehicleParts = require(ReplicatedStorage.vehicle.shared.VehicleParts)
+local VehicleModels = require(ReplicatedStorage.vehicle.core.VehicleModels)
 local VehicleTypes = require(ReplicatedStorage.vehicle.core.VehicleTypes)
+local VehicleVisualModel = require("./VehicleVisualModel")
 
 type VehicleSettings = VehicleTypes.VehicleSettings
 
@@ -143,6 +145,7 @@ function VehicleModelBuilder.build(userId: number, bodyCFrame: CFrame, config: V
 		createWheelForce(body, wheel.name, offset)
 	end
 	createBallast(model, body, config)
+	VehicleVisualModel.attach(model, body, VehicleModels.Fiat147, config, VehicleModelBuilder.markMassless)
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	return model
 end

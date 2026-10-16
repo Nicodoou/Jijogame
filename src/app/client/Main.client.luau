@@ -1,4 +1,5 @@
 --!strict
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -9,6 +10,7 @@ local VehicleSimulator = require(ReplicatedStorage.vehicle.core.VehicleSimulator
 local ChaseCameraController = require("../camera/ChaseCameraController")
 local InputReader = require("../input/InputReader")
 local VehicleController = require("../vehicle/VehicleController")
+local RearAxleVisual = require("../vehicle/RearAxleVisual")
 local WorldClient = require("../world/WorldClient")
 
 -- El mundo y el auto se piden la posición y el terreno uno al otro: se arma primero el mundo (necesita la semilla) y
@@ -30,6 +32,7 @@ controller = VehicleController.new({
 	config = VehicleConfig,
 })
 local cameraController = ChaseCameraController.new(Workspace.CurrentCamera)
+local rearAxleVisual = RearAxleVisual.new(Players.LocalPlayer.UserId)
 local inputState = InputSmoother.newState()
 
 controller:start()
@@ -50,4 +53,5 @@ RunService.PreRender:Connect(function(dt)
 		inputState.isLookingBack,
 		dt
 	)
+	rearAxleVisual:step()
 end)

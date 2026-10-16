@@ -4,6 +4,7 @@
 
 local BiomeCatalog = require("../../src/world/core/BiomeCatalog")
 local BiomeTypes = require("../../src/world/core/BiomeTypes")
+local WorldConfig = require("../../src/world/core/WorldConfig")
 
 export type BiomeDefinition = BiomeTypes.BiomeDefinition
 
@@ -76,12 +77,26 @@ local function copyValue(value: any): any
 	return copy
 end
 
+-- El bosque del juego ya no tiene manchones de barro (issue #78). Esta copia los conserva con los valores MUD_* de
+-- WorldConfig, para seguir probando el mecanismo de manchones con una ficha de pasto y barro.
+local muddyForest: BiomeDefinition = copyValue(BiomeCatalog.forest)
+muddyForest.surfaces.patches = {
+	{
+		surface = "Mud",
+		noiseScalePerStud = WorldConfig.MUD_NOISE_SCALE_PER_STUD,
+		noiseThreshold = WorldConfig.MUD_NOISE_THRESHOLD,
+		minDistanceFromShoulderStuds = WorldConfig.MUD_MIN_DISTANCE_FROM_SHOULDER_STUDS,
+	},
+}
+
 local BiomeTestCatalog = {}
 
 BiomeTestCatalog.lowland = lowland
 BiomeTestCatalog.highland = highland
 BiomeTestCatalog.wetland = wetland
 BiomeTestCatalog.single = { BiomeCatalog.forest }
+BiomeTestCatalog.muddyForest = muddyForest
+BiomeTestCatalog.muddyForestOnly = { muddyForest }
 BiomeTestCatalog.pair = { lowland, highland }
 BiomeTestCatalog.triple = { lowland, highland, wetland }
 

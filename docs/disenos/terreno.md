@@ -41,7 +41,7 @@ La hizo el subagente `investigador` el 2026-10-14. Las marcas significan: **[V]*
   - lo que escribe el servidor se replica [V];
   - lo que escribe el cliente queda local [S];
   - el contenido creado en el cliente no sale por streaming [V] ([streaming](https://create.roblox.com/docs/workspace/streaming)).
-- **Materiales:** `Ground`, `Grass`, `LeafyGrass` y `Mud` existen [V]. Los `MaterialVariant` aplican al Terrain solo como reemplazo global del lugar [V] ([materiales](https://create.roblox.com/docs/parts/materials)).
+- **Materiales:** `Ground`, `Limestone`, `Grass`, `LeafyGrass` y `Mud` existen [V]. Los `MaterialVariant` aplican al Terrain solo como reemplazo global del lugar [V] ([materiales](https://create.roblox.com/docs/parts/materials)).
 - **RC-11:** el Terrain es una sola instancia, así que lo cumple sin esfuerzo.
 - **Tope del mundo:** la documentación dice ±128.000 studs [V], pero en la práctica se escribió y se leyó Terrain hasta 2.000.000 [E] (experimento del 2026-10-15, en `ruta.md`, "Riesgo nuevo: distancia al origen").
 - **Memoria:** se mide con las etiquetas `TerrainVoxels` y `GraphicsTerrain` de `Stats` [V]. Si al borrar un tramo (escribiendo aire) se devuelve memoria está [NC].
@@ -66,9 +66,20 @@ Se deciden junto con la malla de la ruta (#9), porque el terreno es lo que pisa 
 
 ### Opción T1: todo con Terrain (suelo y ruta)
 
-El cliente escribe el suelo con `WriteVoxels`, por pedazos y con un presupuesto por frame. La ruta queda plana dentro del mismo Terrain, con material `Ground`. El pasto es `Grass` y el barro `Mud`.
+El cliente escribe el suelo con `WriteVoxels`, por pedazos y con un presupuesto por frame. La ruta queda plana dentro del mismo Terrain, con material `Mud` pintado de marrón oscuro (camino de tierra). La banquina y el resto del suelo llevan el material del bioma (`Grass` y `LeafyGrass` en el bosque). Por ahora no hay manchones de barro en el campo (ver la revisión 2).
 
-> **Actualización 2026-10-16 (WP-11, #73):** el camino pasa a `Limestone` (ripio claro) y la banquina queda en `Ground`, para que la ruta se distinga del terreno. Es solo visual: la superficie del contrato sale de los datos de la ruta, no del material.
+> **Actualización 2026-10-16 (WP-11, #73):** el camino pasa a un material propio (`Limestone` primero, `Mud` desde la revisión 2) para que la ruta se distinga del terreno. Es solo visual: la superficie del contrato sale de los datos de la ruta, no del material. Implementación: `VoxelChunkBuilder` pone `ROAD_MATERIAL` en las columnas cuyo centro queda a no más de `ROAD_WIDTH_STUDS / 2` del eje (en el plano, contra el punto de ruta viva más cercano); para eso `TerrainHeightField.sampleColumn` devuelve, como tercer valor, la distancia al eje. El borde queda serruchado (grilla de 4 studs).
+>
+> **Revisión 1 (2026-10-16, WP-11):**
+> - **Capas.** El material de la superficie no va solo en el vóxel de arriba: ocupa también los de abajo hasta `TERRAIN_TOP_LAYER_STUDS` (8 studs, dos vóxeles); más abajo, el material profundo del bioma. Con solo el vóxel de arriba, en pendiente la superficie sube a escalones de 4 studs y en cada escalón ese vóxel queda casi vacío, así que Roblox muestra el de abajo: asomaban manchones de tierra en el camino y el pasto de las lomas se veía como tierra. Un vóxel lleva el material de arriba si su borde superior queda a menos de 8 studs bajo la superficie de la columna (registro en `docs/bugs/2026-10-16-manchones-de-capas.md`).
+> - **Banquina de pasto.** La banquina deja de ser `Ground`: lleva el material del bioma, como el resto del suelo. El barro seguía igual en esta revisión; la revisión 2 lo saca del bosque.
+> - **Ripio gris (reemplazado por la revisión 2).** `Limestone` es blanco de fábrica; el adaptador (`TerrainWriter`) lo pinta con `Terrain:SetMaterialColor` a `WorldConfig.ROAD_COLOR_RGB` (gris medio). El color es global del Terrain y `Limestone` solo se usa en el camino, así que no afecta a nada más. Es un valor de ajuste: se calibra a ojo en Studio.
+>
+> **Revisión 2 (2026-10-16, WP-11):** al verlo en Studio, el ripio gris seguía muy claro, parecía asfalto y no se veía como rally. Beni decidió (registro en `docs/decisiones.md`):
+> - **Camino de tierra oscura.** El camino usa el material `Mud` (`ROAD_MATERIAL` en `VoxelChunkBuilder`) y `TerrainWriter` pinta `Enum.Material.Mud` con `Terrain:SetMaterialColor` a `WorldConfig.ROAD_COLOR_RGB`, un marrón oscuro (86, 64, 44). Se deja de usar `Limestone`. El color de un material es global del Terrain: mientras `Mud` solo se use en el camino, no afecta a nada más. Si vuelve el barro del campo (#78), hay que decidir qué material usa, porque con `Mud` se vería del mismo marrón que el camino. Es un valor de ajuste: se calibra a ojo en Studio.
+> - **El campo es solo pasto.** El bosque no tiene manchones de barro (`patches` vacío en `BiomeCatalog`), así que fuera de la ruta `GetSurfaceAt` da `Grass`. El mecanismo de manchones y los `MUD_*` de `WorldConfig` se conservan, y el mecanismo se sigue probando con un catálogo de prueba que sí los tiene (`BiomeTestCatalog.muddyForest`).
+> - **`GetSurfaceAt` no cambia.** El camino sigue siendo `Road` aunque use el material `Mud` de Roblox: la superficie del contrato sale de los datos de la ruta, no del material. `Mud` sigue existiendo como valor del contrato.
+> - Siguen la capa de superficie de 8 studs y la banquina de pasto de la revisión 1.
 
 - **Bueno:**
   - medido rápido (unos 3 ms por pedazo de 128×128 en PC) y plano;
@@ -79,7 +90,7 @@ El cliente escribe el suelo con `WriteVoxels`, por pedazos y con un presupuesto 
 - **Riesgoso:**
   - el costo en celular está [NC];
   - el tope de ±128.000 studs obliga a recentrar el mundo y reescribir el terreno cercano (ver `ruta.md`).
-- **Funciona bien cuando:** el borde serruchado se tolera o se disimula (banquina de tierra suelta, que ya está en el contrato, más pasto alto).
+- **Funciona bien cuando:** el borde serruchado se tolera o se disimula (el camino de tierra oscura contra el pasto, más pasto alto).
 - **Deja de funcionar cuando:** se quiere un borde de ruta prolijo, como de asfalto pintado.
 
 ### Opción T2: Terrain para el suelo + malla visual de la ruta sin colisión

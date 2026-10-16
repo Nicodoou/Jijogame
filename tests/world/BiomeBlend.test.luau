@@ -287,15 +287,15 @@ local function createLegacyOffroadSurface(seed: number): (vector, number) -> str
 end
 
 Runner.test(
-	"pickOffroadSurface with forest gives the same mud and grass as SurfaceClassifier did before biomes",
+	"pickOffroadSurface with a forest with mud patches gives the same mud and grass as SurfaceClassifier did before biomes",
 	function()
 		local mudCount, grassCount = 0, 0
 		local path, query = createWorld()
 		for _, seed in { 1, -3, 1e12 } do
 			local getSurfaceAt = SurfaceClassifier.createGetSurfaceAt(
 				query,
-				BiomeBlend.newPicker(seed, BiomeCatalog.all),
-				BiomeMap.new(seed, BiomeCatalog.all)
+				BiomeBlend.newPicker(seed, BiomeTestCatalog.muddyForestOnly),
+				BiomeMap.new(seed, BiomeTestCatalog.muddyForestOnly)
 			)
 			local legacySurface = createLegacyOffroadSurface(seed)
 			local samples = (path.getSegment(ROAD_SEGMENT_FOR_SCAN) :: RoadPath.Segment).samples
@@ -313,7 +313,7 @@ Runner.test(
 							local distance = math.abs(nearest.lateralOffset) - SHOULDER_EDGE
 							local actual = BiomeBlend.pickOffroadSurface(
 								{ forest = 1 },
-								BiomeCatalog.all,
+								BiomeTestCatalog.muddyForestOnly,
 								position.x,
 								position.z,
 								seed,
@@ -343,17 +343,37 @@ Runner.test("there is never mud up to the minimum distance from the shoulder, an
 		local x, z = drawPoint(random)
 		for _, distance in { -5, 0, 1, MUD_DISTANCE } do
 			Runner.expectEqual(
-				BiomeBlend.pickOffroadSurface({ forest = 1 }, BiomeCatalog.all, x, z, 1, distance),
+				BiomeBlend.pickOffroadSurface({ forest = 1 }, BiomeTestCatalog.muddyForestOnly, x, z, 1, distance),
 				"Grass"
 			)
 		end
 		if
-			BiomeBlend.pickOffroadSurface({ forest = 1 }, BiomeCatalog.all, x, z, 1, JUST_PAST_MUD_DISTANCE) == "Mud"
+			BiomeBlend.pickOffroadSurface(
+				{ forest = 1 },
+				BiomeTestCatalog.muddyForestOnly,
+				x,
+				z,
+				1,
+				JUST_PAST_MUD_DISTANCE
+			) == "Mud"
 		then
 			mudAfter += 1
 		end
 	end
 	Runner.expectEqual(mudAfter > 0, true)
+end)
+
+Runner.test("the forest of the game has no mud patches: its field is always grass, at any distance", function()
+	local random = SeededRandom.new(5)
+	for _ = 1, 3000 do
+		local x, z = drawPoint(random)
+		for _, distance in { 0, MUD_DISTANCE, JUST_PAST_MUD_DISTANCE, 40, 400 } do
+			Runner.expectEqual(
+				BiomeBlend.pickOffroadSurface({ forest = 1 }, BiomeCatalog.all, x, z, 1, distance),
+				"Grass"
+			)
+		end
+	end
 end)
 
 Runner.test("pickOffroadSurface follows the definition: its surface, its patches and its minimum distance", function()
@@ -401,6 +421,7 @@ local PICKER_DISTANCES = { 0, MUD_DISTANCE, 40 }
 Runner.test("a picker gives exactly what pickMaterial and pickOffroadSurface give, over thousands of points", function()
 	local cases: { { weights: Weights, catalog: { BiomeTypes.BiomeDefinition } } } = {
 		{ weights = { forest = 1 }, catalog = BiomeCatalog.all },
+		{ weights = { forest = 1 }, catalog = BiomeTestCatalog.muddyForestOnly },
 		{ weights = { lowland = 0.5, highland = 0.5 }, catalog = BiomeTestCatalog.pair },
 		{ weights = { lowland = 0.2, highland = 0.3, wetland = 0.5 }, catalog = BiomeTestCatalog.triple },
 	}

@@ -4,6 +4,20 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-16 — Terreno: camino de tierra oscura (material `Mud` marrón) y campo solo de pasto (revisión 2 del WP-11)
+**Decidió:** Beni
+**Issue:** #73 (WP-11, revisión 2; PR #75)
+**Decisión:** el camino usa el material `Mud` de Roblox pintado de marrón oscuro con `SetMaterialColor`, y deja `Limestone`. El bosque se queda sin manchones de barro por ahora (el campo es solo pasto), y el mecanismo se conserva para retomarlo con #78. La superficie del contrato no cambia: el camino sigue siendo `Road`.
+**Por qué:** el ripio gris seguía viéndose claro, como asfalto, y no parecía rally. La textura del barro se ve mejor como camino de tierra.
+**Descartado:** seguir con `Limestone` más oscuro; mantener los manchones de barro, que de lejos se confundían con el camino.
+
+## 2026-10-16 — Terreno: ripio gris, una sola textura por columna y banquina de pasto (revisión del WP-11)
+**Decidió:** Beni
+**Issue:** #73 (WP-11, revisión 1; PR #75)
+**Decisión:** el camino sigue en `Limestone`, pero oscurecido a un gris medio con `SetMaterialColor`. El material de superficie ocupa también las capas de abajo hasta 8 studs, para que en las pendientes no asome la capa profunda. La banquina lleva el pasto del bioma, y el barro se conserva como estaba.
+**Por qué:** en Studio el camino salió blanco y con manchones. Era un bug de capas: en cada escalón de la pendiente se veía el `Ground` de abajo, y por eso también el pasto de las lomas parecía tierra.
+**Descartado:** asfalto (`Asphalt`); todo el campo en pasto sin barro (el barro queda, y la idea de barro en los bordes y en curvas va aparte).
+
 ## 2026-10-16 — Hitbox modular y daño por pieza en el MVP
 **Decidió:** Nico
 **Issue:** diseño `docs/disenos/hitbox-y-dano.md` (PR #77), experimento #82

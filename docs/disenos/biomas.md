@@ -35,7 +35,7 @@ Punto de partida: la preinvestigación de Nico (adjunta en #56). La investigaci�
 
 ### Terrain y materiales [V]
 
-- Materiales de Terrain útiles: Grass, LeafyGrass, Ground, Mud, Sand, Sandstone, Rock, Slate, Basalt, Snow, Salt, Limestone y Cobblestone. **No existe "grava" para Terrain**: se imita con Ground, Cobblestone o Limestone.
+- Materiales de Terrain útiles: Grass, LeafyGrass, Ground, Mud, Sand, Sandstone, Rock, Slate, Basalt, Snow, Salt, Limestone y Cobblestone. **No existe "grava" para Terrain**: se imita con Ground, Cobblestone o Limestone. El camino de rally usa `Mud` pintado de marrón oscuro con `SetMaterialColor` (WP-11).
 - Las `MaterialVariant` y `SetMaterialColor` son **globales por lugar**: no se puede teñir el pasto distinto por bioma. La diferencia entre biomas sale de **materiales base distintos**.
 - Un vóxel tiene un solo material. El borde entre materiales se disimula alternándolos con ruido de baja frecuencia (manchones de 12 a 24 studs) y con un material "puente" en la transición.
 
@@ -77,15 +77,15 @@ Todo el cálculo vive en `src/world/core/` (Luau puro, probado en el CLI) y lo c
 
 | Módulo | Qué hace | Qué no hace |
 | --- | --- | --- |
-| `BiomeCatalog` | **Fichas de bioma como datos** (patrón *Type Object*). Cada ficha tiene: `id`; caja de clima (relieve, humedad y temperatura); `terrain` (escala de amplitud y rugosidad de las colinas); `materials` (superficie arriba, puente de transición y profundo, como claves propias); `surfaces` (qué `SurfaceKind` da fuera de la ruta y los manchones, por ejemplo de barro); `decoration` (lista de objetos con densidad, distancia mínima y forma de colisión, para el WP del decorado). **MVP: una sola ficha, `forest`.** | No tiene lógica. |
+| `BiomeCatalog` | **Fichas de bioma como datos** (patrón *Type Object*). Cada ficha tiene: `id`; caja de clima (relieve, humedad y temperatura); `terrain` (escala de amplitud y rugosidad de las colinas); `materials` (superficie arriba, puente de transición y profundo, como claves propias); `surfaces` (qué `SurfaceKind` da fuera de la ruta y los manchones, por ejemplo de barro; el bosque no tiene manchones por ahora, #78); `decoration` (lista de objetos con densidad, distancia mínima y forma de colisión, para el WP del decorado). **MVP: una sola ficha, `forest`, con pasto y sin manchones de barro.** | No tiene lógica. |
 | `ClimateField` | Mapas de relieve y humedad: varias octavas de `math.noise` con `z` no entero propio, entrada envuelta `% 256` y normalización por la tabla de cuantiles medida. La temperatura sale derivada del relieve y de un ruido. Se evalúa en una grilla de 16 studs por chunk con interpolación bilineal **de los parámetros** (no de los pesos). | No elige biomas. |
 | `BiomeWeights` | Del clima de un punto a los pesos de cada bioma (B1). Corta los pesos chicos y normaliza para que sumen 1. Con una sola ficha devuelve `{ forest = 1 }`. | No sabe de terreno ni de materiales. |
 | `BiomeBlend` | Ayudas para los consumidores: `blendNumber(pesos, campo)` (por ejemplo, la amplitud de las colinas), `pickMaterial(pesos, x, z)` (elección estocástica coherente con ruido de 12 a 24 studs más el material puente) y `pickOffroadSurface(pesos, x, z)`. | No escribe nada. |
 
 **Quién lo usa (cambios sobre el WP-6, sin cambiar su API):**
 - `TerrainHeightField`: la amplitud y la rugosidad de las colinas salen de `BiomeBlend.blendNumber`. La ruta y la banquina siguen planas (R1).
-- `VoxelChunkBuilder`: el material de cada columna sale de `BiomeBlend.pickMaterial`. En la ruta y la banquina, del bioma (hoy `Ground`).
-- `SurfaceClassifier`: fuera de la ruta, la superficie la da `BiomeBlend.pickOffroadSurface` (bosque: `Grass` y manchones de `Mud`). **El contrato #17 no cambia en el MVP.**
+- `VoxelChunkBuilder`: el material de cada columna sale de `BiomeBlend.pickMaterial`. En el camino, fijo: `Mud` pintado de marrón oscuro por el adaptador (WP-11, revisión 2); la banquina lleva el material del bioma. El material de la superficie ocupa los vóxeles hasta `TERRAIN_TOP_LAYER_STUDS` bajo la superficie y más abajo va el `deep` del bioma (revisión 1 del WP-11).
+- `SurfaceClassifier`: fuera de la ruta, la superficie la da `BiomeBlend.pickOffroadSurface` (bosque: solo `Grass`; el mecanismo de manchones, como el de `Mud`, se conserva y se prueba con un catálogo de prueba, y se retoma con el issue #78). **El contrato #17 no cambia en el MVP.**
 - WP del decorado: densidades y listas de objetos por peso de bioma.
 
 ### Patrones y por qué

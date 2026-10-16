@@ -34,7 +34,14 @@ local HANDBRAKE_DRIFT_DEGREES = 15
 local HANDBRAKE_CHECK_SECONDS = 1.3
 local SPIN_DRIFT_DEGREES = 90
 local ACCELERATION_SECONDS = 3
-local REAR_BIAS_STEER = 0.7
+-- Con la distancia entre ejes del 147 (5,94 studs, antes 8) el auto gira más con la misma dirección: con 0,7 hasta
+-- REAR_BIAS 0,5 hace trompo (72°) y la comparación pierde sentido. 0,4 es la dirección más alta con la que REAR_BIAS 0,5
+-- no hace trompo (< 30°). Deriva a la salida, REAR_BIAS 1 / 0,5, a 20 y 30 studs/s:
+--   0,3: 11,96 / 12,30 y 11,68 / 11,68 (sin diferencia: casi no dobla)
+--   0,4: 82,90 / 16,41 y 83,94 / 15,83 (ganancia 66,49 y 68,11)
+--   0,5: 81,61 / 35,58 y 81,16 / 35,19 (ya trompo con 0,5)
+--   0,7: 81,52 / 72,47 y 34,25 / 72,90 (ganancia 9,05 y -38,65)
+local REAR_BIAS_STEER = 0.4
 local CORNER_SECONDS = 1
 local CORNER_THROTTLE = 0.2
 local EXIT_SECONDS = 2

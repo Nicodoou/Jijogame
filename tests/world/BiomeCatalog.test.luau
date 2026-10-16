@@ -6,13 +6,17 @@ local WorldConfig = require("../../src/world/core/WorldConfig")
 
 type Mutation = (any) -> ()
 
-local function expectInvalid(mutate: Mutation, label: string)
-	local broken = BiomeTestCatalog.copyDefinition(BiomeCatalog.forest)
+local function expectInvalidFrom(base: any, mutate: Mutation, label: string)
+	local broken = BiomeTestCatalog.copyDefinition(base)
 	mutate(broken)
 	local problems = BiomeCatalog.validate({ broken })
 	if #problems == 0 then
 		error(`the broken definition was accepted: {label}`, 0)
 	end
+end
+
+local function expectInvalid(mutate: Mutation, label: string)
+	expectInvalidFrom(BiomeCatalog.forest, mutate, label)
 end
 
 Runner.test("forest is a valid catalog by itself", function()
@@ -26,19 +30,25 @@ Runner.test("the game catalog has only forest", function()
 	Runner.expectEqual(BiomeCatalog.forest.id, "forest")
 end)
 
-Runner.test("forest reproduces the surface, the mud patches and the materials of today", function()
+Runner.test("forest has a grass field without mud patches, and the materials of today", function()
 	local forest = BiomeCatalog.forest
 	Runner.expectEqual(forest.surfaces.offroad, "Grass")
-	Runner.expectEqual(#forest.surfaces.patches, 1)
-	local mud = forest.surfaces.patches[1]
-	Runner.expectEqual(mud.surface, "Mud")
-	Runner.expectEqual(mud.noiseScalePerStud, WorldConfig.MUD_NOISE_SCALE_PER_STUD)
-	Runner.expectEqual(mud.noiseThreshold, WorldConfig.MUD_NOISE_THRESHOLD)
-	Runner.expectEqual(mud.minDistanceFromShoulderStuds, WorldConfig.MUD_MIN_DISTANCE_FROM_SHOULDER_STUDS)
+	Runner.expectEqual(#forest.surfaces.patches, 0)
 	Runner.expectEqual(forest.materials.surface[1].material, "Grass")
 	Runner.expectEqual(forest.materials.surface[2].material, "LeafyGrass")
 	Runner.expectEqual(forest.materials.transition, "Ground")
 	Runner.expectEqual(forest.materials.deep, "Ground")
+end)
+
+Runner.test("the forest with mud patches of the tests keeps the mud values of WorldConfig and is valid", function()
+	local muddyForest = BiomeTestCatalog.muddyForest
+	Runner.expectEqual(#BiomeCatalog.validate({ muddyForest }), 0)
+	Runner.expectEqual(#muddyForest.surfaces.patches, 1)
+	local mud = muddyForest.surfaces.patches[1]
+	Runner.expectEqual(mud.surface, "Mud")
+	Runner.expectEqual(mud.noiseScalePerStud, WorldConfig.MUD_NOISE_SCALE_PER_STUD)
+	Runner.expectEqual(mud.noiseThreshold, WorldConfig.MUD_NOISE_THRESHOLD)
+	Runner.expectEqual(mud.minDistanceFromShoulderStuds, WorldConfig.MUD_MIN_DISTANCE_FROM_SHOULDER_STUDS)
 end)
 
 Runner.test("forest covers the whole climate, so it never loses weight to anything", function()
@@ -175,31 +185,32 @@ Runner.test("materials with bad proportions, empty names or no materials at all 
 end)
 
 Runner.test("surfaces that are the road, a bad patch or missing are not valid", function()
-	expectInvalid(function(definition)
+	local muddyForest = BiomeTestCatalog.muddyForest
+	expectInvalidFrom(muddyForest, function(definition)
 		definition.surfaces.offroad = "Road"
 	end, "offroad Road")
-	expectInvalid(function(definition)
+	expectInvalidFrom(muddyForest, function(definition)
 		definition.surfaces.offroad = "Shoulder"
 	end, "offroad Shoulder")
-	expectInvalid(function(definition)
+	expectInvalidFrom(muddyForest, function(definition)
 		definition.surfaces.patches[1].surface = "Road"
 	end, "patch Road")
-	expectInvalid(function(definition)
+	expectInvalidFrom(muddyForest, function(definition)
 		definition.surfaces.patches[1].noiseScalePerStud = 0
 	end, "patch scale 0")
-	expectInvalid(function(definition)
+	expectInvalidFrom(muddyForest, function(definition)
 		definition.surfaces.patches[1].noiseThreshold = 0 / 0
 	end, "patch threshold NaN")
-	expectInvalid(function(definition)
+	expectInvalidFrom(muddyForest, function(definition)
 		definition.surfaces.patches[1].minDistanceFromShoulderStuds = -1
 	end, "negative patch distance")
-	expectInvalid(function(definition)
+	expectInvalidFrom(muddyForest, function(definition)
 		definition.surfaces.patches = nil
 	end, "missing patches")
-	expectInvalid(function(definition)
+	expectInvalidFrom(muddyForest, function(definition)
 		definition.surfaces = nil
 	end, "no surfaces")
-	local noPatches = BiomeTestCatalog.copyDefinition(BiomeCatalog.forest)
+	local noPatches = BiomeTestCatalog.copyDefinition(muddyForest)
 	noPatches.surfaces.patches = {}
 	Runner.expectEqual(#BiomeCatalog.validate({ noPatches }), 0)
 end)
