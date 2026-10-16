@@ -1,6 +1,7 @@
 --!strict
 -- Secuenciador de la ruta: sortea la próxima pieza, la previsualiza y la acepta o prueba otra (RoadPieceAlternatives, en
 -- un orden fijo que termina en el último recurso: giros de radio mínimo hacia la guía).
+-- Trabaja de a pasos acotados (sortear una pieza, probar una alternativa o retroceder), así el costo de cada llamada es chico.
 -- Si ni el último recurso entra, la ruta retrocede: descarta las últimas piezas (1 a ROAD_BACKTRACK_MAX_PIECES, más
 -- cuantas más fallas seguidas) y vuelve a sortear. Si no queda nada para retroceder, la ruta está encerrada y es un error.
 -- Una muestra es definitiva recién cuando ya no hay forma de retroceder sobre ella.
@@ -11,11 +12,10 @@ local RoadFrame = require("./RoadFrame")
 local RoadGuide = require("./RoadGuide")
 local RoadIntegrator = require("./RoadIntegrator")
 local RoadPieceAlternatives = require("./RoadPieceAlternatives")
-local RoadPieceBuilder = require("./RoadPieceBuilder")
 local RoadPieceCatalog = require("./RoadPieceCatalog")
+local RoadPieceChooser = require("./RoadPieceChooser")
 local RoadPiecePreview = require("./RoadPiecePreview")
 local RoadPieceProfile = require("./RoadPieceProfile")
-local RoadPieceSelector = require("./RoadPieceSelector")
 local SeededRandom = require("./SeededRandom")
 local WorldConfig = require("./WorldConfig")
 
@@ -47,6 +47,9 @@ export type SequencerStatistics = {
 
 export type RoadPieceSequencer = {
 	getInitialSample: () -> RoadIntegrator.RoadSample,
+	-- Hace un paso y devuelve la pieza cuando la acepta; si no, nil. Un paso es sortear una pieza, probar una alternativa o retroceder.
+	generatePieceStep: () -> PieceResult?,
+	-- Repite pasos hasta tener una pieza aceptada.
 	generateNextPiece: () -> PieceResult,
 	getStatistics: () -> SequencerStatistics,
 }
@@ -59,6 +62,9 @@ type Checkpoint = {
 	-- Clase de la pieza que se agregó después de este punto.
 	pieceKind: RoadPieceCatalog.PieceKind,
 }
+
+-- Lo que hace el próximo paso: sortear una pieza, probar la siguiente alternativa o retroceder.
+type Phase = "draw" | "try" | "takeBack"
 
 local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
 
@@ -79,6 +85,9 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 	local checkpoints: { Checkpoint } = {}
 	local failStreak = 0
 	local bestArcLength = 0
+	local phase: Phase = "draw"
+	local alternatives: RoadPieceAlternatives.RoadPieceAlternatives? = nil
+	local isUsingLastResort = false
 	local statistics: SequencerStatistics = {
 		pieceCount = 0,
 		pieceCountByKind = {},
@@ -94,25 +103,29 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 		return (previewer.preview(state, piece, guideSegment))
 	end
 
-	local function findNextPiece(): PreviewResult?
-		guide.ensureCovers(guideArcLength + WorldConfig.GUIDE_TARGET_AHEAD_STUDS)
-		local lateralOffset, arcLength, segment = guide.project(state.x, state.z, guideSegment)
-		guideArcLength, guideSegment = arcLength, segment
-		local targetX, targetZ = guide.getPointAt(arcLength + WorldConfig.GUIDE_TARGET_AHEAD_STUDS)
-		local headingToTarget = math.atan2(targetZ - state.z, targetX - state.x)
-		local steering: RoadPieceSelector.Steering = {
-			headingErrorRadians = RoadFrame.wrapAngleRadians(headingToTarget - state.heading),
-			lateralOffsetStuds = lateralOffset,
-			previousKind = if #checkpoints > 0 then checkpoints[#checkpoints].pieceKind else nil,
-		}
-		local definition = RoadPieceSelector.pickDefinition(random, steering)
-		local turnSign = RoadPieceSelector.pickTurnSign(random, steering, definition)
-		local drawn = RoadPieceBuilder.draw(random, definition)
-		local piece = if turnSign > 0 then drawn else RoadPieceBuilder.flip(drawn)
-		local result, usedLastResort =
-			RoadPieceAlternatives.findFirstAccepted(piece, RoadPieceSelector.getTowardSign(steering), tryPiece, random)
-		statistics.lastResortCount += if usedLastResort then 1 else 0
-		return result
+	local function drawPiece()
+		local previousKind: RoadPieceCatalog.PieceKind? = if #checkpoints > 0
+			then checkpoints[#checkpoints].pieceKind
+			else nil
+		local choice = RoadPieceChooser.choose(guide, random, state, guideSegment, guideArcLength, previousKind)
+		guideSegment, guideArcLength = choice.guideSegment, choice.guideArcLength
+		alternatives = RoadPieceAlternatives.new(choice.piece, choice.towardSign, random)
+		isUsingLastResort = false
+		phase = "try"
+	end
+
+	-- Prueba la próxima alternativa. Cuando no queda ninguna, el siguiente paso es retroceder.
+	local function tryNextAlternative(): PreviewResult?
+		local candidate, isLastResort = (alternatives :: RoadPieceAlternatives.RoadPieceAlternatives).next()
+		if isLastResort and not isUsingLastResort then
+			isUsingLastResort = true
+			statistics.lastResortCount += 1
+		end
+		if candidate == nil then
+			phase = "takeBack"
+			return nil
+		end
+		return tryPiece(candidate)
 	end
 
 	local function commit(result: PreviewResult)
@@ -157,24 +170,38 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 		statistics.retractedPieceCount += count
 	end
 
-	local function findPieceTakingBack(): PreviewResult
-		local result = findNextPiece()
-		while result == nil do
-			takeBack()
-			result = findNextPiece()
-		end
-		return result :: PreviewResult
-	end
-
-	local function generateNextPiece(): PieceResult
-		local result = findPieceTakingBack()
+	local function acceptPiece(result: PreviewResult): PieceResult
 		local retractedAfter = state.sampleIndex
 		commit(result)
+		phase = "draw"
 		return {
 			retractedAfterSampleNumber = retractedAfter,
 			samples = result.samples,
 			finalizedSampleNumber = checkpoints[1].state.sampleIndex,
 		}
+	end
+
+	local function generatePieceStep(): PieceResult?
+		if phase == "draw" then
+			drawPiece()
+		elseif phase == "takeBack" then
+			takeBack()
+			phase = "draw"
+		else
+			local result = tryNextAlternative()
+			if result ~= nil then
+				return acceptPiece(result)
+			end
+		end
+		return nil
+	end
+
+	local function generateNextPiece(): PieceResult
+		local piece = generatePieceStep()
+		while piece == nil do
+			piece = generatePieceStep()
+		end
+		return piece :: PieceResult
 	end
 
 	local function getInitialSample(): RoadIntegrator.RoadSample
@@ -187,6 +214,7 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 
 	return {
 		getInitialSample = getInitialSample,
+		generatePieceStep = generatePieceStep,
 		generateNextPiece = generateNextPiece,
 		getStatistics = getStatistics,
 	}
