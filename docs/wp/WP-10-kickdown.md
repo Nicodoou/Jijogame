@@ -82,6 +82,28 @@ La regla original (bajar si la de abajo empuja un 10% más y queda 300 RPM antes
 5. **`SHIFT_TORQUE_FRACTION` sigue en 0.**
 6. **A fondo, la bajada por `DOWNSHIFT_RPM` ya no actúa** (la decide el kickdown). Se agregó al ver que, aun con la regla nueva, después de subir de 1ra a 2da en 15° la regla vieja bajaba de nuevo apenas terminaba el cambio (3000 RPM) y repetía el ciclo cada ~1 s.
 
+## Segunda corrección: la caja decide por la carga estimada
+
+Con la regla de arriba (tiempo mínimo en marcha, aceleración filtrada, una marcha por vez) 10° y 15° dejan de cazar, pero en 20° el kickdown baja una marcha por segundo (4ta a 60 studs/s → 3ra → 2da → 1ra en 2,1 s, ya retrocediendo a −8 studs/s). Regla que la reemplaza (decidida por el orquestador):
+
+- **Carga estimada** por unidad de masa, cada paso a fondo: `R = empuje de la marcha actual − aceleración filtrada` (gravedad de la pendiente, resistencia al rodar, etc.). El empuje por unidad de masa es `FIRST_GEAR_PEAK_ACCELERATION · gearForce · pedal`.
+- **Bajar:** con la aceleración filtrada ≤ `KICKDOWN_MIN_ACCELERATION` y pasado `GEAR_HOLD_SECONDS` **desde la última subida** (una bajada no espera a otra), baja directamente a la marcha más alta que cumpla `empuje(marcha) − R ≥ KICKDOWN_ACCEL_MARGIN` (5 studs/s²) y RPM ≤ `KICKDOWN_MAX_RPM`. Puede saltar varias marchas. Si ninguna cumple, a la más baja con RPM dentro del límite. `KICKDOWN_FORCE_MARGIN` ya no existe.
+- **Subir a fondo** (por `UPSHIFT_RPM` o en el corte suave): solo si la marcha de arriba, a la velocidad que va a tener después del corte (`v − R · SHIFT_DURATION_SECONDS`, sin empuje durante el cambio), da `empuje − R ≥ UPSHIFT_ACCEL_MARGIN` (2 studs/s²).
+- La memoria de la caja guarda el tiempo desde la última subida (`secondsSinceUpshift`).
+
+Mediciones con esta regla (`ToyWorld`, pedal a fondo, 20 s; "final / mín" = velocidad al final y mínima de los últimos 3 s):
+
+| Caso | 30 FPS | 60 FPS |
+| --- | --- | --- |
+| 10°, 5ta a 80 | final 106,9 | final 106,9 |
+| 15°, 5ta a 80 | final 48,5, mín 30,1 (ciclo 2da↔3ra: 3>2 a 44, 2>3 a 59, cada ~5 s) | final 43,4, mín 30,1 |
+| 20°, 4ta a 60 | final 22,8, mín 1,5 (ciclo 1ra↔2da: 1>2 a 40, 2>1 a 12, cada ~5,4 s) | final 8,4, mín −0,4 |
+| 15°, radio 0,81 | final 0,5, mín −3,5 | final 1,5, mín −4,0 |
+| 20°, radio 0,81 | final −11,6, mín −23,0 | final 19,4, mín −2,3 |
+| 10°, radio 0,81 | final 72,0 | final 72,0 |
+
+Las bajadas ahora son rápidas (4ta a 3ra a 2da a 1ra en 0,6 s a 20°), pero la caja sigue subiendo en el límite de RPM: el filtro de aceleración va atrasado cuando el auto acelera hacia el corte, la carga se subestima y la subida parece segura. La propiedad 5 (que mide `REAR_BIAS`) se corre con el kickdown apagado.
+
 ## Fuera de alcance
 - Mapas de cambio que dependan del acelerador para subir antes con el pedal suave.
 - Freno motor (WP propio, ya aprobado).
