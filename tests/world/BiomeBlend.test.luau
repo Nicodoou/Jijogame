@@ -399,7 +399,7 @@ local PICKER_SEEDS = { 1, -3, 0.75, 1e12 }
 local PICKER_DISTANCES = { 0, MUD_DISTANCE, 40 }
 
 Runner.test("a picker gives exactly what pickMaterial and pickOffroadSurface give, over thousands of points", function()
-	local cases = {
+	local cases: { { weights: Weights, catalog: { BiomeTypes.BiomeDefinition } } } = {
 		{ weights = { forest = 1 }, catalog = BiomeCatalog.all },
 		{ weights = { lowland = 0.5, highland = 0.5 }, catalog = BiomeTestCatalog.pair },
 		{ weights = { lowland = 0.2, highland = 0.3, wetland = 0.5 }, catalog = BiomeTestCatalog.triple },

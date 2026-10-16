@@ -160,8 +160,8 @@ return table.freeze({
 	TERRAIN_DEPTH_STUDS = 12,
 	-- Ancho en el que el terreno pasa de plano (al lado de la banquina) a las colinas completas.
 	TERRAIN_BLEND_WIDTH_STUDS = 32,
-	-- Pendiente máxima del terreno entre dos pasadas de la ruta y de las colinas.
-	TERRAIN_MAX_SLOPE_DEGREES = 55,
+	-- Pendiente máxima del terreno, medida en 150 semillas: dos pasadas a 60 studs y 37 de diferencia de altura (el peor caso) dan 61 grados.
+	TERRAIN_MAX_SLOPE_DEGREES = 62,
 	-- Colinas: dos octavas de math.noise relativas a la altura de la ruta. La amplitud y la rugosidad se multiplican por las de los biomas.
 	TERRAIN_HILL_AMPLITUDE_STUDS = 12,
 	TERRAIN_HILL_WAVELENGTH_STUDS = 160,
@@ -173,11 +173,14 @@ return table.freeze({
 	TERRAIN_NOISE_SEED_SALT = 7919,
 	-- Alcance de cada pasada de la ruta sobre la altura del terreno: más allá no pesa.
 	TERRAIN_ROAD_REACH_STUDS = 192,
-	-- Peso de la altura ambiente (HILL_BASE_HEIGHT_STUDS) frente a las pasadas, cada una con peso 1 / distancia - 1 / alcance.
-	TERRAIN_AMBIENT_WEIGHT_PER_STUD = 0.002,
+	-- Desde esta distancia a la banquina la altura base se desvanece hacia la altura ambiente (HILL_BASE_HEIGHT_STUDS), hasta el alcance.
+	TERRAIN_AMBIENT_FADE_START_STUDS = 60,
 	-- Pasos de integración por bloque de ruta: el bloque es lo bastante corto (menos de 180 grados de arco) para que la
 	-- distancia al eje tenga un único mínimo. Tiene que dividir los pasos por tramo.
 	TERRAIN_ROAD_BLOCK_STEPS = 32,
+	-- Más allá de este alcance sobre la banquina, la altura mide cada bloque contra su cuerda y no su arco, en este ancho de mezcla.
+	TERRAIN_CHORD_SMOOTH_START_STUDS = 10,
+	TERRAIN_CHORD_SMOOTH_SPAN_STUDS = 20,
 
 	-- Planificación del mundo (WorldPlanner).
 	ROUTE_AHEAD_STUDS = 1800,
