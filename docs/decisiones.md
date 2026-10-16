@@ -4,6 +4,18 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-16 — Biomas: bosque en el MVP, infraestructura para N biomas
+**Decidió:** Beni y Nico (Nico definió el alcance en #56; Beni eligió el bioma y aprobó el diseño)
+**Issue:** #56 (PR #58, `docs/disenos/biomas.md`)
+**Decisión:** el MVP sale con un solo bioma, bosque, pero con toda la infraestructura de N biomas armada y probada:
+- fichas de bioma como datos (`BiomeCatalog`);
+- el clima decide el bioma (relieve y humedad normalizados por cuantil, con pesos suaves);
+- el terreno, los materiales, la superficie y el decorado solo leen pesos.
+
+La ruta no se toca (R1).
+**Por qué:** Nico prefiere no agrandar el MVP, y Beni quiere que sumar biomas después sea agregar datos, sin rehacer nada.
+**Descartado:** varios biomas en el MVP; regiones Voronoi; bioma por `arcLength`; que la ruta lea un mapa de macro-altura (R2).
+
 ## 2026-10-15 — Auto: vuelve a AWD 50/50 y freno de mano suave
 **Decidió:** Nico (después de manejar el experimento `exp/ajustes-manejo`)
 **Issue:** #8 (cambia el valor de "Auto: tracción trasera y freno de mano que suelta la cola")
