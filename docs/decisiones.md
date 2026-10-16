@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-16 — Terreno: ripio gris, una sola textura por columna y banquina de pasto (revisión del WP-11)
+**Decidió:** Beni
+**Issue:** #73 (WP-11, revisión 1; PR #75)
+**Decisión:** el camino sigue en `Limestone`, pero oscurecido a un gris medio con `SetMaterialColor`. El material de superficie ocupa también las capas de abajo hasta 8 studs, para que en las pendientes no asome la capa profunda. La banquina lleva el pasto del bioma, y el barro se conserva como estaba.
+**Por qué:** en Studio el camino salió blanco y con manchones. Era un bug de capas: en cada escalón de la pendiente se veía el `Ground` de abajo, y por eso también el pasto de las lomas parecía tierra.
+**Descartado:** asfalto (`Asphalt`); todo el campo en pasto sin barro (el barro queda, y la idea de barro en los bordes y en curvas va aparte).
+
 ## 2026-10-16 — Terreno: camino de ripio claro con banquina de tierra
 **Decidió:** Beni
 **Issue:** #73 (WP-11)

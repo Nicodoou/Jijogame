@@ -56,3 +56,29 @@ Al probar el WP-6, Beni vio que el camino casi no se distingue del resto:
 
 ## Pruebas manuales
 - [ ] (Beni o Nico) En Studio, manejar y ver que el camino se distingue: franja clara con borde de tierra sobre el pasto, también en las lomas y en las U.
+
+## Revisión 1 (2026-10-16, después de verlo en Studio)
+Beni lo miró en Studio: el camino salió **blanco y con manchones** (blanco y gris alternados en las pendientes).
+
+**Causa (bug de capas, ya estaba en el WP-6):** cada columna lleva el material de superficie solo en el vóxel de arriba; los de abajo son el material profundo (`Ground`). En pendiente la superficie sube a escalones de 4 studs, y en cada escalón el vóxel de arriba queda casi vacío y Roblox muestra el de abajo. Por eso asoman manchones de tierra en el camino, y por eso el pasto de las lomas se veía como tierra (la primera queja de #73).
+
+**Beni decidió (2026-10-16):**
+- **Camino de ripio gris:** se mantiene `Limestone`, pero oscurecido con `Terrain:SetMaterialColor` a un gris medio, que no contraste de más con el resto.
+- **Una sola textura por columna:** el material de superficie va también en las capas de abajo hasta `TERRAIN_TOP_LAYER_STUDS` (8 studs, dos vóxeles), así ni el camino ni el pasto muestran la capa profunda en las pendientes. Más abajo sigue el material profundo del bioma.
+- **Todo lo que no es camino, pasto:** la banquina deja de ser `Ground` y lleva el material del bioma (`Grass` o `LeafyGrass`). El barro (`Mud`) se conserva como está: manchones fuera de la banquina, visibles y reportados por `GetSurfaceAt`.
+- Las rocas y los detalles van después como assets (WP del decorado).
+
+### Entregables de la revisión
+1. **`VoxelChunkBuilder`:** el material de superficie ocupa el vóxel de la superficie y los de abajo hasta `TERRAIN_TOP_LAYER_STUDS` (constante nueva en `WorldConfig`); más abajo, el profundo. La banquina usa el material del bioma (`picker.pickMaterial`), no `Ground`.
+2. **Color del camino:** `WorldConfig.ROAD_COLOR_RGB` (tres enteros, gris medio; por ejemplo 128, 126, 120) y una línea en el adaptador que lo aplica con `Workspace.Terrain:SetMaterialColor(Enum.Material.Limestone, ...)` al crear `TerrainWriter`. Es un valor de ajuste: se calibra a ojo con Beni.
+3. **Pruebas:**
+   - en una rampa al 20° (la pendiente máxima de la ruta), ninguna columna del camino tiene `Ground` en los vóxeles con ocupación hasta 8 studs bajo la superficie;
+   - lo mismo para el pasto en una loma de 45°;
+   - la banquina lleva el material del bioma;
+   - `GetSurfaceAt` y las pruebas de barro no cambian.
+4. **Docs:** `terreno.md` y `biomas.md` con las capas y la banquina de pasto.
+
+### Criterios de aceptación de la revisión
+- [ ] `check-all.sh` da "todo OK" y la cobertura es ≥ 87 %.
+- [ ] Las pruebas de capas (rampa del camino y loma de pasto) fallan con el código anterior y pasan con el nuevo.
+- [ ] (Beni) En Studio el camino se ve gris y parejo, sin manchones, y el pasto verde también en las lomas.
