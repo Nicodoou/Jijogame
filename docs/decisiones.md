@@ -4,6 +4,37 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-16 — Hitbox modular y daño por pieza en el MVP
+**Decidió:** Nico
+**Issue:** diseño `docs/disenos/hitbox-y-dano.md` (PR #77), experimento #82
+**Decisión:**
+- Cada auto tiene cajas de colisión por pieza exterior y piezas interiores que se dañan a través de ellas.
+- Cada pieza tiene desgaste y daño. Con 100 de daño se cae y queda inservible.
+- El daño se ve con 3 a 5 texturas por pieza.
+- Opciones elegidas:
+  - golpes con `BindToCollisionSummaries`;
+  - cajas `Massless` con colisión;
+  - la pieza que se cae es un clon solo en el cliente;
+  - texturas con `TextureID`;
+  - el daño se calcula en el cliente;
+  - editor como plugin sobre las herramientas nativas de Studio;
+  - tanque solo visual (sin combustible en el MVP).
+- La reparación va después del MVP.
+**Por qué:** Nico quiere que los choques tengan consecuencia por pieza. Amplía CP-5.
+**Descartado:** `Touched` (sin punto ni fuerza), cajas con masa (cambian el manejo), romper soldaduras en el cliente (problemas conocidos de réplica), combustible en el MVP.
+
+## 2026-10-16 — Cámara en primera persona, la única del juego
+**Decidió:** Nico
+**Issue:** pedido de Nico en la sesión con el Agente A
+**Decisión:**
+- La cámara es **solo en primera persona**, desde el asiento del conductor.
+- Se mira alrededor con el mouse o el stick derecho, dentro de un límite, y vuelve sola al frente al soltar.
+- C sigue mirando atrás (CP-12).
+- La cabeza se mueve suave con las aceleraciones, las frenadas, las curvas y el ripio, de forma configurable.
+- **Se saca la cámara de persecución** (cambia CP-11).
+**Por qué:** es la experiencia que Nico quiere para el juego.
+**Descartado:** alternar con la cámara de persecución (tecla V), y una cámara rígida sin movimiento.
+
 ## 2026-10-16 — Auto: tracción delantera, peso adelante y contravolante asistido
 **Decidió:** Nico (después de manejar sobre las calles del Agente B)
 **Issue:** #8 (cambia el valor de "Auto: vuelve a AWD 50/50 y freno de mano suave")
