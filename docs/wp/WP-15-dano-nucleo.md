@@ -77,7 +77,7 @@
   - suspensión trasera derecha dañada, el agarre de esa rueda baja y la dirección se desvía;
   - rueda caída, agarre 0.
 - **Propiedad del simulador con daño:**
-  - con la suspensión delantera derecha al 80%, el auto en recta con el volante al centro se desvía (deriva lateral > X studs en 3 s);
+  - con la suspensión delantera derecha al 80%, el auto en recta con el volante al centro se desvía (deriva lateral > 2 studs en 3 s a 40 studs/s);
   - con el motor al 50%, la velocidad a los 5 s es menor que sin daño.
 - **Argumentos:** no se modifican (`table.freeze`).
 - **Lo que ya pasaba:** todas las propiedades del manejo siguen pasando.
