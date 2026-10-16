@@ -40,6 +40,11 @@ local CORNER_THROTTLE = 0.2
 local EXIT_SECONDS = 2
 local MIN_REAR_BIAS_DRIFT_GAIN_DEGREES = 10
 local WHEEL_COUNT = 4
+local CLIMB_SECONDS = 20
+local CLIMB_STABLE_SECONDS = 3
+local CLIMB_MAX_SPEED_LOSS = 15
+local HUNT_SETTLE_SECONDS = 8
+local HUNT_MIN_SECONDS = 1
 -- Mínimo traspaso de carga (en puntos de la parte delantera, de 0 a 1) al frenar o acelerar.
 local MIN_LOAD_TRANSFER_SHARE = 0.01
 local SHIFT_FORWARD_STUDS = 0.15
@@ -574,6 +579,109 @@ Runner.test(
 		Runner.expectNear(runner.world.feedback.forwardSpeedStudsPerSecond, 150, 15)
 	end
 )
+
+type ClimbResult = {
+	firstDownshiftSeconds: number,
+	speedAtFirstDownshift: number,
+	finalSpeed: number,
+	minSpeedOfLastSeconds: number,
+	shifts: { { seconds: number, direction: number } },
+}
+
+-- Sube una pendiente a fondo, llegando a `startSpeed` en la marcha `startGear`.
+local function climb(
+	slopeDegrees: number,
+	startGear: number,
+	startSpeed: number,
+	settings: VehicleSettings?,
+	frameSeconds: number?
+): ClimbResult
+	local runner = ToyWorld.new({
+		config = settings,
+		slopeDegrees = slopeDegrees,
+		isAlignedToSlope = true,
+		frameSeconds = frameSeconds,
+	})
+	runner.world.linearVelocity = runner.world.forward * startSpeed
+	runner.world.vehicleState.gear = startGear
+	local result: ClimbResult = {
+		firstDownshiftSeconds = -1,
+		speedAtFirstDownshift = startSpeed,
+		finalSpeed = 0,
+		minSpeedOfLastSeconds = math.huge,
+		shifts = {},
+	}
+	local previousGear = startGear
+	runner.run(CLIMB_SECONDS, constant(controlsWith(0, 1, 0)), function(world)
+		local feedback = world.feedback
+		if feedback.gear ~= previousGear then
+			local direction = if feedback.gear < previousGear then -1 else 1
+			table.insert(result.shifts, { seconds = world.timeSeconds, direction = direction })
+			if direction < 0 and result.firstDownshiftSeconds < 0 then
+				result.firstDownshiftSeconds = world.timeSeconds
+				result.speedAtFirstDownshift = feedback.forwardSpeedStudsPerSecond
+			end
+			previousGear = feedback.gear
+		end
+		if world.timeSeconds > CLIMB_SECONDS - CLIMB_STABLE_SECONDS then
+			result.minSpeedOfLastSeconds = math.min(result.minSpeedOfLastSeconds, feedback.forwardSpeedStudsPerSecond)
+		end
+		result.finalSpeed = feedback.forwardSpeedStudsPerSecond
+	end)
+	return result
+end
+
+local function settingsWith(overrides: { [string]: number }): VehicleSettings
+	local settings: any = table.clone(VehicleConfig)
+	for key, value in overrides do
+		settings[key] = value
+	end
+	return settings
+end
+
+local CLIMBS = {
+	{ slope = 15, gear = 5, speed = 80, minSpeed = 35 },
+	{ slope = 20, gear = 4, speed = 60, minSpeed = 20 },
+}
+
+local function checkClimb(settings: VehicleSettings?, frameSeconds: number?)
+	for _, case in CLIMBS do
+		local withKickdown = climb(case.slope, case.gear, case.speed, settings, frameSeconds)
+		local without = climb(case.slope, case.gear, case.speed, settingsWith({ KICKDOWN_THROTTLE = 2 }), frameSeconds)
+		Runner.expectEqual(withKickdown.firstDownshiftSeconds >= 0, true)
+		Runner.expectEqual(case.speed - withKickdown.speedAtFirstDownshift < CLIMB_MAX_SPEED_LOSS, true)
+		Runner.expectEqual(withKickdown.minSpeedOfLastSeconds >= case.minSpeed, true)
+		Runner.expectEqual(withKickdown.finalSpeed > without.finalSpeed, true)
+	end
+end
+
+Runner.test("18. climbing a steep slope at full throttle the gearbox kicks down in time and climbs steadily", function()
+	checkClimb(nil, nil)
+end)
+
+Runner.test("18. the same climb works with wheels of radius 0.81", function()
+	checkClimb(settingsWith({ WHEEL_RADIUS_STUDS = 0.81 }), nil)
+end)
+
+Runner.test("19. on a constant slope at full throttle the gearbox does not hunt", function()
+	for _, frameSeconds in { 1 / 30, 1 / 60 } do
+		for _, slope in { 10, 15, 20 } do
+			local startSpeed = if slope == 20 then 60 else 80
+			local result = climb(slope, if slope == 20 then 4 else 5, startSpeed, nil, frameSeconds)
+			local previous = nil
+			for _, shift in result.shifts do
+				if
+					shift.seconds > HUNT_SETTLE_SECONDS
+					and previous ~= nil
+					and shift.direction ~= previous.direction
+				then
+					Runner.expectEqual(shift.seconds - previous.seconds >= HUNT_MIN_SECONDS, true)
+				end
+				previous = shift
+			end
+		end
+	end
+end)
 
 local function deterministicNumbers(seed: number): () -> number
 	local state = seed
