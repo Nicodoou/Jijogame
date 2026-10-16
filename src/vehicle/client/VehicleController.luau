@@ -9,6 +9,8 @@ local Workspace = game:GetService("Workspace")
 local RoadPoint = require(ReplicatedStorage.shared.contracts.RoadPoint)
 local Surface = require(ReplicatedStorage.shared.contracts.Surface)
 local WorldReady = require(ReplicatedStorage.shared.contracts.WorldReady)
+local ModelPlacement = require(ReplicatedStorage.vehicle.core.ModelPlacement)
+local VehicleModels = require(ReplicatedStorage.vehicle.core.VehicleModels)
 local VectorConversion = require(ReplicatedStorage.vehicle.shared.VectorConversion)
 local VehicleParts = require(ReplicatedStorage.vehicle.shared.VehicleParts)
 local VehicleTypes = require(ReplicatedStorage.vehicle.core.VehicleTypes)
@@ -117,12 +119,15 @@ function VehicleController.getVehicleView(self: VehicleController): VehicleView?
 	if session == nil then
 		return nil
 	end
+	local headInBody = VectorConversion.toVector3(
+		ModelPlacement.headInBodyFrame(VehicleModels.Fiat147, self._tuning:getConfig(), Workspace.Gravity)
+	)
 	local body = session.rig.body
 	return {
 		right = VectorConversion.toVector(body.CFrame.RightVector),
 		up = VectorConversion.toVector(body.CFrame.UpVector),
 		forward = VectorConversion.toVector(body.CFrame.LookVector),
-		headPosition = VectorConversion.toVector(body.Position),
+		headPosition = VectorConversion.toVector(body.CFrame:PointToWorldSpace(headInBody)),
 		linearVelocity = VectorConversion.toVector(body.AssemblyLinearVelocity),
 	}
 end
