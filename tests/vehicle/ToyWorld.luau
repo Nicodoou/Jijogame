@@ -25,6 +25,8 @@ export type ToyWorldOptions = {
 	dropStuds: number?,
 	initialForwardSpeed: number?,
 	initialYawDegrees: number?,
+	-- Apoya el auto alineado con el plano (su "arriba" es la normal) en vez de derecho.
+	isAlignedToSlope: boolean?,
 	-- Centro de masa respecto del origen del marco de las ruedas, en coordenadas locales (z positivo es atrás).
 	centerOfMassOffset: vector?,
 	yawInertiaFraction: number?,
@@ -89,6 +91,15 @@ end
 
 local function mountWorldOffset(world: ToyWorld, localOffset: vector): vector
 	return world.right * localOffset.x + world.up * localOffset.y - world.forward * localOffset.z
+end
+
+-- Apoya el auto sobre el plano: su "arriba" pasa a ser la normal y conserva el rumbo en el plano.
+local function alignToPlane(world: ToyWorld, normal: vector, height: number)
+	local flat = world.forward - normal * vector.dot(world.forward, normal)
+	world.forward = vector.normalize(flat)
+	world.up = normal
+	world.right = vector.cross(world.forward, normal)
+	world.position = normal * height + mountWorldOffset(world, world.centerOfMassOffset)
 end
 
 -- `position` es el centro de masa; el origen del marco de las ruedas queda desplazado de él.
@@ -241,6 +252,9 @@ function ToyWorld.new(options: ToyWorldOptions?): Runner
 		yawInertiaFraction = resolved.yawInertiaFraction or 1,
 	}
 	world.position = base + mountWorldOffset(world, world.centerOfMassOffset)
+	if resolved.isAlignedToSlope then
+		alignToPlane(world, normal, height)
+	end
 	local function step(controls: VehicleControls)
 		ToyWorld.advanceFrame(world, controls, normal, surfaceAt)
 	end

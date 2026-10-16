@@ -2,7 +2,6 @@
 -- Motor, caja automática, reparto de tracción y frenos (CP-4, CP-9 y T1). Sin inercia de rueda:
 -- la fuerza longitudinal sale del motor y del freno, y el círculo de fricción del neumático la recorta.
 local VehicleConfig = require("./VehicleConfig")
-local VehicleMath = require("./VehicleMath")
 local VehicleTypes = require("./VehicleTypes")
 
 type VehicleState = VehicleTypes.VehicleState
@@ -136,28 +135,24 @@ function Drivetrain.split(force: number, config: VehicleSettings?): { number }
 	return shares
 end
 
--- Fuerza de frenado de una rueda. Va contra la velocidad longitudinal de esa rueda y se apaga por debajo de
--- BRAKE_REGULARIZATION_SPEED para no oscilar cerca de 0; nunca supera lo que frena la rueda en un paso. El freno de mano actúa solo atrás.
-function Drivetrain.brakeForce(
+-- Fuerza que pide el freno de una rueda, siempre positiva: el pedal repartido entre los ejes y, atrás, el freno de mano.
+-- Su sentido y el tope por paso los pone `WheelForces`, que reparte el tope entre todas las ruedas a la vez.
+function Drivetrain.brakeRequest(
 	state: VehicleState,
 	controls: VehicleControls,
 	mass: number,
 	isFront: boolean,
-	longitudinalSpeed: number,
 	load: number,
-	dt: number,
 	config: VehicleSettings?
 ): number
 	local settings = config or VehicleConfig
 	local _, brakePedal = resolvePedals(state.gear, controls)
 	local axleShare = if isFront then settings.BRAKE_FRONT_BIAS else 1 - settings.BRAKE_FRONT_BIAS
-	local maxForce = brakePedal * mass * settings.BRAKE_DECELERATION * axleShare * WHEEL_SHARE_OF_AXLE
+	local request = brakePedal * mass * settings.BRAKE_DECELERATION * axleShare * WHEEL_SHARE_OF_AXLE
 	if controls.isHandbrakeOn and not isFront then
-		maxForce += settings.HANDBRAKE_FORCE_PER_LOAD * load
+		request += settings.HANDBRAKE_FORCE_PER_LOAD * load
 	end
-	local direction = math.clamp(longitudinalSpeed / settings.BRAKE_REGULARIZATION_SPEED, -1, 1)
-	local limit = VehicleMath.opposingForceLimit(mass, #settings.WHEELS, longitudinalSpeed, dt)
-	return math.clamp(-direction * maxForce, -limit, limit)
+	return request
 end
 
 return Drivetrain
