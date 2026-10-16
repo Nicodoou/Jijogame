@@ -33,9 +33,20 @@ Cualquier semilla, cualquier `s`, desfase de 51.200 studs. No depende del trazad
 ## Causa y corrección
 Ver H1. Se cambió `HillProfile.getTargetHeight` y se agregó `HILL_NOISE_DIRECTION_DEGREES` a `WorldConfig`.
 
+## Efecto medido en las lomas
+El ruido de la ruta anterior iba por la línea del medio de la grilla (y = 0,5), donde `math.noise` tiene su mayor amplitud. Recorrido en diagonal pasa también cerca de las líneas de la grilla, donde vale 0, y las lomas quedan algo más suaves. Medido sobre 200 semillas × 400 tramos, antes y después (la regla de altura no cambia las alturas):
+
+| Métrica | Antes | Después |
+| --- | --- | --- |
+| Recorrido con pendiente > 10° | 34,3 % | 31,7 % (umbral: 25 %) |
+| Largo medio de cada subida o bajada | 108,5 studs | 100,5 studs (umbral: < 150) |
+| Ventanas de 2.000 studs con más de 60 de desnivel | 37,1 % | 6,7 % (no tiene umbral) |
+
+La dirección (`HILL_NOISE_DIRECTION_DEGREES`) casi no cambia esto: entre 3° y 45° dio 5 a 7 % de ventanas con más de 60 de desnivel. Si Beni quiere más desnivel, el valor que hay que subir es `HILL_AMPLITUDE_STUDS`; no se tocó porque está fuera del alcance del WP.
+
 ## Regresión
 - [x] Suite completa
-- [x] Cobertura ≥ 87%
+- [x] Cobertura ≥ 87% (99,9 % en `src/*/core`)
 - [ ] Pruebas manuales relacionadas (recorrer la ruta con el terreno: pendiente de Beni)
 - [x] Rendimiento: `getTargetHeight` hace una multiplicación más por octava, sin medición aparte.
 - [x] Código de depuración borrado

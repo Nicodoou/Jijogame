@@ -4,6 +4,17 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-16 — Ruta: regla de altura entre pasadas, generación por pasos y lomas sin repetición
+**Decidió:** Beni
+**Issue:** #57 y #10 (WP-9; PR de `b/58-wp-9-ruta-impl`)
+**Decisión:**
+- **Regla de altura en el anti-cruce.** Una muestra nueva se rechaza si queda a menos de `LIVE_HEIGHT_RULE_RADIUS_STUDS` (en el plano) de una muestra viva no vecina (las mismas que cuentan para el anti-cruce) y la diferencia de altura supera `tan(TERRAIN_MAX_SLOPE_DEGREES − LIVE_HEIGHT_RULE_MARGIN_DEGREES) · max(0, distancia − ancho de la ruta − 2 banquinas)`. Así el terreno nunca queda con un talud más empinado que su pendiente máxima entre dos pasadas.
+- **Generación por pasos.** `RoadPath.generateStep()` hace como mucho una pieza, una alternativa o un retroceso por llamada y devuelve `nil` hasta tener un tramo completo; `generateNextSegment` lo llama hasta tenerlo y da exactamente lo mismo. El terreno lo llama desde la cola de trabajo con presupuesto.
+- **Lomas sin repetición (#57).** El ruido de `HillProfile` se recorre en diagonal por el plano (x, y), en vez de avanzar por un solo eje, para que el perfil no se repita cada 51.200 studs.
+**Por qué:** en 40 semillas, el 37 % de los sitios con otra pasada a menos de 60 studs dejaba una pendiente de más de 62°, y nada en la ruta lo impedía. `generateNextSegment` tenía picos de 8 a 11 ms una vez cada ~5 s de manejo, que rompen el presupuesto por frame. Y `math.noise` repite cada 256 en cada eje: con un solo eje, el perfil repetía a los ~8,5 min a 100 studs/s.
+**Descartado:** resolverlo solo en el terreno (con 6 a 10 studs entre banquinas no hay lugar para una rampa: la regla de altura es la única que lo garantiza); partir la generación solo en el terreno (el pico está en la ruta); seguir avanzando el ruido por un solo eje (repite cada 256 longitudes de onda).
+**Riesgos conocidos:** la regla sube el último recurso y los retrocesos de la ruta (cifras en el PR) y no hay garantía de que no encierre una semilla; la corrida de 200 × 400 lo vigila. Las lomas quedan algo más suaves: en la diagonal el ruido pierde la amplitud máxima que tenía a lo largo de la línea del medio de la grilla (las ventanas de 2.000 studs con más de 60 de desnivel bajan del 37 % al 7 %, y la pendiente de más de 10° del 34 % al 32 %).
+
 ## 2026-10-16 — Biomas: bosque en el MVP, infraestructura para N biomas
 **Decidió:** Beni y Nico (Nico definió el alcance en #56; Beni eligió el bioma y aprobó el diseño)
 **Issue:** #56 (PR #58, `docs/disenos/biomas.md`)
