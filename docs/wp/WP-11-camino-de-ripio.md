@@ -82,3 +82,23 @@ Beni lo miró en Studio: el camino salió **blanco y con manchones** (blanco y g
 - [ ] `check-all.sh` da "todo OK" y la cobertura es ≥ 87 %.
 - [ ] Las pruebas de capas (rampa del camino y loma de pasto) fallan con el código anterior y pasan con el nuevo.
 - [ ] (Beni) En Studio el camino se ve gris y parejo, sin manchones, y el pasto verde también en las lomas.
+
+## Revisión 2 (2026-10-16, después de la segunda prueba en Studio)
+Beni lo vio otra vez: el ripio gris sigue viéndose **muy claro**, parece asfalto y "no se ve nada como rally". En cambio, la textura del barro (`Mud`) le funciona mejor para un camino de tierra.
+
+**Beni decidió (2026-10-16):**
+- **Camino de tierra oscura:** el camino pasa a usar el material `Mud`, pintado de **marrón oscuro** con `Terrain:SetMaterialColor` (`ROAD_COLOR_RGB`, a calibrar a ojo). Se deja de usar `Limestone`.
+- **Sin manchones de barro por ahora:** el campo es solo pasto (`Grass` y `LeafyGrass`). Los manchones de barro del bosque se sacan del catálogo, pero se conservan su mecanismo y sus valores en `WorldConfig` para retomarlos más adelante (la idea de barro en bordes y curvas, #78). Qué material queda para el barro se decide después.
+- **Se mantiene de la revisión 1:** una sola textura por columna (`TERRAIN_TOP_LAYER_STUDS`) y la banquina de pasto.
+- **`GetSurfaceAt` sigue coherente con lo que se ve:** como el bosque ya no tiene manchones, fuera de la ruta da `Grass`. El contrato no cambia (`Mud` sigue existiendo como valor). El camino sigue siendo `Road`, aunque use el material `Mud` de Roblox: la superficie del contrato sale de los datos de la ruta, no del material.
+
+### Entregables de la revisión 2
+1. **`VoxelChunkBuilder`:** `ROAD_MATERIAL = "Mud"`.
+2. **Color:** `ROAD_COLOR_RGB` pasa a un marrón oscuro (por ejemplo 86, 64, 44) y `TerrainWriter` lo aplica a `Enum.Material.Mud` en lugar de `Limestone`.
+3. **`BiomeCatalog` (bosque):** sin manchones de barro (`patches` vacío). Los valores `MUD_*` de `WorldConfig` quedan, con un comentario de que se retoman con #78.
+4. **Pruebas:** las del camino esperan `Mud`; las del campo, solo pasto; las de `SurfaceClassifier` del bosque, `Grass` fuera de la ruta. El mecanismo de manchones sigue probado con un catálogo de prueba que sí los tenga.
+5. **Docs:** `terreno.md` y `biomas.md`.
+
+### Criterios de aceptación de la revisión 2
+- [ ] `check-all.sh` da "todo OK" y la cobertura es ≥ 87 %.
+- [ ] (Beni) En Studio el camino se ve como tierra oscura de rally y el campo es todo pasto.

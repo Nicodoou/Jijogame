@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-16 — Terreno: camino de tierra oscura (material `Mud` marrón) y campo solo de pasto (revisión 2 del WP-11)
+**Decidió:** Beni
+**Issue:** #73 (WP-11, revisión 2; PR #75)
+**Decisión:** el camino usa el material `Mud` de Roblox pintado de marrón oscuro con `SetMaterialColor`, y deja `Limestone`. El bosque se queda sin manchones de barro por ahora (el campo es solo pasto), y el mecanismo se conserva para retomarlo con #78. La superficie del contrato no cambia: el camino sigue siendo `Road`.
+**Por qué:** el ripio gris seguía viéndose claro, como asfalto, y no parecía rally. La textura del barro se ve mejor como camino de tierra.
+**Descartado:** seguir con `Limestone` más oscuro; mantener los manchones de barro, que de lejos se confundían con el camino.
+
 ## 2026-10-16 — Terreno: ripio gris, una sola textura por columna y banquina de pasto (revisión del WP-11)
 **Decidió:** Beni
 **Issue:** #73 (WP-11, revisión 1; PR #75)
