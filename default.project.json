@@ -7,10 +7,16 @@
       "shared": {
         "$path": "src/shared"
       },
+      "app": {
+        "$path": "src/app/shared"
+      },
       "vehicle": {
         "$className": "Folder",
         "core": {
           "$path": "src/vehicle/core"
+        },
+        "shared": {
+          "$path": "src/vehicle/shared"
         }
       },
       "input": {
@@ -30,6 +36,46 @@
         "core": {
           "$path": "src/world/core"
         }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "app": {
+        "$path": "src/app/server"
+      },
+      "vehicle": {
+        "$path": "src/vehicle/server"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "app": {
+          "$path": "src/app/client"
+        },
+        "vehicle": {
+          "$path": "src/vehicle/client"
+        },
+        "input": {
+          "$path": "src/input/client"
+        },
+        "camera": {
+          "$path": "src/camera/client"
+        }
+      }
+    },
+    "Players": {
+      "$className": "Players",
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "$ignoreUnknownInstances": true,
+      "$properties": {
+        "PhysicsSteppingMethod": "Fixed"
       }
     }
   }
