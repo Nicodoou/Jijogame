@@ -37,7 +37,7 @@ Un concepto, un nombre. Se consulta antes de nombrar algo nuevo y se agrega acá
 | Catálogo de biomas | `BiomeCatalog` | Módulo con las fichas del juego (`forest`), la lista `all` en orden fijo y `validate`. Las funciones de biomas reciben el catálogo por parámetro. |
 | Clima | `ClimateField` | Campo de relieve, humedad y temperatura de cada punto, normalizado por cuantil a `u` en [0, 1]. La temperatura sale del ruido propio menos un factor del relieve. |
 | Peso de bioma | `BiomeWeight` | Cuánto pesa cada bioma en un punto (`BiomeWeights.compute`): `max(0, 1 - d / R) ^ k`, normalizado para sumar 1. Los consumidores leen pesos, no preguntan "qué bioma es". |
-| Mezcla de biomas | `BiomeBlend` | Ayudas que combinan los pesos: `blendNumber`, `pickMaterial`, `pickOffroadSurface`, `pickDeepMaterial` y `newPicker` (las dos primeras de elegir, con los desplazamientos del ruido ya calculados). |
+| Mezcla de biomas | `BiomeBlend` | Ayudas que combinan los pesos: `blendNumber`, `pickMaterial`, `pickOffroadSurface`, `pickDeepMaterial` y `newPicker` (las mismas elecciones con los desplazamientos del ruido calculados una sola vez). |
 | Mapa de biomas | `BiomeMap` | Los pesos de bioma de cada punto: del clima (`ClimateField`) a los pesos (`BiomeWeights`), exactos en un punto o con el clima interpolado de la grilla de un chunk. |
 | Chunk | `chunk` | Cuadrado de `CHUNK_SIZE_STUDS` (128) de lado en el plano, con coordenadas enteras (`ChunkGrid`). El Terrain se escribe de a un chunk. |
 | Vóxel | `voxel` | Celda de `TERRAIN_VOXEL_STUDS` (4) del Terrain. En el núcleo se indica con índices enteros: el vóxel `i` cubre de `4 * i` a `4 * i + 4` studs. |
