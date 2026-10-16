@@ -44,5 +44,10 @@ RunService.PreSimulation:Connect(function(dt)
 end)
 
 RunService.PreRender:Connect(function(dt)
-	cameraController:step(controller:getVehicleView(), inputState.isLookingBack, dt)
+	cameraController:step(
+		controller:getVehicleView(),
+		{ yawRate = inputState.lookYawRate, pitchRate = inputState.lookPitchRate },
+		inputState.isLookingBack,
+		dt
+	)
 end)

@@ -47,8 +47,10 @@ export type Dependencies = {
 }
 
 export type VehicleView = {
-	position: vector,
+	right: vector,
+	up: vector,
 	forward: vector,
+	headPosition: vector,
 	linearVelocity: vector,
 }
 
@@ -117,8 +119,10 @@ function VehicleController.getVehicleView(self: VehicleController): VehicleView?
 	end
 	local body = session.rig.body
 	return {
-		position = VectorConversion.toVector(body.Position),
+		right = VectorConversion.toVector(body.CFrame.RightVector),
+		up = VectorConversion.toVector(body.CFrame.UpVector),
 		forward = VectorConversion.toVector(body.CFrame.LookVector),
+		headPosition = VectorConversion.toVector(body.Position),
 		linearVelocity = VectorConversion.toVector(body.AssemblyLinearVelocity),
 	}
 end

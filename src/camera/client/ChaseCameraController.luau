@@ -2,11 +2,11 @@
 -- Posiciona la cámara de Roblox con lo que calcula el núcleo de la cámara. Hasta que haya auto, no la toca.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local ChaseCamera = require(ReplicatedStorage.camera.core.ChaseCamera)
+local FirstPersonCamera = require(ReplicatedStorage.camera.core.FirstPersonCamera)
 
-type CameraState = ChaseCamera.CameraState
-type CameraPose = ChaseCamera.CameraPose
-type VehicleView = ChaseCamera.VehicleView
+type CameraState = FirstPersonCamera.CameraState
+type LookRates = FirstPersonCamera.LookRates
+type VehicleView = FirstPersonCamera.VehicleView
 
 local ChaseCameraController = {}
 ChaseCameraController.__index = ChaseCameraController
@@ -27,23 +27,21 @@ local function toVector3(value: vector): Vector3
 	return Vector3.new(value.x, value.y, value.z)
 end
 
-local function nextState(previous: CameraState?, view: VehicleView): CameraState
-	return previous or ChaseCamera.newState(view)
-end
-
 function ChaseCameraController.step(
 	self: ChaseCameraController,
 	vehicleView: VehicleView?,
+	look: LookRates,
 	isLookingBack: boolean,
 	dt: number
 )
 	if vehicleView == nil then
 		return
 	end
-	local state, pose = ChaseCamera.step(nextState(self._state, vehicleView), vehicleView, isLookingBack, dt)
+	local state, pose =
+		FirstPersonCamera.step(self._state or FirstPersonCamera.newState(), vehicleView, look, isLookingBack, dt)
 	self._state = state
 	self._camera.CameraType = Enum.CameraType.Scriptable
-	self._camera.CFrame = CFrame.lookAt(toVector3(pose.position), toVector3(pose.lookAt))
+	self._camera.CFrame = CFrame.fromMatrix(toVector3(pose.position), toVector3(pose.right), toVector3(pose.up))
 end
 
 return ChaseCameraController
