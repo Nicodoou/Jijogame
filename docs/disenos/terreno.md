@@ -66,9 +66,14 @@ Se deciden junto con la malla de la ruta (#9), porque el terreno es lo que pisa 
 
 ### Opción T1: todo con Terrain (suelo y ruta)
 
-El cliente escribe el suelo con `WriteVoxels`, por pedazos y con un presupuesto por frame. La ruta queda plana dentro del mismo Terrain, con material `Limestone` (la banquina, `Ground`). El pasto es `Grass` y el barro `Mud`.
+El cliente escribe el suelo con `WriteVoxels`, por pedazos y con un presupuesto por frame. La ruta queda plana dentro del mismo Terrain, con material `Limestone` (ripio gris). La banquina y el resto del suelo llevan el material del bioma (`Grass` en el bosque) y el barro es `Mud`.
 
-> **Actualización 2026-10-16 (WP-11, #73):** el camino pasa a `Limestone` (ripio claro) y la banquina queda en `Ground`, para que la ruta se distinga del terreno. Es solo visual: la superficie del contrato sale de los datos de la ruta, no del material. Implementación: `VoxelChunkBuilder` pone `Limestone` en las columnas cuyo centro queda a no más de `ROAD_WIDTH_STUDS / 2` del eje y `Ground` hasta el borde de la banquina (en el plano, contra el punto de ruta viva más cercano); para eso `TerrainHeightField.sampleColumn` devuelve, como tercer valor, la distancia al eje. El borde queda serruchado (grilla de 4 studs).
+> **Actualización 2026-10-16 (WP-11, #73):** el camino pasa a `Limestone` (ripio) para que la ruta se distinga del terreno. Es solo visual: la superficie del contrato sale de los datos de la ruta, no del material. Implementación: `VoxelChunkBuilder` pone `Limestone` en las columnas cuyo centro queda a no más de `ROAD_WIDTH_STUDS / 2` del eje (en el plano, contra el punto de ruta viva más cercano); para eso `TerrainHeightField.sampleColumn` devuelve, como tercer valor, la distancia al eje. El borde queda serruchado (grilla de 4 studs).
+>
+> **Revisión 1 (2026-10-16, WP-11):**
+> - **Capas.** El material de la superficie no va solo en el vóxel de arriba: ocupa también los de abajo hasta `TERRAIN_TOP_LAYER_STUDS` (8 studs, dos vóxeles); más abajo, el material profundo del bioma. Con solo el vóxel de arriba, en pendiente la superficie sube a escalones de 4 studs y en cada escalón ese vóxel queda casi vacío, así que Roblox muestra el de abajo: asomaban manchones de tierra en el camino y el pasto de las lomas se veía como tierra. Un vóxel lleva el material de arriba si su borde superior queda a menos de 8 studs bajo la superficie de la columna (registro en `docs/bugs/2026-10-16-manchones-de-capas.md`).
+> - **Banquina de pasto.** La banquina deja de ser `Ground`: lleva el material del bioma, como el resto del suelo. El barro sigue igual (manchones fuera de la banquina, visibles y reportados por `GetSurfaceAt`).
+> - **Ripio gris.** `Limestone` es blanco de fábrica; el adaptador (`TerrainWriter`) lo pinta con `Terrain:SetMaterialColor` a `WorldConfig.ROAD_COLOR_RGB` (gris medio). El color es global del Terrain y `Limestone` solo se usa en el camino, así que no afecta a nada más. Es un valor de ajuste: se calibra a ojo en Studio.
 
 - **Bueno:**
   - medido rápido (unos 3 ms por pedazo de 128×128 en PC) y plano;
@@ -79,7 +84,7 @@ El cliente escribe el suelo con `WriteVoxels`, por pedazos y con un presupuesto 
 - **Riesgoso:**
   - el costo en celular está [NC];
   - el tope de ±128.000 studs obliga a recentrar el mundo y reescribir el terreno cercano (ver `ruta.md`).
-- **Funciona bien cuando:** el borde serruchado se tolera o se disimula (banquina de tierra suelta, que ya está en el contrato, más pasto alto).
+- **Funciona bien cuando:** el borde serruchado se tolera o se disimula (el camino de ripio contra el pasto, más pasto alto).
 - **Deja de funcionar cuando:** se quiere un borde de ruta prolijo, como de asfalto pintado.
 
 ### Opción T2: Terrain para el suelo + malla visual de la ruta sin colisión

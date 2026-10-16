@@ -176,6 +176,18 @@ Runner.test("the world is ready in a radius that fits in one chunk and the surfa
 	Runner.expectEqual(WorldConfig.SPAWN_ARC_LENGTH_STUDS > 0, true)
 end)
 
+Runner.test(
+	"the surface layer is a whole number of voxels and the road color is a medium gray (three bytes)",
+	function()
+		local layerVoxels = WorldConfig.TERRAIN_TOP_LAYER_STUDS / WorldConfig.TERRAIN_VOXEL_STUDS
+		Runner.expectEqual(layerVoxels >= 1 and layerVoxels == math.floor(layerVoxels), true)
+		Runner.expectEqual(#WorldConfig.ROAD_COLOR_RGB, 3)
+		for _, channel in WorldConfig.ROAD_COLOR_RGB do
+			Runner.expectEqual(channel == math.floor(channel) and channel >= 64 and channel <= 192, true)
+		end
+	end
+)
+
 Runner.test("the work budget decays slowly and a frame budget is a few milliseconds", function()
 	Runner.expectEqual(
 		WorldConfig.WORK_BUDGET_STEP_ESTIMATE_DECAY > 0 and WorldConfig.WORK_BUDGET_STEP_ESTIMATE_DECAY < 1,

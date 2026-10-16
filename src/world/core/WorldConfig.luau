@@ -5,6 +5,9 @@
 return table.freeze({
 	ROAD_WIDTH_STUDS = 16,
 	SHOULDER_WIDTH_STUDS = 4,
+	-- Color del camino (material Limestone del Terrain, que el adaptador oscurece): un gris medio que no contraste de más.
+	-- Se calibra a ojo en Studio.
+	ROAD_COLOR_RGB = table.freeze({ 128, 126, 120 }),
 	-- Tiene que ser mayor que la mitad del ancho más la banquina, o el eje cruzaría el borde de la propia curva.
 	MIN_CURVE_RADIUS_STUDS = 60,
 	-- Se confirma con el experimento de rampas de 15° y 20° antes de subirla más.

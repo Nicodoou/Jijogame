@@ -67,6 +67,9 @@ local function newMaterialTranslator(
 end
 
 function TerrainWriter.new(terrain: Terrain): WorldPlanner.ChunkSink
+	-- El ripio es Limestone, blanco de fábrica: se pinta de gris medio (el color es global del Terrain).
+	local roadColor = WorldConfig.ROAD_COLOR_RGB
+	terrain:SetMaterialColor(Enum.Material.Limestone, Color3.fromRGB(roadColor[1], roadColor[2], roadColor[3]))
 	local translateMaterials = newMaterialTranslator(WorldConfig.CHUNK_SIZE_STUDS // VOXEL_STUDS)
 
 	local function writeChunk(voxels: VoxelChunkBuilder.ChunkVoxels)
