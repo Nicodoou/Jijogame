@@ -291,7 +291,7 @@ Nico manejó un segundo experimento (rama `exp/ajustes-manejo`, que no se mergea
 
 Reemplazan lo anterior donde se contradigan (detalle en `docs/bugs/2026-10-16-deslizamiento-pendiente.md`):
 - **Zona de adherencia:** la fricción (lateral, freno, freno de mano y resistencia al rodar) usa la velocidad de la rueda **prevista al final del cuadro**: `v + (g · eje) · dt`. En un plano horizontal es la velocidad actual.
-- **Sin rampa de regularización:** el freno y la resistencia al rodar van contra `signo(v prevista)` y el tope por paso (`(masa / ruedas que frenan) · |v prevista| / dt`) es lo que los limita cerca de 0. `BRAKE_REGULARIZATION_SPEED` ya no existe. Con el pedal frenan las cuatro ruedas; con solo el freno de mano, las dos traseras.
+- **Sin rampa de regularización:** el freno y la resistencia al rodar van contra `signo(v prevista)` y el tope por paso es lo que los limita cerca de 0. El tope de las fuerzas **longitudinales** (freno, freno de mano y resistencia al rodar) vale para la **suma de las cuatro ruedas**: `masa · |v prevista del chasis| / dt`, repartido en proporción a lo que pide cada rueda (`WheelFriction.longitudinalScale`, único lugar donde se calcula). `Drivetrain.brakeRequest` solo da lo que pide el freno de una rueda. `BRAKE_REGULARIZATION_SPEED` ya no existe.
 - **Nuevas pruebas:** `tests/vehicle/SlopeHold.test.luau` (de costado sin input y con freno de mano a 5°, 10° y 15°, y freno de mano de frente y de espaldas a 3° y 5°: velocidad < 0,05 studs/s).
 - **Pedido de cambio (no es parte del WP):** el freno de mano solo sostiene hasta unos 7°, sin input el auto rueda libre y el freno estando parado entra en reversa.
 
