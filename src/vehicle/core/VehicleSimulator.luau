@@ -63,7 +63,9 @@ local function buildContext(
 		then Steering.reverseMaxAngle(settings)
 		else Steering.maxAngleWhileDrifting(speed, driftAngle, settings)
 	local baseSteer = if isReversing then controls.steer * maxSteer else Steering.angle(controls.steer, speed, settings)
-	local requestedSteer = baseSteer + Assists.counterSteer(driftAngle, forwardSpeed, settings)
+	local requestedSteer = baseSteer
+		+ Assists.counterSteer(driftAngle, forwardSpeed, settings)
+		+ math.rad(settings.STEER_OFFSET_DEGREES)
 	local offsets, velocities = WheelForces.describeMounts(chassis, settings)
 	return {
 		settings = settings,
