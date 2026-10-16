@@ -203,7 +203,7 @@ Pedido de Nico (2026-10-16): los WPs y los PRs se presentaban de forma muy vaga,
 3. **Patrones y por qué:** cada patrón usado (por ejemplo, núcleo puro con `step`, configuración como datos, composición, estrategia u observador), con el problema que resuelve en este WP. Si no se usa ninguno nuevo, se dice.
 4. **Alternativas descartadas:** qué otra forma había y por qué no.
 5. **Riesgos y supuestos:** lo que puede salir mal y lo que todavía no está medido.
-6. **Opinión del orquestador sobre el código** (solo en PRs de código): lo que está bien, lo que está flojo, la deuda que queda y si se pasa de algún límite (líneas, funciones, cobertura). Basada en haber leído el código, no solo el informe del subagente.
+6. **Opinión del orquestador sobre el código** (en un WP sin código, sobre la arquitectura propuesta): lo que está bien, lo que está flojo, la deuda que queda y si se pasa de algún límite (líneas, funciones, cobertura). Basada en haber leído el código, no solo el informe del subagente.
 7. **Qué prueban las pruebas y qué no:** los números que importan y lo que queda para la prueba manual.
 8. **Decisiones que tiene que tomar la persona:** cerradas, cada una con las opciones, lo que implica cada una y la recomendación. Nada de "¿te parece bien?" sin opciones.
 
