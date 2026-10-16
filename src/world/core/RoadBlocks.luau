@@ -37,10 +37,6 @@ local BLOCKS_PER_SEGMENT = RoadFrame.getStepsPerSegment() // BLOCK_STEPS
 local SIGNATURE_MULTIPLIER = 2654435761
 local SIGNATURE_MODULUS = 4294967296
 
-if BLOCKS_PER_SEGMENT * BLOCK_STEPS ~= RoadFrame.getStepsPerSegment() then
-	error("TERRAIN_ROAD_BLOCK_STEPS has to divide the steps of a segment", 0)
-end
-
 local function createBlock(index: number, samples: { RoadPath.RoadSample }, firstSample: number): RoadBlock
 	local xs, ys, zs = table.create(BLOCK_STEPS + 1), table.create(BLOCK_STEPS + 1), table.create(BLOCK_STEPS + 1)
 	local edgeX, edgeZ = table.create(BLOCK_STEPS), table.create(BLOCK_STEPS)

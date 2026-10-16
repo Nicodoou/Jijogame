@@ -19,6 +19,7 @@ local SpawnPoint = require("./SpawnPoint")
 local Surface = require("../../shared/contracts/Surface")
 local SurfaceClassifier = require("./SurfaceClassifier")
 local TerrainHeightField = require("./TerrainHeightField")
+local TerrainWindow = require("./TerrainWindow")
 local VoxelChunkBuilder = require("./VoxelChunkBuilder")
 local WorkBudget = require("./WorkBudget")
 local WorldConfig = require("./WorldConfig")
@@ -38,6 +39,8 @@ export type Dependencies = {
 	path: RoadPath.RoadPath?,
 	-- Las fichas de bioma. Por defecto, las del juego.
 	catalog: { BiomeTypes.BiomeDefinition }?,
+	-- Cómo se arma cada chunk, para las pruebas del planificador. Por defecto, VoxelChunkBuilder.
+	createBuilder: ((VoxelChunkBuilder.Dependencies) -> VoxelChunkBuilder.VoxelChunkBuilder)?,
 }
 
 export type WorldStatus = {
@@ -59,10 +62,6 @@ export type WorldPlanner = WorkBudget.WorkSource & {
 }
 
 local CHUNK_STUDS = WorldConfig.CHUNK_SIZE_STUDS
-local CHUNK_DIAGONAL_STUDS = math.sqrt(2) * CHUNK_STUDS
-local WANTED_HALF_WIDTH_STUDS = WorldConfig.TERRAIN_CORRIDOR_HALF_WIDTH_STUDS
-local KEPT_HALF_WIDTH_STUDS = WANTED_HALF_WIDTH_STUDS + WorldConfig.TERRAIN_CORRIDOR_KEEP_EXTRA_STUDS
-local KEPT_BEHIND_STUDS = WorldConfig.TERRAIN_BEHIND_STUDS + WorldConfig.TERRAIN_BEHIND_KEEP_EXTRA_STUDS
 local PLAN_REFRESH_STUDS = WorldConfig.TERRAIN_PLAN_REFRESH_STUDS
 local FRONTIER_MARGIN_STUDS = WorldConfig.TERRAIN_FRONTIER_MARGIN_STUDS
 local READY_RADIUS_STUDS = WorldConfig.WORLD_READY_RADIUS_STUDS
@@ -87,17 +86,11 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 
 	local biomeMap = BiomeMap.new(seed, catalog)
 	local picker = BiomeBlend.newPicker(seed, catalog)
-	-- Los bloques del terreno guardan ruta hasta donde llega la influencia de lo que todavía se conserva.
-	local blockMemoryStuds = KEPT_BEHIND_STUDS
-		+ KEPT_HALF_WIDTH_STUDS
-		+ CHUNK_DIAGONAL_STUDS
-		+ WorldConfig.TERRAIN_ROAD_REACH_STUDS
-		+ WorldConfig.SHOULDER_WIDTH_STUDS
-		+ WorldConfig.ROAD_WIDTH_STUDS / 2
-	local window = RoadWindow.new(path, WorldConfig.ROUTE_AHEAD_STUDS, blockMemoryStuds)
+	local window = RoadWindow.new(path, WorldConfig.ROUTE_AHEAD_STUDS, TerrainWindow.BLOCK_MEMORY_STUDS)
 	local heightField = TerrainHeightField.new(seed, catalog, window.blocks)
 	local influenceStuds = heightField.getInfluenceStuds()
-	local builder = VoxelChunkBuilder.new({
+	local createBuilder = dependencies.createBuilder or VoxelChunkBuilder.new
+	local builder = createBuilder({
 		heightField = heightField,
 		biomeMap = biomeMap,
 		picker = picker,
@@ -110,6 +103,7 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 	local queueHead = 1
 	local current: CurrentWork? = nil
 	local isPlanDirty = true
+	local vehiclePosition = vector.zero
 	local vehicleX, vehicleZ = 0, 0
 	local lastPlanX, lastPlanZ = math.huge, math.huge
 	-- Zonas donde llegó ruta nueva desde el último plan: los chunks escritos que las toquen pueden haber quedado viejos.
@@ -163,10 +157,15 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 		lastPlanX, lastPlanZ = vehicleX, vehicleZ
 		window.releaseOldSegments()
 		local arcLength = window.getVehicleArcLength()
-		local wantedFrom = arcLength - WorldConfig.TERRAIN_BEHIND_STUDS
+		local wantedFrom = arcLength - TerrainWindow.WANTED_BEHIND_STUDS
 		local lastWantedArc = window.getGeneratedEndArcLength() - FRONTIER_MARGIN_STUDS
-		local wanted = ChunkCorridor.collect(window, wantedFrom, lastWantedArc, WANTED_HALF_WIDTH_STUDS)
-		local kept = ChunkCorridor.collect(window, arcLength - KEPT_BEHIND_STUDS, lastWantedArc, KEPT_HALF_WIDTH_STUDS)
+		local wanted = ChunkCorridor.collect(window, wantedFrom, lastWantedArc, TerrainWindow.WANTED_HALF_WIDTH_STUDS)
+		local kept = ChunkCorridor.collect(
+			window,
+			arcLength - TerrainWindow.KEPT_BEHIND_STUDS,
+			lastWantedArc,
+			TerrainWindow.KEPT_HALF_WIDTH_STUDS
+		)
 		local busy = current
 		if busy ~= nil and kept[busy.plan.key] == nil then
 			current = nil
@@ -187,6 +186,9 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 
 	local function extendRoad()
 		recordNewRoad(window.extend())
+		-- Con ruta nueva el auto puede haber quedado sobre ella: si no se lo vuelve a ubicar acá, la ruta de adelante
+		-- se calcula desde un arcLength viejo hasta la próxima llamada de updatePlan.
+		window.trackVehicle(vehiclePosition)
 		isPlanDirty = true
 	end
 
@@ -248,9 +250,10 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 		return { plan = plan, isStarted = false }
 	end
 
-	local function updatePlan(vehiclePosition: vector)
-		vehicleX, vehicleZ = vehiclePosition.x, vehiclePosition.z
-		window.trackVehicle(vehiclePosition)
+	local function updatePlan(position: vector)
+		vehiclePosition = position
+		vehicleX, vehicleZ = position.x, position.z
+		window.trackVehicle(position)
 		if (vehicleX - lastPlanX) ^ 2 + (vehicleZ - lastPlanZ) ^ 2 >= PLAN_REFRESH_STUDS ^ 2 then
 			isPlanDirty = true
 		end

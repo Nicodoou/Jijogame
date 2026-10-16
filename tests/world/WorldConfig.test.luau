@@ -134,4 +134,54 @@ Runner.test(
 	end
 )
 
+local SHOULDER_EDGE = WorldConfig.ROAD_WIDTH_STUDS / 2 + WorldConfig.SHOULDER_WIDTH_STUDS
+-- Hasta dónde llega la ruta sobre las columnas de un chunk: el alcance de las pasadas más la banquina.
+local ROAD_INFLUENCE = WorldConfig.TERRAIN_ROAD_REACH_STUDS + SHOULDER_EDGE
+
+Runner.test("a chunk is a whole number of voxels and a segment is a whole number of terrain road blocks", function()
+	Runner.expectEqual(WorldConfig.CHUNK_SIZE_STUDS % WorldConfig.TERRAIN_VOXEL_STUDS, 0)
+	local stepsPerSegment = WorldConfig.SEGMENT_LENGTH_STUDS / WorldConfig.INTEGRATION_STEP_STUDS
+	Runner.expectEqual(stepsPerSegment % WorldConfig.TERRAIN_ROAD_BLOCK_STEPS, 0)
+end)
+
+Runner.test("a terrain road block is a short arc: under 180 degrees at the minimum curve radius", function()
+	local arcStuds = WorldConfig.TERRAIN_ROAD_BLOCK_STEPS * WorldConfig.INTEGRATION_STEP_STUDS
+	Runner.expectEqual(arcStuds / WorldConfig.MIN_CURVE_RADIUS_STUDS < math.pi, true)
+end)
+
+Runner.test(
+	"the frontier margin covers the corridor, a chunk and the reach of the road, so a straight road never rewrites",
+	function()
+		local needed = WorldConfig.TERRAIN_CORRIDOR_HALF_WIDTH_STUDS + WorldConfig.CHUNK_SIZE_STUDS + ROAD_INFLUENCE
+		Runner.expectEqual(WorldConfig.TERRAIN_FRONTIER_MARGIN_STUDS >= needed, true)
+		Runner.expectEqual(WorldConfig.TERRAIN_FRONTIER_MARGIN_STUDS < WorldConfig.ROUTE_AHEAD_STUDS, true)
+	end
+)
+
+Runner.test(
+	"the terrain fades and smooths inside the reach of the road, and the kept corridor is wider than the wanted one",
+	function()
+		Runner.expectEqual(WorldConfig.TERRAIN_AMBIENT_FADE_START_STUDS < WorldConfig.TERRAIN_ROAD_REACH_STUDS, true)
+		local smoothEnd = WorldConfig.TERRAIN_CHORD_SMOOTH_START_STUDS + WorldConfig.TERRAIN_CHORD_SMOOTH_SPAN_STUDS
+		Runner.expectEqual(smoothEnd < WorldConfig.TERRAIN_ROAD_REACH_STUDS, true)
+		Runner.expectEqual(WorldConfig.TERRAIN_CORRIDOR_KEEP_EXTRA_STUDS > 0, true)
+		Runner.expectEqual(WorldConfig.TERRAIN_BEHIND_KEEP_EXTRA_STUDS > 0, true)
+		Runner.expectEqual(WorldConfig.TERRAIN_CORRIDOR_SAMPLE_STUDS <= WorldConfig.CHUNK_SIZE_STUDS / 2, true)
+	end
+)
+
+Runner.test("the world is ready in a radius that fits in one chunk and the surface offset is under a voxel", function()
+	Runner.expectEqual(WorldConfig.WORLD_READY_RADIUS_STUDS <= WorldConfig.CHUNK_SIZE_STUDS, true)
+	Runner.expectEqual(WorldConfig.TERRAIN_SURFACE_OFFSET_STUDS < WorldConfig.TERRAIN_VOXEL_STUDS, true)
+	Runner.expectEqual(WorldConfig.SPAWN_ARC_LENGTH_STUDS > 0, true)
+end)
+
+Runner.test("the work budget decays slowly and a frame budget is a few milliseconds", function()
+	Runner.expectEqual(
+		WorldConfig.WORK_BUDGET_STEP_ESTIMATE_DECAY > 0 and WorldConfig.WORK_BUDGET_STEP_ESTIMATE_DECAY < 1,
+		true
+	)
+	Runner.expectEqual(WorldConfig.WORK_BUDGET_MS_PER_FRAME > 0 and WorldConfig.WORK_BUDGET_MS_PER_FRAME < 16, true)
+end)
+
 Runner.finish()

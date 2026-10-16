@@ -183,17 +183,17 @@ return table.freeze({
 	TERRAIN_CHORD_SMOOTH_SPAN_STUDS = 20,
 
 	-- Planificación del mundo (WorldPlanner).
-	ROUTE_AHEAD_STUDS = 1800,
+	ROUTE_AHEAD_STUDS = 2000,
 	-- Corredor de terreno alrededor de la ruta viva, y cuánto más ancho es el que se conserva (histéresis).
 	TERRAIN_CORRIDOR_HALF_WIDTH_STUDS = 160,
 	TERRAIN_CORRIDOR_KEEP_EXTRA_STUDS = 64,
 	-- Cada cuántos studs de ruta se toma un punto para trazar el corredor.
 	TERRAIN_CORRIDOR_SAMPLE_STUDS = 32,
 	-- Cuánto terreno se escribe por detrás del auto (la ruta viva llega más atrás: LIVE_LOOKBACK_STUDS), y su histéresis.
-	TERRAIN_BEHIND_STUDS = 1000,
+	TERRAIN_BEHIND_STUDS = 600,
 	TERRAIN_BEHIND_KEEP_EXTRA_STUDS = 256,
 	-- No se escribe terreno en los últimos studs de ruta generada: ahí todavía falta la ruta que entra en el alcance de la altura.
-	TERRAIN_FRONTIER_MARGIN_STUDS = 900,
+	TERRAIN_FRONTIER_MARGIN_STUDS = 512,
 	-- Cuánto se mueve el auto antes de volver a planificar.
 	TERRAIN_PLAN_REFRESH_STUDS = 32,
 	TERRAIN_CHUNK_KEY_STRIDE = 1048576,

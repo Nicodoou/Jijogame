@@ -67,10 +67,6 @@ local AIR_MATERIAL = "Air"
 local ROAD_MATERIAL = "Ground"
 local MUD_SURFACE = "Mud"
 
-if CHUNK_VOXELS * VOXEL_STUDS ~= WorldConfig.CHUNK_SIZE_STUDS then
-	error("CHUNK_SIZE_STUDS has to be a whole number of voxels", 0)
-end
-
 local VoxelChunkBuilderModule = {}
 
 function VoxelChunkBuilderModule.new(dependencies: Dependencies): VoxelChunkBuilder
