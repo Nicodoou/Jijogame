@@ -32,3 +32,9 @@ Un concepto, un nombre. Se consulta antes de nombrar algo nuevo y se agrega acá
 | Punto más cercano de la ruta | `GetNearestRoadPoint` | Función que devuelve el `RoadPoint` del eje más cercano a una posición, ignorando la altura. Se usa para el reset (RC-12). |
 | Punto de aparición | `GetSpawnPoint` | Función que devuelve el inicio de la ruta, donde aparece el auto. |
 | Mundo listo | `IsWorldReadyAt` | Función que dice si el Terrain alrededor de una posición ya está escrito. Contrato en `src/shared/contracts/WorldReady.luau` (#36). |
+| Bioma | `Biome` | Tipo de lugar (bosque, montaña...) con su clima, terreno, materiales, superficies y decorado. El MVP tiene uno solo: `forest`. Diseño en `docs/disenos/biomas.md`. |
+| Ficha de bioma | `BiomeDefinition` | Los datos de un bioma: `id`, caja de clima, `terrain`, `materials`, `surfaces` y `decoration`. Sumar un bioma es agregar una ficha. |
+| Catálogo de biomas | `BiomeCatalog` | Módulo con las fichas del juego (`forest`), la lista `all` en orden fijo y `validate`. Las funciones de biomas reciben el catálogo por parámetro. |
+| Clima | `ClimateField` | Campo de relieve, humedad y temperatura de cada punto, normalizado por cuantil a `u` en [0, 1]. La temperatura sale del ruido propio menos un factor del relieve. |
+| Peso de bioma | `BiomeWeight` | Cuánto pesa cada bioma en un punto (`BiomeWeights.compute`): `max(0, 1 - d / R) ^ k`, normalizado para sumar 1. Los consumidores leen pesos, no preguntan "qué bioma es". |
+| Mezcla de biomas | `BiomeBlend` | Ayudas que combinan los pesos: `blendNumber`, `pickMaterial` y `pickOffroadSurface`. |
