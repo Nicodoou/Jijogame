@@ -32,14 +32,76 @@ local function createBody(): Part
 	return body
 end
 
+-- Densidad por defecto de Roblox: fija la masa total del auto (la del Body entero), que el lastre solo reparte.
+local DEFAULT_DENSITY = 0.7
+local BALLAST_NAME = "Ballast"
+local BALLAST_SIZE = Vector3.new(1, 1, 1)
+local MIN_BALLAST_MASS_FRACTION = 0.01
+local PHYSICAL_FRICTION = 0.3
+local PHYSICAL_ELASTICITY = 0.5
+
+local function setDensity(part: Part, density: number)
+	part.CustomPhysicalProperties = PhysicalProperties.new(density, PHYSICAL_FRICTION, PHYSICAL_ELASTICITY)
+end
+
+local function volumeOf(size: Vector3): number
+	return size.X * size.Y * size.Z
+end
+
+-- Posición del centro de masa objetivo en el marco del Body: x = 0, z según el reparto de peso y y a la altura pedida
+-- sobre el plano de montaje de las ruedas.
+local function targetCenterOfMass(config: VehicleSettings): Vector3
+	local frontZ, rearZ = math.huge, -math.huge
+	for _, wheel in config.WHEELS do
+		frontZ = math.min(frontZ, wheel.offset.z)
+		rearZ = math.max(rearZ, wheel.offset.z)
+	end
+	local z = rearZ - config.FRONT_WEIGHT_FRACTION * (rearZ - frontZ)
+	return Vector3.new(0, config.WHEELS[1].offset.y + config.CENTER_OF_MASS_HEIGHT_STUDS, z)
+end
+
+-- Marca sin masa, sin colisión y sin consulta cualquier modelo visual (y la pieza raíz, si lo es):
+-- solo el Body y el lastre pesan, así el centro de masa depende de la configuración y no del modelo.
+function VehicleModelBuilder.markMassless(root: Instance)
+	local function mark(instance: Instance)
+		if instance:IsA("BasePart") then
+			instance.Massless = true
+			instance.CanCollide = false
+			instance.CanQuery = false
+			instance.CanTouch = false
+		end
+	end
+	mark(root)
+	for _, descendant in root:GetDescendants() do
+		mark(descendant)
+	end
+end
+
+-- El Body tiene su masa en su centro, así que el lastre va a cmObjetivo · (masaBody + masaLastre) / masaLastre.
+local function createBallast(model: Model, body: Part, config: VehicleSettings)
+	local totalMass = volumeOf(BODY_SIZE) * DEFAULT_DENSITY
+	local ballastFraction =
+		math.clamp(config.BALLAST_MASS_FRACTION, MIN_BALLAST_MASS_FRACTION, 1 - MIN_BALLAST_MASS_FRACTION)
+	local ballastMass = totalMass * ballastFraction
+	setDensity(body, (totalMass - ballastMass) / volumeOf(BODY_SIZE))
+	local ballast = createPart(BALLAST_NAME, BALLAST_SIZE, BODY_COLOR)
+	setDensity(ballast, ballastMass / volumeOf(BALLAST_SIZE))
+	ballast.Transparency = 1
+	ballast.CanCollide = false
+	ballast.CanQuery = false
+	ballast.CanTouch = false
+	ballast.CFrame = body.CFrame * CFrame.new(targetCenterOfMass(config) * (totalMass / ballastMass))
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = body
+	weld.Part1 = ballast
+	weld.Parent = ballast
+	ballast.Parent = model
+end
+
 local function createWheel(model: Model, body: Part, wheelName: string, offset: Vector3, diameter: number)
 	local wheel =
 		createPart(VehicleParts.wheelName(wheelName), Vector3.new(WHEEL_WIDTH_STUDS, diameter, diameter), WHEEL_COLOR)
 	wheel.Shape = Enum.PartType.Cylinder
-	wheel.Massless = true
-	wheel.CanCollide = false
-	wheel.CanQuery = false
-	wheel.CanTouch = false
 	wheel.CFrame = body.CFrame * CFrame.new(offset)
 	local motor = Instance.new("Motor6D")
 	motor.Name = VehicleParts.motorName(wheelName)
@@ -48,6 +110,7 @@ local function createWheel(model: Model, body: Part, wheelName: string, offset: 
 	motor.C0 = CFrame.new(offset)
 	motor.Parent = wheel
 	wheel.Parent = model
+	VehicleModelBuilder.markMassless(wheel)
 end
 
 local function createWheelForce(body: Part, wheelName: string, offset: Vector3)
@@ -78,6 +141,7 @@ function VehicleModelBuilder.build(userId: number, bodyCFrame: CFrame, config: V
 		createWheel(model, body, wheel.name, offset, 2 * config.WHEEL_RADIUS_STUDS)
 		createWheelForce(body, wheel.name, offset)
 	end
+	createBallast(model, body, config)
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	return model
 end
