@@ -43,7 +43,7 @@ Que con el acelerador a fondo la caja elija la marcha que más empuja (dentro de
 3. **`VehicleConfig`:**
    - `KICKDOWN_THROTTLE` = 0,9;
    - `KICKDOWN_FORCE_MARGIN` = 0,1, la histéresis: hace falta un 10% más de empuje para bajar;
-   - `KICKDOWN_RPM_MARGIN` = 300.
+   - ~~`KICKDOWN_RPM_MARGIN` = 300~~ (ver "Cambios después de la primera ejecución").
 4. **`docs/nombres.md`:** kickdown (`KICKDOWN_*`) y empuje relativo de una marcha (`gearForce`).
 
 ## Pruebas (`tests/vehicle/`, con `ToyWorld` donde haga falta)
@@ -61,6 +61,52 @@ Que con el acelerador a fondo la caja elija la marcha que más empuja (dentro de
 - **Propiedad 19 (sin "caza" de marchas):** en una pendiente constante de 10° y 15° con el acelerador a fondo, una vez estable no hay dos cambios seguidos en sentidos opuestos en menos de 1 s, a 30 y a 60 FPS.
 - **Propiedad 7 (caja en plano):** sigue pasando: pasa por todas las marchas en orden y la velocidad máxima es 150 ± 15.
 - **Todas las demás propiedades** y `RestAfterDriving`, `SlopeHold` y `LongitudinalLimit` siguen pasando.
+
+## Cambios después de la primera ejecución (regla corregida)
+
+La regla original (bajar si la de abajo empuja un 10% más y queda 300 RPM antes del corte) **caza** marchas. Medido en `ToyWorld`, pedal a fondo, 30 FPS, 20 s, pendiente constante:
+
+| Caso | Regla original | Kickdown apagado |
+| --- | --- | --- |
+| 15°, 5ta a 80 studs/s | 40 cambios, velocidad final 15,2 (oscila entre 12 y 40) | 36 cambios, final 36,8 |
+| 10°, 5ta a 80 studs/s | 20 cambios, final 84,1 | 1 cambio, final 103,4 |
+| 20°, 4ta a 60 studs/s | 13 cambios, final 27,9 | 11 cambios, final 9,7 |
+
+**Causa:** en 1ra a fondo el auto llega al corte suave (~40 studs/s) y sube a 2da. El corte de torque de 0,25 s (`SHIFT_TORQUE_FRACTION` = 0, parte de CP-4) le saca ~12 studs/s en 15° y la 1ra empuja bastante más que la 2da a esa velocidad, así que el kickdown vuelve a 1ra (cambios opuestos a 0,27 s). Subir `KICKDOWN_FORCE_MARGIN` a 0,5 o 1,0 no ayuda (15°: 24,1 studs/s con 38 cambios).
+
+**Regla nueva** (decidida por el orquestador; reemplaza a la de arriba):
+1. **Tiempo mínimo en marcha:** `GEAR_HOLD_SECONDS` = 1,0. Después de cualquier cambio el kickdown no actúa durante ese tiempo. Las subidas por RPM siguen como estaban.
+2. **Solo si no gana velocidad:** aceleración hacia adelante filtrada (`1 − exp(−KICKDOWN_ACCEL_FILTER_RATE · dt)`, tasa 4) ≤ `KICKDOWN_MIN_ACCELERATION` (0). La caja guarda en `VehicleState` el tiempo en marcha, la velocidad anterior y la aceleración filtrada; con un `dt` inválido el estado no cambia.
+3. **A qué marcha baja:** a la más alta de las de abajo que empuje `KICKDOWN_FORCE_MARGIN` (0,1) más que la actual y cuyas RPM queden ≤ `KICKDOWN_MAX_RPM` (4800). `KICKDOWN_RPM_MARGIN` ya no existe.
+4. **La subida a fondo** queda como en la regla original: no sube mientras la de arriba empuje menos, salvo en el corte suave.
+5. **`SHIFT_TORQUE_FRACTION` sigue en 0.**
+6. **A fondo, la bajada por `DOWNSHIFT_RPM` ya no actúa** (la decide el kickdown). Se agregó al ver que, aun con la regla nueva, después de subir de 1ra a 2da en 15° la regla vieja bajaba de nuevo apenas terminaba el cambio (3000 RPM) y repetía el ciclo cada ~1 s.
+
+## Segunda corrección: la caja decide por la carga
+
+Con la regla de arriba (tiempo mínimo en marcha, aceleración filtrada, una marcha por vez) 10° y 15° dejan de cazar, pero en 20° el kickdown baja una marcha por segundo (4ta a 60 studs/s → 3ra → 2da → 1ra en 2,1 s, ya retrocediendo a −8 studs/s). Estimar la carga desde la aceleración filtrada (`R = empuje − aceleración`) no alcanzó: el filtro va atrasado mientras el auto acelera hacia el corte, la carga se subestima y la caja sube a una marcha que después no puede con la cuesta (ciclos de 5 s: en 20°, 1ra ↔ 2da con mínimas de 1,5 y −0,4 studs/s; en 15°, 2da ↔ 3ra con mínima de 30,1 studs/s). La regla final (decidida por el orquestador) usa una carga exacta:
+
+- **Carga por unidad de masa**, a lo largo del auto: `R = gravedad · (forward.y filtrado + resistencia al rodar media)`, con `forward.y > 0` cuesta arriba y la gravedad de `ChassisSample.gravity`. Es determinista y sin atraso. Se filtra **solo** `forward.y` (`LOAD_PITCH_FILTER_RATE` = 8) para que el cabeceo de la suspensión no la mueva; si no es finito, cuenta como plano.
+- **Empuje por unidad de masa** de una marcha: `FIRST_GEAR_PEAK_ACCELERATION · gearForce · pedal`.
+- **Bajar** (acelerador ≥ `KICKDOWN_THROTTLE`): si `empuje(actual) − R < KICKDOWN_ACCEL_MARGIN` (5 studs/s²) y pasó `GEAR_HOLD_SECONDS` (1 s) **desde la última subida**, baja directamente a la marcha más alta con `empuje − R ≥ KICKDOWN_ACCEL_MARGIN` y RPM ≤ `KICKDOWN_MAX_RPM` (4800). Puede saltar varias marchas; una bajada no espera a otra. Si ninguna cumple, a la más baja con RPM dentro del límite.
+- **Subir a fondo** (por `UPSHIFT_RPM` o en el corte suave): solo si la marcha de arriba, a la velocidad que va a tener después del corte (`v − R · SHIFT_DURATION_SECONDS`, sin empuje durante el cambio), da `empuje − R ≥ UPSHIFT_ACCEL_MARGIN` (2 studs/s²).
+- **A fondo la bajada vieja por `DOWNSHIFT_RPM` no actúa.** `SHIFT_TORQUE_FRACTION` sigue en 0.
+- Se sacaron `KICKDOWN_FORCE_MARGIN`, `KICKDOWN_RPM_MARGIN`, `KICKDOWN_MIN_ACCELERATION` y `KICKDOWN_ACCEL_FILTER_RATE`, y la aceleración filtrada de `VehicleState`. La memoria de la caja es el tiempo desde la última subida (`secondsSinceUpshift`) y la inclinación filtrada (`filteredForwardY`).
+
+Mediciones (`ToyWorld`, pedal a fondo, 20 s; "final / mín" es la velocidad al final y la mínima de los últimos 3 s; 30 y 60 FPS dan lo mismo):
+
+| Caso | Resultado |
+| --- | --- |
+| 10°, 5ta a 80, radio 1,2 | 1 cambio (5>4), final 106,9 |
+| 15°, 5ta a 80, radio 1,2 | 5>4 a los 0,0 s, 4>3 a 62 studs/s, 3>2 a 44 (7,9 s): final 61,7, mín 61,7, sin ciclos |
+| 20°, 4ta a 60, radio 1,2 | 4>3>2>1 en 0,6 s (a 60, 41 y 23 studs/s): final 40,8, mín 40,8, sin ciclos |
+| 15°, 5ta a 80, radio 0,81 | primer kickdown a los 1,27 s a 55 studs/s (pierde 25 studs/s antes de bajar), después 5>4>3>2>1 en 0,8 s: final 41,6, mín 41,6 |
+| 20°, 4ta a 60, radio 0,81 | 4>3>2>1 en 0,5 s: final 27,0 (30 FPS) / 27,5 (60 FPS) |
+| 10°, 5ta a 80, radio 0,81 | 1 cambio a los 6,8 s, final 72,0 |
+
+Con radio 0,81 el primer kickdown llega tarde (la quinta a 80 studs/s ya está a 4.770 RPM y la regla espera a que el auto no tenga margen); por eso la propiedad 18 con ese radio verifica que suba a la velocidad exigida y no la regla de los 15 studs/s.
+
+**Retroceso sin límite:** en una pendiente de 20° con un auto detenido o retrocediendo (`ToyWorld` sin resistencia aerodinámica ni freno motor) la velocidad hacia atrás no tiene tope (llegó a −1.100 studs/s en una medición con la caja anterior). Falta la resistencia aerodinámica y el freno motor: WP aparte, no se arregla acá.
 
 ## Fuera de alcance
 - Mapas de cambio que dependan del acelerador para subir antes con el pedal suave.

@@ -12,6 +12,7 @@
 local Assists = require("./Assists")
 local ContactPlane = require("./ContactPlane")
 local Drivetrain = require("./Drivetrain")
+local Gearbox = require("./Gearbox")
 local Steering = require("./Steering")
 local SurfaceGrip = require("./SurfaceGrip")
 local StepOutputs = require("./StepOutputs")
@@ -108,6 +109,15 @@ local function updateWheels(
 	return wheels, loads
 end
 
+-- Resistencia al rodar media de las ruedas, por unidad de carga.
+local function averageRollingResistance(wheels: { WheelState }): number
+	local total = 0
+	for _, wheel in wheels do
+		total += wheel.rollingResistance
+	end
+	return total / math.max(#wheels, 1)
+end
+
 local function advanceDrivetrain(
 	state: VehicleState,
 	context: WheelForces.StepContext,
@@ -115,15 +125,24 @@ local function advanceDrivetrain(
 ): (VehicleState, { number })
 	local settings = context.settings
 	local rpmBefore = Drivetrain.engineRpm(context.forwardSpeed, state.gear, settings)
+	local forwardY = context.chassis.forward.y
+	local load = Gearbox.load(
+		Gearbox.filteredSlope(state, forwardY, dt, settings),
+		context.gravity,
+		averageRollingResistance(state.wheels)
+	)
 	local gear, shiftRemaining =
-		Drivetrain.nextGear(state, rpmBefore, context.forwardSpeed, context.controls, dt, settings)
+		Gearbox.nextGear(state, rpmBefore, context.forwardSpeed, context.controls, dt, settings, load)
 	local rpm = Drivetrain.engineRpm(context.forwardSpeed, gear, settings)
+	local secondsSinceUpshift, filteredForwardY = Gearbox.nextMemory(state, gear, forwardY, dt, settings)
 	local driveState: VehicleState = {
 		wheels = state.wheels,
 		gear = gear,
 		shiftRemainingSeconds = shiftRemaining,
 		engineRpm = rpm,
 		rearGripFactor = state.rearGripFactor,
+		secondsSinceUpshift = secondsSinceUpshift,
+		filteredForwardY = filteredForwardY,
 	}
 	local force = Drivetrain.driveForce(driveState, context.controls, rpm, context.mass, settings)
 	return driveState, Drivetrain.split(force, settings)
@@ -135,7 +154,15 @@ function VehicleSimulator.newState(config: VehicleSettings?): VehicleState
 	for index = 1, #settings.WHEELS do
 		wheels[index] = SurfaceGrip.newWheelState(settings)
 	end
-	return { wheels = wheels, gear = 1, shiftRemainingSeconds = 0, engineRpm = settings.IDLE_RPM, rearGripFactor = 1 }
+	return {
+		wheels = wheels,
+		gear = 1,
+		shiftRemainingSeconds = 0,
+		engineRpm = settings.IDLE_RPM,
+		rearGripFactor = 1,
+		secondsSinceUpshift = settings.GEAR_HOLD_SECONDS,
+		filteredForwardY = nil,
+	}
 end
 
 function VehicleSimulator.step(
@@ -160,13 +187,9 @@ function VehicleSimulator.step(
 	local wheels, loads = updateWheels(state, contacts, context, stepSeconds)
 	local driveState, driveShares = advanceDrivetrain(state, context, stepSeconds)
 	local outputs, feedbacks = WheelForces.simulateWheels(context, wheels, loads, contacts, driveState, driveShares)
-	local nextState: VehicleState = {
-		wheels = wheels,
-		gear = driveState.gear,
-		shiftRemainingSeconds = driveState.shiftRemainingSeconds,
-		engineRpm = driveState.engineRpm,
-		rearGripFactor = rearGripFactor,
-	}
+	local nextState: VehicleState = table.clone(driveState)
+	nextState.wheels = wheels
+	nextState.rearGripFactor = rearGripFactor
 	return nextState, outputs, StepOutputs.buildFeedback(nextState, context, feedbacks)
 end
 

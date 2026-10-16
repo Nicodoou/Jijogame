@@ -80,6 +80,17 @@ return table.freeze({
 	FINAL_DRIVE = 5.9,
 	UPSHIFT_RPM = 6200,
 	DOWNSHIFT_RPM = 3000,
+	-- Kickdown: con el acelerador a fondo y sin margen para acelerar con la carga, la caja baja a una marcha que empuje más.
+	KICKDOWN_THROTTLE = 0.9,
+	-- Aceleración (studs/s²) que tiene que dar la marcha de destino con la carga estimada, al bajar y al subir a fondo.
+	KICKDOWN_ACCEL_MARGIN = 5,
+	UPSHIFT_ACCEL_MARGIN = 2,
+	-- RPM máximas que puede tener la marcha de abajo: lejos del corte, con recorrido para acelerar antes de volver a subir.
+	KICKDOWN_MAX_RPM = 4800,
+	-- Tasa del filtro de la inclinación del auto con la que se estima la carga (que el cabeceo no la mueva).
+	LOAD_PITCH_FILTER_RATE = 8,
+	-- Tiempo mínimo desde la última subida antes de que el kickdown pueda actuar (contra la caza de marchas).
+	GEAR_HOLD_SECONDS = 1.0,
 	SHIFT_DURATION_SECONDS = 0.25,
 	SHIFT_TORQUE_FRACTION = 0,
 	REVERSE_ENGAGE_SPEED = 1,
