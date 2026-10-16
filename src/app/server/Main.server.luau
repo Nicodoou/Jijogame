@@ -2,14 +2,14 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local SpawnPointStub = require(ReplicatedStorage.app.SpawnPointStub)
 local VehicleConfig = require(ReplicatedStorage.vehicle.core.VehicleConfig)
 local VehicleSpawner = require("../vehicle/VehicleSpawner")
+local WorldSeedServer = require("../world/WorldSeedServer")
 
--- Stub hasta el adaptador del mundo (#17 / #35 / #36)
-local getSpawnPoint = SpawnPointStub.getSpawnPoint
+-- La semilla se publica antes del spawner y de PlayerAdded: si no, el primer auto aparecería sin punto de aparición.
+local worldSeed = WorldSeedServer.start()
 
-local spawner = VehicleSpawner.new(getSpawnPoint, VehicleConfig)
+local spawner = VehicleSpawner.new(worldSeed.getSpawnPoint, VehicleConfig)
 
 Players.PlayerAdded:Connect(function(player)
 	spawner:spawnFor(player)

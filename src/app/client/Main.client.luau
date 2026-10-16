@@ -3,33 +3,29 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
-local Surface = require(ReplicatedStorage.shared.contracts.Surface)
-local SpawnPointStub = require(ReplicatedStorage.app.SpawnPointStub)
 local InputSmoother = require(ReplicatedStorage.input.core.InputSmoother)
 local VehicleConfig = require(ReplicatedStorage.vehicle.core.VehicleConfig)
 local VehicleSimulator = require(ReplicatedStorage.vehicle.core.VehicleSimulator)
 local ChaseCameraController = require("../camera/ChaseCameraController")
 local InputReader = require("../input/InputReader")
 local VehicleController = require("../vehicle/VehicleController")
+local WorldClient = require("../world/WorldClient")
 
--- Stub hasta el adaptador del mundo (#17 / #35 / #36)
-local function getSurfaceAt(_position: vector): Surface.SurfaceKind?
-	return "Road"
-end
-
--- Stub hasta el adaptador del mundo (#17 / #35 / #36)
-local function isWorldReadyAt(_position: vector): boolean
-	return true
-end
-
--- Stub hasta el adaptador del mundo (#17 / #35 / #36)
-local getSpawnPoint = SpawnPointStub.getSpawnPoint
+-- El mundo y el auto se piden la posición y el terreno uno al otro: se arma primero el mundo (necesita la semilla) y
+-- recién después el auto, así getVehiclePosition ya puede devolver el punto de aparición desde el primer frame.
+local controller: VehicleController.VehicleController
+local world = WorldClient.new({
+	seed = WorldClient.waitForSeed(),
+	getVehiclePosition = function()
+		return controller:getVehiclePosition()
+	end,
+})
 
 local inputReader = InputReader.new()
-local controller = VehicleController.new({
-	getSurfaceAt = getSurfaceAt,
-	isWorldReadyAt = isWorldReadyAt,
-	getSpawnPoint = getSpawnPoint,
+controller = VehicleController.new({
+	getSurfaceAt = world.getSurfaceAt,
+	isWorldReadyAt = world.isWorldReadyAt,
+	getSpawnPoint = world.getSpawnPoint,
 	simulator = VehicleSimulator,
 	config = VehicleConfig,
 })
@@ -37,6 +33,10 @@ local cameraController = ChaseCameraController.new(Workspace.CurrentCamera)
 local inputState = InputSmoother.newState()
 
 controller:start()
+
+RunService.Heartbeat:Connect(function()
+	world.step()
+end)
 
 RunService.PreSimulation:Connect(function(dt)
 	inputState = InputSmoother.step(inputState, inputReader:read(), dt)
