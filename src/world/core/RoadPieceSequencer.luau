@@ -88,7 +88,7 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 		retractedPieceCount = 0,
 		guide = guide.getStatistics(),
 	}
-	index.add(state.x, state.z, 0)
+	index.add(state.x, state.y, state.z, 0)
 
 	local function tryPiece(piece: RoadPiece): PreviewResult?
 		return (previewer.preview(state, piece, guideSegment))
@@ -126,7 +126,7 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 			table.remove(checkpoints, 1)
 		end
 		for _, sample in result.samples do
-			index.add(sample.position.x, sample.position.z, sample.arcLength)
+			index.add(sample.position.x, sample.position.y, sample.position.z, sample.arcLength)
 		end
 		state, guideSegment, guideArcLength = result.endState, result.guideSegment, result.guideArcLength
 		statistics.pieceCount += 1
