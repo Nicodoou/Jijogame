@@ -160,6 +160,63 @@ return table.freeze({
 	-- Fracción máxima de material puente, que se da con los dos biomas más pesados empatados.
 	BIOME_BRIDGE_MAX_SHARE = 0.5,
 
+	-- Terreno (TerrainHeightField y VoxelChunkBuilder).
+	-- Un chunk son CHUNK_SIZE_STUDS / TERRAIN_VOXEL_STUDS vóxeles por lado.
+	CHUNK_SIZE_STUDS = 128,
+	-- Tamaño del vóxel del Terrain de Roblox (valor fijo del motor).
+	TERRAIN_VOXEL_STUDS = 4,
+	-- Medido en Studio: la superficie queda tantos studs más arriba de la que dice la ocupación.
+	TERRAIN_SURFACE_OFFSET_STUDS = 2,
+	-- Cuánto Terrain sólido queda bajo la superficie más baja de cada chunk.
+	TERRAIN_DEPTH_STUDS = 12,
+	-- Ancho en el que el terreno pasa de plano (al lado de la banquina) a las colinas completas.
+	TERRAIN_BLEND_WIDTH_STUDS = 32,
+	-- Colinas: dos octavas de math.noise relativas a la altura de la ruta. La amplitud y la rugosidad se multiplican por las de los biomas.
+	TERRAIN_HILL_AMPLITUDE_STUDS = 12,
+	TERRAIN_HILL_WAVELENGTH_STUDS = 160,
+	TERRAIN_HILL_FINE_WAVELENGTH_STUDS = 48,
+	-- Amplitud de la octava fina respecto de la gruesa, con rugosidad 1.
+	TERRAIN_HILL_FINE_AMPLITUDE_RATIO = 0.25,
+	TERRAIN_HILL_NOISE_OFFSET_RANGE = 10000,
+	-- Se suma a la semilla para que el ruido de las colinas no repita el de la ruta ni el del clima.
+	TERRAIN_NOISE_SEED_SALT = 7919,
+	-- Alcance de cada pasada de la ruta sobre la altura del terreno: más allá no pesa.
+	TERRAIN_ROAD_REACH_STUDS = 192,
+	-- Desde esta distancia a la banquina la altura base se desvanece hacia la altura ambiente (HILL_BASE_HEIGHT_STUDS), hasta el alcance.
+	TERRAIN_AMBIENT_FADE_START_STUDS = 60,
+	-- Pasos de integración por bloque de ruta: el bloque es lo bastante corto (menos de 180 grados de arco) para que la
+	-- distancia al eje tenga un único mínimo. Tiene que dividir los pasos por tramo.
+	TERRAIN_ROAD_BLOCK_STEPS = 32,
+	-- Más allá de este alcance sobre la banquina, la altura mide cada bloque contra su cuerda y no su arco, en este ancho de mezcla.
+	TERRAIN_CHORD_SMOOTH_START_STUDS = 10,
+	TERRAIN_CHORD_SMOOTH_SPAN_STUDS = 20,
+
+	-- Planificación del mundo (WorldPlanner).
+	ROUTE_AHEAD_STUDS = 2000,
+	-- Corredor de terreno alrededor de la ruta viva, y cuánto más ancho es el que se conserva (histéresis).
+	TERRAIN_CORRIDOR_HALF_WIDTH_STUDS = 160,
+	TERRAIN_CORRIDOR_KEEP_EXTRA_STUDS = 64,
+	-- Cada cuántos studs de ruta se toma un punto para trazar el corredor.
+	TERRAIN_CORRIDOR_SAMPLE_STUDS = 32,
+	-- Cuánto terreno se escribe por detrás del auto (la ruta viva llega más atrás: LIVE_LOOKBACK_STUDS), y su histéresis.
+	TERRAIN_BEHIND_STUDS = 600,
+	TERRAIN_BEHIND_KEEP_EXTRA_STUDS = 256,
+	-- No se escribe terreno en los últimos studs de ruta generada: ahí todavía falta la ruta que entra en el alcance de la altura.
+	TERRAIN_FRONTIER_MARGIN_STUDS = 512,
+	-- Cuánto se mueve el auto antes de volver a planificar.
+	TERRAIN_PLAN_REFRESH_STUDS = 32,
+	TERRAIN_CHUNK_KEY_STRIDE = 1048576,
+	WORLD_READY_RADIUS_STUDS = 64,
+	-- Dónde aparece el auto sobre la ruta.
+	SPAWN_ARC_LENGTH_STUDS = 16,
+
+	-- Presupuesto de trabajo por frame (WorkBudget).
+	WORK_BUDGET_MS_PER_FRAME = 4,
+	-- En cada paso, la estimación del costo del paso más caro baja por este factor: un pico no frena el trabajo para siempre.
+	WORK_BUDGET_STEP_ESTIMATE_DECAY = 0.98,
+	-- Tope de pasos por llamada: si el reloj no avanza (o los pasos no cuestan nada) no se queda en el ciclo.
+	WORK_BUDGET_MAX_STEPS_PER_FRAME = 512,
+
 	-- Consultas de la ruta (RoadQuery).
 	ROAD_QUERY_GRID_CELL_STUDS = 64,
 	ROAD_QUERY_GRID_KEY_STRIDE = 1048576,

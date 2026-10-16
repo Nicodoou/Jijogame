@@ -1,34 +1,30 @@
 --!strict
 -- Implementa GetSurfaceAt (contrato #17): decide la superficie de una posición con el punto más cercano del eje.
+-- Sobre la ruta y la banquina manda la distancia al eje; fuera de ellas, la ficha del bioma (BiomeBlend).
 
+local BiomeBlend = require("./BiomeBlend")
+local BiomeMap = require("./BiomeMap")
 local RoadQuery = require("./RoadQuery")
-local SeededRandom = require("./SeededRandom")
 local Surface = require("../../shared/contracts/Surface")
 local WorldConfig = require("./WorldConfig")
 
 local ROAD_HALF_WIDTH_STUDS = WorldConfig.ROAD_WIDTH_STUDS / 2
 local SHOULDER_EDGE_STUDS = ROAD_HALF_WIDTH_STUDS + WorldConfig.SHOULDER_WIDTH_STUDS
-local MUD_MIN_LATERAL_STUDS = SHOULDER_EDGE_STUDS + WorldConfig.MUD_MIN_DISTANCE_FROM_SHOULDER_STUDS
--- Un desplazamiento entero pondría los puntos del ruido sobre la grilla de la función, donde vale siempre 0.
-local NON_INTEGER_OFFSET = 0.5
 
 local SurfaceClassifier = {}
 
-function SurfaceClassifier.createGetSurfaceAt(query: RoadQuery.RoadQuery, seed: number): Surface.GetSurfaceAt
-	local random = SeededRandom.new(seed)
-	local offsetX = math.floor(random.nextNumber() * WorldConfig.MUD_NOISE_OFFSET_RANGE) + NON_INTEGER_OFFSET
-	local offsetZ = math.floor(random.nextNumber() * WorldConfig.MUD_NOISE_OFFSET_RANGE) + NON_INTEGER_OFFSET
-
-	local function isMudNoiseHigh(position: vector): boolean
-		local noise = math.noise(
-			position.x * WorldConfig.MUD_NOISE_SCALE_PER_STUD + offsetX,
-			position.z * WorldConfig.MUD_NOISE_SCALE_PER_STUD + offsetZ
-		)
-		return noise > WorldConfig.MUD_NOISE_THRESHOLD
-	end
+function SurfaceClassifier.createGetSurfaceAt(
+	query: RoadQuery.RoadQuery,
+	picker: BiomeBlend.Picker,
+	biomeMap: BiomeMap.BiomeMap
+): Surface.GetSurfaceAt
+	-- Las ruedas piden puntos a pocos studs unos de otros: el resultado anterior sirve de cursor. Si no sirve (un salto),
+	-- RoadQuery busca en toda la grilla.
+	local lastResult: RoadQuery.RoadQueryResult? = nil
 
 	return function(position: vector): Surface.SurfaceKind?
-		local nearest = query.findNearest(position, nil)
+		local nearest = query.findNearest(position, lastResult)
+		lastResult = nearest
 		if nearest == nil then
 			return nil
 		end
@@ -37,10 +33,9 @@ function SurfaceClassifier.createGetSurfaceAt(query: RoadQuery.RoadQuery, seed: 
 			return "Road"
 		elseif lateralStuds <= SHOULDER_EDGE_STUDS then
 			return "Shoulder"
-		elseif lateralStuds > MUD_MIN_LATERAL_STUDS and isMudNoiseHigh(position) then
-			return "Mud"
 		end
-		return "Grass"
+		local weights = biomeMap.getWeightsAt(position.x, position.z)
+		return picker.pickOffroadSurface(weights, position.x, position.z, lateralStuds - SHOULDER_EDGE_STUDS)
 	end
 end
 

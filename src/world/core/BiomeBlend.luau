@@ -92,6 +92,49 @@ local function pickShare(shares: { MaterialShare }, unit: number): string
 	return shares[#shares].material
 end
 
+local function pickMaterialWith(
+	offsets: PatchNoise.PatchOffsets,
+	weights: BiomeWeights,
+	catalog: { BiomeDefinition },
+	x: number,
+	z: number
+): string
+	local biome, total = chooseBiome(weights, catalog, offsets, x, z)
+	if PatchNoise.sampleUnit(offsets.bridge, x, z) < getBridgeShare(weights, catalog, total) then
+		return biome.materials.transition
+	end
+	return pickShare(biome.materials.surface, PatchNoise.sampleUnit(offsets.material, x, z))
+end
+
+local function pickOffroadSurfaceWith(
+	offsets: PatchNoise.PatchOffsets,
+	weights: BiomeWeights,
+	catalog: { BiomeDefinition },
+	x: number,
+	z: number,
+	distanceFromShoulderStuds: number
+): Surface.SurfaceKind
+	local biome = chooseBiome(weights, catalog, offsets, x, z)
+	for _, patch in biome.surfaces.patches do
+		local isFarEnough = distanceFromShoulderStuds > patch.minDistanceFromShoulderStuds
+		if isFarEnough and PatchNoise.sampleMud(offsets.mud, x, z, patch.noiseScalePerStud) > patch.noiseThreshold then
+			return patch.surface
+		end
+	end
+	return biome.surfaces.offroad
+end
+
+-- Mismas funciones que pickMaterial y pickOffroadSurface, con los desplazamientos del ruido ya calculados para la semilla.
+export type Picker = {
+	pickMaterial: (weights: BiomeWeights, x: number, z: number) -> string,
+	pickOffroadSurface: (
+		weights: BiomeWeights,
+		x: number,
+		z: number,
+		distanceFromShoulderStuds: number
+	) -> Surface.SurfaceKind,
+}
+
 local BiomeBlend = {}
 
 -- Promedio de un número de las fichas (por ejemplo la amplitud de las colinas) ponderado por los pesos.
@@ -119,12 +162,7 @@ function BiomeBlend.pickMaterial(
 	z: number,
 	seed: number
 ): string
-	local offsets = PatchNoise.createOffsets(seed)
-	local biome, total = chooseBiome(weights, catalog, offsets, x, z)
-	if PatchNoise.sampleUnit(offsets.bridge, x, z) < getBridgeShare(weights, catalog, total) then
-		return biome.materials.transition
-	end
-	return pickShare(biome.materials.surface, PatchNoise.sampleUnit(offsets.material, x, z))
+	return pickMaterialWith(PatchNoise.createOffsets(seed), weights, catalog, x, z)
 end
 
 -- Superficie fuera de la ruta en (x, z): la de la ficha del bioma elegido, o la de su primer manchón que corresponda.
@@ -137,15 +175,41 @@ function BiomeBlend.pickOffroadSurface(
 	seed: number,
 	distanceFromShoulderStuds: number
 ): Surface.SurfaceKind
-	local offsets = PatchNoise.createOffsets(seed)
-	local biome = chooseBiome(weights, catalog, offsets, x, z)
-	for _, patch in biome.surfaces.patches do
-		local isFarEnough = distanceFromShoulderStuds > patch.minDistanceFromShoulderStuds
-		if isFarEnough and PatchNoise.sampleMud(offsets.mud, x, z, patch.noiseScalePerStud) > patch.noiseThreshold then
-			return patch.surface
+	return pickOffroadSurfaceWith(PatchNoise.createOffsets(seed), weights, catalog, x, z, distanceFromShoulderStuds)
+end
+
+-- Material del subsuelo: el `deep` del bioma que más pesa (el primero del catálogo si empatan).
+function BiomeBlend.pickDeepMaterial(weights: BiomeWeights, catalog: { BiomeDefinition }): string
+	local heaviest: BiomeDefinition? = nil
+	local heaviestWeight = NO_WEIGHT
+	for _, definition in catalog do
+		local weight = weights[definition.id] or NO_WEIGHT
+		if weight > heaviestWeight then
+			heaviest, heaviestWeight = definition, weight
 		end
 	end
-	return biome.surfaces.offroad
+	if heaviest == nil then
+		error("the weights do not give any biome of the catalog a positive weight", 2)
+	end
+	return heaviest.materials.deep
+end
+
+-- Para elegir en muchos puntos con la misma semilla: los desplazamientos se calculan una vez, no en cada llamada.
+function BiomeBlend.newPicker(seed: number, catalog: { BiomeDefinition }): Picker
+	local offsets = PatchNoise.createOffsets(seed)
+	return {
+		pickMaterial = function(weights: BiomeWeights, x: number, z: number): string
+			return pickMaterialWith(offsets, weights, catalog, x, z)
+		end,
+		pickOffroadSurface = function(
+			weights: BiomeWeights,
+			x: number,
+			z: number,
+			distanceFromShoulderStuds: number
+		): Surface.SurfaceKind
+			return pickOffroadSurfaceWith(offsets, weights, catalog, x, z, distanceFromShoulderStuds)
+		end,
+	}
 end
 
 return BiomeBlend
