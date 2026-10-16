@@ -1,5 +1,5 @@
 --!strict
--- El material de la superficie del camino (WP-11): ripio en la ruta, tierra en la banquina y el del bioma afuera. La distancia
+-- El material de la superficie del camino (WP-11): ripio en la ruta, y en la banquina y afuera el del bioma. La distancia
 -- al eje se mide acá por separado, contra la poligonal de las muestras, sin pasar por el terreno.
 local BiomeBlend = require("../../src/world/core/BiomeBlend")
 local BiomeMap = require("../../src/world/core/BiomeMap")
@@ -15,7 +15,6 @@ local WorldConfig = require("../../src/world/core/WorldConfig")
 local VOXEL = WorldConfig.TERRAIN_VOXEL_STUDS
 local CHUNK_VOXELS = WorldConfig.CHUNK_SIZE_STUDS // VOXEL
 local ROAD_HALF_WIDTH = WorldConfig.ROAD_WIDTH_STUDS / 2
-local SHOULDER_EDGE = ROAD_HALF_WIDTH + WorldConfig.SHOULDER_WIDTH_STUDS
 local SEGMENTS = 5
 local SEED = 12
 local STRAIGHT_CHUNK_X = 2
@@ -115,14 +114,11 @@ local function collectPositions(segments: { RoadPath.Segment }): { vector }
 end
 
 local function expectedMaterial(distance: number): string
-	if distance <= ROAD_HALF_WIDTH then
-		return "Limestone"
-	end
-	return if distance <= SHOULDER_EDGE then "Ground" else OFFROAD_MATERIAL
+	return if distance <= ROAD_HALF_WIDTH then "Limestone" else OFFROAD_MATERIAL
 end
 
 local function isNearEdge(distance: number): boolean
-	return math.abs(distance - ROAD_HALF_WIDTH) < EDGE_MARGIN or math.abs(distance - SHOULDER_EDGE) < EDGE_MARGIN
+	return math.abs(distance - ROAD_HALF_WIDTH) < EDGE_MARGIN
 end
 
 -- Revisa todas las columnas de los chunks dados contra la distancia a la poligonal y cuenta cuántas hay de cada material.
@@ -162,7 +158,7 @@ local function uTurnCurvature(step: number): number
 end
 
 Runner.test(
-	"on a straight road the center columns are Limestone, the shoulder Ground and the rest the biome",
+	"on a straight road the center columns are Limestone and the shoulder and the rest the material of the biome",
 	function()
 		local counts = checkChunks(
 			createSegments(0, straightCurvature),
@@ -170,29 +166,24 @@ Runner.test(
 			false
 		)
 		Runner.expectEqual(counts.Limestone, 2 * 2 * CHUNK_VOXELS)
-		Runner.expectEqual(counts.Ground, 2 * CHUNK_VOXELS)
-		Runner.expectEqual(counts.Rock, 2 * (CHUNK_VOXELS - 3) * CHUNK_VOXELS)
+		Runner.expectEqual(counts.Ground, nil)
+		Runner.expectEqual(counts.Rock, 2 * (CHUNK_VOXELS - 2) * CHUNK_VOXELS)
 	end
 )
 
 Runner.test(
-	"a column whose center is exactly on the edge of the road is Limestone, and on the edge of the shoulder Ground",
+	"a column whose center is exactly on the edge of the road is Limestone, and the shoulder next to it is the biome",
 	function()
-		-- Con el eje en z = 2 los centros de las columnas quedan a 0, 4, 8, 12, 16...: el 8 y el 12 caen justo en los bordes.
+		-- Con el eje en z = 2 los centros de las columnas quedan a 0, 4, 8, 12, 16...: el 8 cae justo en el borde del camino.
 		local startZ = 2
 		local builder = createBuilder(createSegments(startZ, straightCurvature))
 		local result = buildChunk(builder, STRAIGHT_CHUNK_X, 0)
 		for column = 1, 6 do
 			local distance = math.abs((column - 0.5) * VOXEL - startZ)
-			local expected = if distance <= ROAD_HALF_WIDTH
-				then "Limestone"
-				elseif distance <= SHOULDER_EDGE then "Ground"
-				else OFFROAD_MATERIAL
-			Runner.expectEqual(findTopMaterial(result, 7, column), expected)
+			Runner.expectEqual(findTopMaterial(result, 7, column), expectedMaterial(distance))
 		end
 		Runner.expectEqual(findTopMaterial(result, 7, 3), "Limestone")
-		Runner.expectEqual(findTopMaterial(result, 7, 4), "Ground")
-		Runner.expectEqual(findTopMaterial(result, 7, 5), OFFROAD_MATERIAL)
+		Runner.expectEqual(findTopMaterial(result, 7, 4), OFFROAD_MATERIAL)
 	end
 )
 
@@ -202,7 +193,7 @@ Runner.test(
 		local chunks = { { 0, 0 }, { -1, 0 }, { 0, 1 }, { -1, 1 } }
 		local counts = checkChunks(createSegments(0, uTurnCurvature), chunks, true)
 		Runner.expectEqual((counts.Limestone or 0) > MIN_COLUMNS_PER_KIND, true)
-		Runner.expectEqual((counts.Ground or 0) > MIN_COLUMNS_PER_KIND / 3, true)
+		Runner.expectEqual(counts.Ground, nil)
 		Runner.expectEqual((counts.Rock or 0) > MIN_COLUMNS_PER_KIND, true)
 	end
 )
@@ -212,7 +203,6 @@ Runner.test("the same road gives the same materials twice", function()
 	local first = checkChunks(segments, { { 0, 0 } }, true)
 	local second = checkChunks(segments, { { 0, 0 } }, true)
 	Runner.expectEqual(first.Limestone, second.Limestone)
-	Runner.expectEqual(first.Ground, second.Ground)
 	Runner.expectEqual(first.Rock, second.Rock)
 end)
 
