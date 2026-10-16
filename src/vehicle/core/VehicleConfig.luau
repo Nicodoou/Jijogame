@@ -16,9 +16,9 @@ return table.freeze({
 
 	-- Peso: solo los lee el adaptador para armar el lastre (CP-6); el núcleo saca el reparto del centro de masa real.
 	-- Fracción del peso sobre el eje delantero.
-	FRONT_WEIGHT_FRACTION = 0.5,
+	FRONT_WEIGHT_FRACTION = 0.7,
 	-- Altura del centro de masa sobre el plano de montaje de las ruedas (y = −1 local).
-	CENTER_OF_MASS_HEIGHT_STUDS = 1,
+	CENTER_OF_MASS_HEIGHT_STUDS = 0.6,
 	-- Parte de la masa total que lleva el lastre invisible.
 	BALLAST_MASS_FRACTION = 0.5,
 
@@ -37,7 +37,7 @@ return table.freeze({
 	COMPRESSION_SPEED_FILTER_RATE = 30,
 
 	-- Neumático.
-	TIRE_FRICTION = 0.7,
+	TIRE_FRICTION = 1.0,
 	-- Fuerza lateral por unidad de carga y por radián.
 	TIRE_CORNERING_STIFFNESS_PER_RADIAN = 8,
 	-- 1 = sin caída de la fuerza lateral después del pico.
@@ -45,7 +45,7 @@ return table.freeze({
 	LOW_SPEED_REGULARIZATION_STUDS_PER_SECOND = 3,
 	-- Agarre por eje: multiplica el agarre disponible (tope lateral y círculo) de cada rueda.
 	FRONT_GRIP_MULTIPLIER = 1.0,
-	REAR_GRIP_MULTIPLIER = 0.9,
+	REAR_GRIP_MULTIPLIER = 0.95,
 	-- Con el freno de mano apretado el agarre trasero baja a esta fracción; al soltarlo vuelve a 1 con esta tasa.
 	HANDBRAKE_REAR_GRIP_MULTIPLIER = 0.85,
 	-- Con el freno de mano apretado el factor baja hacia el multiplicador con esta tasa (por segundo).
@@ -85,17 +85,17 @@ return table.freeze({
 	REVERSE_ENGAGE_SPEED = 1,
 
 	-- Tracción: fracción de la fuerza que va al eje trasero.
-	REAR_BIAS = 0.5,
+	REAR_BIAS = 0,
 
 	-- Frenos.
 	-- El neumático la recorta.
 	BRAKE_DECELERATION = 55,
 	BRAKE_FRONT_BIAS = 0.6,
-	HANDBRAKE_FORCE_PER_LOAD = 0.25,
+	HANDBRAKE_FORCE_PER_LOAD = 0.4,
 
 	-- Dirección.
 	STEER_MAX_LOW_SPEED_DEGREES = 36,
-	STEER_MAX_HIGH_SPEED_DEGREES = 24,
+	STEER_MAX_HIGH_SPEED_DEGREES = 18,
 	-- Al derrapar, la dirección permite este margen sobre el ángulo de deriva (hasta el máximo de baja velocidad).
 	DRIFT_STEER_MARGIN_DEGREES = 10,
 	STEER_LOW_SPEED = 55,
@@ -104,7 +104,7 @@ return table.freeze({
 	STEER_MAX_REVERSE_DEGREES = 15,
 
 	-- Asistencias (COUNTER_STEER_STRENGTH en 0 apaga el contravolante).
-	COUNTER_STEER_STRENGTH = 0,
+	COUNTER_STEER_STRENGTH = 1,
 	COUNTER_STEER_MAX_DEGREES = 15,
 	COUNTER_STEER_MIN_SPEED = 10,
 

@@ -295,6 +295,23 @@ Reemplazan lo anterior donde se contradigan (detalle en `docs/bugs/2026-10-16-de
 - **Nuevas pruebas:** `tests/vehicle/SlopeHold.test.luau` (de costado sin input y con freno de mano a 5°, 10° y 15°, y freno de mano de frente y de espaldas a 3° y 5°: velocidad < 0,05 studs/s).
 - **Pedido de cambio (no es parte del WP):** el freno de mano solo sostiene hasta unos 7°, sin input el auto rueda libre y el freno estando parado entra en reversa.
 
+## Cambios después de manejar por las calles reales (2026-10-16)
+
+Nico aprobó estos valores ("era muy patinoso, ahora está bien"; ver `docs/decisiones.md`). **Reemplazan** a los de las secciones anteriores:
+
+| Valor | Antes | Ahora |
+| --- | --- | --- |
+| `FRONT_WEIGHT_FRACTION` | 0,5 | **0,7** |
+| `CENTER_OF_MASS_HEIGHT_STUDS` | 1 | **0,6** |
+| `TIRE_FRICTION` | 0,7 | **1** |
+| `REAR_GRIP_MULTIPLIER` | 0,9 | **0,95** |
+| `REAR_BIAS` | 0,5 | **0** (tracción delantera) |
+| `STEER_MAX_HIGH_SPEED_DEGREES` | 24 | **18** |
+| `COUNTER_STEER_STRENGTH` | 0 | **1** |
+| `HANDBRAKE_FORCE_PER_LOAD` | 0,25 | **0,4** |
+
+**Las propiedades del manejo usan el centro de masa configurado:** el `ToyWorld` arma por defecto el centro de masa con la misma fórmula del lastre a partir de `FRONT_WEIGHT_FRACTION` y `CENTER_OF_MASS_HEIGHT_STUDS` (`ToyWorld.configuredCenterOfMass`). Las pruebas que necesitan el centro de masa centrado pasan `centerOfMassOffset = vector.create(0, 0, 0)`. Hasta este cambio corrían con el centro de masa centrado.
+
 ## Fuera de alcance
 - Todo lo que toca Roblox: adaptadores, `src/app/`, Rojo y las pruebas en Studio (son del WP-4).
 - El reset (RC-12) y el uso de los contratos #35 y #36 (WP-4).

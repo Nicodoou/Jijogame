@@ -6,7 +6,7 @@ local VehicleConfig = require("../../src/vehicle/core/VehicleConfig")
 local COUNTER_LIMIT = math.rad(VehicleConfig.COUNTER_STEER_MAX_DEGREES)
 local ASSIST_STRENGTH = 0.3
 
--- El contravolante viene apagado en la configuración (decisión del experimento de manejo): se prueba encendido aparte.
+-- Las pruebas del contravolante usan una intensidad propia para no depender del valor por defecto.
 local ASSISTED = table.clone(VehicleConfig)
 ASSISTED.COUNTER_STEER_STRENGTH = ASSIST_STRENGTH
 
@@ -30,9 +30,10 @@ Runner.test("the counter steer only works above the minimum speed going forward"
 	Runner.expectEqual(Assists.counterSteer(drift, VehicleConfig.COUNTER_STEER_MIN_SPEED + 0.001, ASSISTED) ~= 0, true)
 end)
 
-Runner.test("the counter steer is off in the default configuration", function()
-	Runner.expectEqual(VehicleConfig.COUNTER_STEER_STRENGTH, 0)
-	Runner.expectEqual(Assists.counterSteer(math.rad(30), 60), 0)
+Runner.test("the counter steer is on in the default configuration", function()
+	Runner.expectEqual(VehicleConfig.COUNTER_STEER_STRENGTH, 1)
+	Runner.expectEqual(Assists.counterSteer(math.rad(30), 60), COUNTER_LIMIT)
+	Runner.expectNear(Assists.counterSteer(math.rad(5), 60), math.rad(5), 1e-12)
 end)
 
 Runner.test("with the strength at zero the counter steer is off", function()
