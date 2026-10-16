@@ -2,7 +2,7 @@
 
 **Issue:** #56
 **Requerimientos:** RC-6, RC-8, RC-9, RC-10 y CP-3 del MVP. Prepara S3, S4, S7 y S9 de los requerimientos generales (biomas múltiples, después del MVP).
-**Estado:** arquitectura propuesta
+**Estado:** aprobado
 
 ## Alcance
 
@@ -67,7 +67,7 @@ Con un solo bioma no aplica. Para cuando haya N: **V1, campo espacial con una es
 
 ## Decisión
 
-Beni, 2026-10-16: bosque para el MVP con la infraestructura de N biomas (respuesta de Nico en #56), y los patrones de abajo. **Falta su aprobación de B1 + R1 y de la arquitectura.**
+Beni, 2026-10-16: bosque para el MVP con la infraestructura de N biomas (respuesta de Nico en #56), **B1 + R1** y los patrones de abajo.
 
 ## Arquitectura
 
@@ -115,4 +115,4 @@ Todo el cálculo vive en `src/world/core/` (Luau puro, probado en el CLI) y lo c
 **WP-8, infraestructura de biomas (núcleo):** `BiomeCatalog` (con `forest` y las fichas ficticias solo en las pruebas), `ClimateField`, `BiomeWeights` y `BiomeBlend`, con sus pruebas. Va **antes** del WP-6, que pasa a consumirlo con los cambios de "Quién lo usa".
 
 ## Aprobación
-Pendiente: Beni (área de Calles infinitas). Nico ya definió el alcance en #56.
+Aprobó Beni el 2026-10-16 ([#56](https://github.com/Nicodoou/Jijogame/issues/56#issuecomment-6205547410)). Nico definió el alcance en #56.
