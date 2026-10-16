@@ -131,7 +131,8 @@ local function runRestScenario(
 		maxDrift = math.max(maxDrift, horizontalDistance(world.position, settledPosition))
 		maxSpeed = math.max(maxSpeed, vector.magnitude(world.linearVelocity))
 	end)
-	return maxDrift, maxSpeed, runner.world.position.y
+	-- La altura que se compara es la del origen del marco de las ruedas, no la del centro de masa.
+	return maxDrift, maxSpeed, runner.world.position.y - runner.world.centerOfMassOffset.y
 end
 
 Runner.test("1. at rest on flat ground the car settles in under 2 seconds and does not move", function()
