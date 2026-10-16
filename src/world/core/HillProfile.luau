@@ -33,6 +33,9 @@ local HALF = 0.5
 -- Iteraciones de la bisección que busca la mayor pendiente que aún deja frenar dentro de la franja.
 local BISECTION_ITERATIONS = 24
 local NOISE_AXIS_COUNT = 2
+local NOISE_DIRECTION_RADIANS = math.rad(WorldConfig.HILL_NOISE_DIRECTION_DEGREES)
+local NOISE_STEP_X = math.cos(NOISE_DIRECTION_RADIANS)
+local NOISE_STEP_Y = math.sin(NOISE_DIRECTION_RADIANS)
 
 local defaultSettings: HillSettings = table.freeze({
 	baseHeightStuds = WorldConfig.HILL_BASE_HEIGHT_STUDS,
@@ -96,7 +99,8 @@ function HillProfileModule.new(seed: number, settings: HillSettings?): HillProfi
 		local wavelength = config.wavelengthStuds
 		for octave = 1, config.octaves do
 			local axes = offsets[octave]
-			sum += amplitude * math.noise(arcLength / wavelength + axes[1], axes[2])
+			local travel = arcLength / wavelength
+			sum += amplitude * math.noise(travel * NOISE_STEP_X + axes[1], travel * NOISE_STEP_Y + axes[2])
 			amplitude *= config.amplitudeFactor
 			wavelength *= config.wavelengthFactor
 		end
