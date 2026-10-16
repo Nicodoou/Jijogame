@@ -69,7 +69,8 @@ function TerrainDrive.run(options: Options): Report
 	local function axisAt(arcLength: number): vector
 		local fraction = arcLength / STEP_STUDS
 		local index = math.floor(fraction)
-		return vector.lerp(referenceSamples[index + 1].position, referenceSamples[index + 2].position, fraction - index)
+		local start, finish = referenceSamples[index + 1].position, referenceSamples[index + 2].position
+		return start + (finish - start) * (fraction - index)
 	end
 
 	-- Altura del eje en el punto más cercano a (x, z) entre las muestras cercanas a `nearArcLength`. Se mira solo ahí porque
