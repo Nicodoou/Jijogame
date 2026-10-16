@@ -19,6 +19,9 @@ local SEGMENTS = 5
 local SEED = 12
 local ROAD_CHUNK_X = 2
 local NEAR_COLUMNS = 3
+-- Los centros de las columnas quedan a 2, 6 y 10 studs del eje: las dos primeras son camino (hasta 8) y la tercera banquina.
+local ROAD_COLUMNS = 2
+local ROAD_HALF_WIDTH = WorldConfig.ROAD_WIDTH_STUDS / 2
 local TOLERANCE = 1e-9
 -- La altura de la ruta viene de un vector, que guarda floats de 32 bits.
 local HEIGHT_TOLERANCE = 1e-4
@@ -159,14 +162,17 @@ Runner.test(
 )
 
 Runner.test(
-	"the road and the shoulder are Ground on top, the biome has the deep material below and air above",
+	"the road and the shoulder have a road material on top, the biome has the deep material below and air above",
 	function()
 		local world = createWorld(50.5, ROCKY)
 		local result = buildChunk(world.builder, ROAD_CHUNK_X, 0, nil)
 		for row = 1, CHUNK_VOXELS do
 			for column = 1, NEAR_COLUMNS do
 				local topLayer = findTopLayer(result, row, column)
-				Runner.expectEqual(result.materials[row][topLayer][column], "Ground")
+				Runner.expectEqual(
+					result.materials[row][topLayer][column],
+					if column <= ROAD_COLUMNS then "Limestone" else "Ground"
+				)
 				for layer = 1, topLayer - 1 do
 					Runner.expectEqual(result.materials[row][layer][column], "Basalt")
 				end
@@ -178,7 +184,7 @@ Runner.test(
 	end
 )
 
-Runner.test("outside the road the top is the surface material of the biome, never Ground", function()
+Runner.test("outside the road the top is the surface material of the biome, never a road material", function()
 	local world = createWorld(50.5, ROCKY)
 	local result = buildChunk(world.builder, ROAD_CHUNK_X, 0, nil)
 	local checked = 0
@@ -203,9 +209,9 @@ Runner.test(
 					local top = result.materials[row][findTopLayer(result, row, column)][column]
 					counts[top] = (counts[top] or 0) + 1
 					local x, z = getColumnCenter(ROAD_CHUNK_X, chunkZ, row, column)
-					local _, beyondShoulder = world.field.sampleColumn(x, z, { forest = 1 })
+					local _, beyondShoulder, axisDistance = world.field.sampleColumn(x, z, { forest = 1 })
 					if beyondShoulder == 0 then
-						Runner.expectEqual(top, "Ground")
+						Runner.expectEqual(top, if axisDistance <= ROAD_HALF_WIDTH then "Limestone" else "Ground")
 					elseif top == "Mud" then
 						Runner.expectEqual(beyondShoulder > WorldConfig.MUD_MIN_DISTANCE_FROM_SHOULDER_STUDS, true)
 					else
@@ -217,7 +223,8 @@ Runner.test(
 		Runner.expectEqual((counts.Mud or 0) > 20, true)
 		Runner.expectEqual((counts.Grass or 0) > 500, true)
 		Runner.expectEqual((counts.LeafyGrass or 0) > 100, true)
-		Runner.expectEqual((counts.Ground or 0) > 100, true)
+		Runner.expectEqual((counts.Limestone or 0) > 100, true)
+		Runner.expectEqual((counts.Ground or 0) > 50, true)
 	end
 )
 

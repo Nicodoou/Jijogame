@@ -104,6 +104,29 @@ Runner.test("the distance beyond the shoulder is measured from the edge of the s
 	end
 end)
 
+Runner.test(
+	"the distance to the axis is the lateral distance on a straight road, on both sides and beyond the shoulder",
+	function()
+		local field = createField(1, { createRoad(0, 0, flatHeight) })
+		prepareAround(field, MIDDLE_X, 0, 100)
+		for _, lateral in { 0, 2.5, 8, 11.9, SHOULDER_EDGE, SHOULDER_EDGE + 0.5, 30, 100 } do
+			local _, _, axisDistance = field.sampleColumn(MIDDLE_X, lateral, FOREST)
+			Runner.expectNear(axisDistance, lateral, 1e-4)
+			local _, _, otherSide = field.sampleColumn(MIDDLE_X, -lateral, FOREST)
+			Runner.expectNear(otherSide, lateral, 1e-4)
+		end
+	end
+)
+
+Runner.test("the distance to the axis is infinite when there is no road in reach", function()
+	local field = createField(1, { createRoad(0, 0, flatHeight) })
+	local farZ = WorldConfig.TERRAIN_ROAD_REACH_STUDS + SHOULDER_EDGE + 500
+	prepareAround(field, MIDDLE_X, farZ, 20)
+	local _, beyondShoulder, axisDistance = field.sampleColumn(MIDDLE_X, farZ, FOREST)
+	Runner.expectEqual(beyondShoulder, math.huge)
+	Runner.expectEqual(axisDistance, math.huge)
+end)
+
 Runner.test("the hills fade in over the blend width and never pass their bound", function()
 	local field = createField(7, { createRoad(0, 0, flatHeight) })
 	prepareAround(field, MIDDLE_X, 0, 200)

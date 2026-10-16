@@ -64,7 +64,10 @@ local PREPARE_STEPS = 1
 local TOTAL_STEPS = PREPARE_STEPS + 2 * CHUNK_VOXELS
 -- Claves de material propias: el adaptador las traduce a Enum.Material.
 local AIR_MATERIAL = "Air"
-local ROAD_MATERIAL = "Ground"
+-- El camino es ripio claro y la banquina tierra, para que la ruta se distinga del terreno (WP-11).
+local ROAD_MATERIAL = "Limestone"
+local SHOULDER_MATERIAL = "Ground"
+local ROAD_HALF_WIDTH_STUDS = WorldConfig.ROAD_WIDTH_STUDS / 2
 local MUD_SURFACE = "Mud"
 
 local VoxelChunkBuilderModule = {}
@@ -105,6 +108,22 @@ function VoxelChunkBuilderModule.new(dependencies: Dependencies): VoxelChunkBuil
 		highestVoxelY, lowestHeight = -math.huge, math.huge
 	end
 
+	-- Material de la superficie: camino o banquina sobre la ruta; fuera de ella, barro o el del bioma.
+	local function pickTopMaterial(
+		weights: BiomeTypes.BiomeWeights,
+		x: number,
+		z: number,
+		beyondShoulder: number,
+		axisDistance: number
+	): string
+		if beyondShoulder == 0 then
+			return if axisDistance <= ROAD_HALF_WIDTH_STUDS then ROAD_MATERIAL else SHOULDER_MATERIAL
+		elseif picker.pickOffroadSurface(weights, x, z, beyondShoulder) == MUD_SURFACE then
+			return MUD_SURFACE
+		end
+		return picker.pickMaterial(weights, x, z)
+	end
+
 	-- Altura y materiales de las columnas de una fila de x.
 	local function measureColumnRow(row: number)
 		local originX, originZ = ChunkGrid.getOriginStuds(result.chunkX), ChunkGrid.getOriginStuds(result.chunkZ)
@@ -112,20 +131,14 @@ function VoxelChunkBuilderModule.new(dependencies: Dependencies): VoxelChunkBuil
 		for column = 1, CHUNK_VOXELS do
 			local z = originZ + (column - HALF) * VOXEL_STUDS
 			local weights = biomeMap.getWeightsInArea(x, z)
-			local height, beyondShoulder = heightField.sampleColumn(x, z, weights)
+			local height, beyondShoulder, axisDistance = heightField.sampleColumn(x, z, weights)
 			local index = (row - 1) * CHUNK_VOXELS + column
 			local fillHeight = (height - SURFACE_OFFSET_STUDS) / VOXEL_STUDS
 			-- El vóxel más alto con algo de terreno: si la superficie cae justo en un borde, es el de abajo.
 			local surfaceVoxel = math.ceil(fillHeight) - 1
 			columnFillHeights[index], columnSurfaceVoxels[index] = fillHeight, surfaceVoxel
 			columnDeepMaterials[index] = BiomeBlend.pickDeepMaterial(weights, catalog)
-			if beyondShoulder == 0 then
-				columnTopMaterials[index] = ROAD_MATERIAL
-			elseif picker.pickOffroadSurface(weights, x, z, beyondShoulder) == MUD_SURFACE then
-				columnTopMaterials[index] = MUD_SURFACE
-			else
-				columnTopMaterials[index] = picker.pickMaterial(weights, x, z)
-			end
+			columnTopMaterials[index] = pickTopMaterial(weights, x, z, beyondShoulder, axisDistance)
 			highestVoxelY = math.max(highestVoxelY, surfaceVoxel + 1)
 			lowestHeight = math.min(lowestHeight, height)
 		end

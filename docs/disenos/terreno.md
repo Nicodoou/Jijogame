@@ -41,7 +41,7 @@ La hizo el subagente `investigador` el 2026-10-14. Las marcas significan: **[V]*
   - lo que escribe el servidor se replica [V];
   - lo que escribe el cliente queda local [S];
   - el contenido creado en el cliente no sale por streaming [V] ([streaming](https://create.roblox.com/docs/workspace/streaming)).
-- **Materiales:** `Ground`, `Grass`, `LeafyGrass` y `Mud` existen [V]. Los `MaterialVariant` aplican al Terrain solo como reemplazo global del lugar [V] ([materiales](https://create.roblox.com/docs/parts/materials)).
+- **Materiales:** `Ground`, `Limestone`, `Grass`, `LeafyGrass` y `Mud` existen [V]. Los `MaterialVariant` aplican al Terrain solo como reemplazo global del lugar [V] ([materiales](https://create.roblox.com/docs/parts/materials)).
 - **RC-11:** el Terrain es una sola instancia, así que lo cumple sin esfuerzo.
 - **Tope del mundo:** la documentación dice ±128.000 studs [V], pero en la práctica se escribió y se leyó Terrain hasta 2.000.000 [E] (experimento del 2026-10-15, en `ruta.md`, "Riesgo nuevo: distancia al origen").
 - **Memoria:** se mide con las etiquetas `TerrainVoxels` y `GraphicsTerrain` de `Stats` [V]. Si al borrar un tramo (escribiendo aire) se devuelve memoria está [NC].
@@ -66,9 +66,9 @@ Se deciden junto con la malla de la ruta (#9), porque el terreno es lo que pisa 
 
 ### Opción T1: todo con Terrain (suelo y ruta)
 
-El cliente escribe el suelo con `WriteVoxels`, por pedazos y con un presupuesto por frame. La ruta queda plana dentro del mismo Terrain, con material `Ground`. El pasto es `Grass` y el barro `Mud`.
+El cliente escribe el suelo con `WriteVoxels`, por pedazos y con un presupuesto por frame. La ruta queda plana dentro del mismo Terrain, con material `Limestone` (la banquina, `Ground`). El pasto es `Grass` y el barro `Mud`.
 
-> **Actualización 2026-10-16 (WP-11, #73):** el camino pasa a `Limestone` (ripio claro) y la banquina queda en `Ground`, para que la ruta se distinga del terreno. Es solo visual: la superficie del contrato sale de los datos de la ruta, no del material.
+> **Actualización 2026-10-16 (WP-11, #73):** el camino pasa a `Limestone` (ripio claro) y la banquina queda en `Ground`, para que la ruta se distinga del terreno. Es solo visual: la superficie del contrato sale de los datos de la ruta, no del material. Implementación: `VoxelChunkBuilder` pone `Limestone` en las columnas cuyo centro queda a no más de `ROAD_WIDTH_STUDS / 2` del eje y `Ground` hasta el borde de la banquina (en el plano, contra el punto de ruta viva más cercano); para eso `TerrainHeightField.sampleColumn` devuelve, como tercer valor, la distancia al eje. El borde queda serruchado (grilla de 4 studs).
 
 - **Bueno:**
   - medido rápido (unos 3 ms por pedazo de 128×128 en PC) y plano;

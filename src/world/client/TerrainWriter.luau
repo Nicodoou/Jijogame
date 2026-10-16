@@ -15,6 +15,7 @@ local HALF = 0.5
 local MATERIAL_BY_KEY: { [string]: Enum.Material } = {
 	Air = Enum.Material.Air,
 	Ground = Enum.Material.Ground,
+	Limestone = Enum.Material.Limestone,
 	Grass = Enum.Material.Grass,
 	LeafyGrass = Enum.Material.LeafyGrass,
 	Mud = Enum.Material.Mud,
