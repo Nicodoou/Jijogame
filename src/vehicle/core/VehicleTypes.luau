@@ -56,6 +56,11 @@ export type VehicleState = {
 	engineRpm: number,
 	-- Fracción del agarre trasero que deja el freno de mano (1 = sin efecto).
 	rearGripFactor: number,
+	-- Memoria de la caja para el kickdown: tiempo en la marcha actual, velocidad del paso anterior (nil al arrancar)
+	-- y aceleración hacia adelante filtrada.
+	secondsInGear: number,
+	previousForwardSpeed: number?,
+	filteredAcceleration: number,
 }
 
 -- `force` está en el mundo y se aplica en el punto de montaje de la rueda.

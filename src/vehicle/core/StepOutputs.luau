@@ -55,6 +55,9 @@ function StepOutputs.idleStep(
 		shiftRemainingSeconds = state.shiftRemainingSeconds,
 		engineRpm = state.engineRpm,
 		rearGripFactor = state.rearGripFactor,
+		secondsInGear = state.secondsInGear,
+		previousForwardSpeed = state.previousForwardSpeed,
+		filteredAcceleration = state.filteredAcceleration,
 	}
 	return nextState, outputs, StepOutputs.buildFeedback(nextState, context, feedbacks)
 end

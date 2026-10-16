@@ -80,12 +80,17 @@ return table.freeze({
 	FINAL_DRIVE = 5.9,
 	UPSHIFT_RPM = 6200,
 	DOWNSHIFT_RPM = 3000,
-	-- Kickdown: con el acelerador a fondo la caja baja a la marcha que más empuja.
+	-- Kickdown: con el acelerador a fondo y sin ganar velocidad, la caja baja a una marcha que empuje más.
 	KICKDOWN_THROTTLE = 0.9,
 	-- Histéresis: la marcha de abajo tiene que empujar al menos este porcentaje más (0,1 = 10%).
 	KICKDOWN_FORCE_MARGIN = 0.1,
-	-- La marcha de abajo tiene que quedar al menos esto por debajo del corte suave.
-	KICKDOWN_RPM_MARGIN = 300,
+	-- RPM máximas que puede tener la marcha de abajo: lejos del corte, con recorrido para acelerar antes de volver a subir.
+	KICKDOWN_MAX_RPM = 4800,
+	-- Solo hay kickdown si la aceleración hacia adelante (filtrada) es menor o igual que esto, en studs/s².
+	KICKDOWN_MIN_ACCELERATION = 0,
+	KICKDOWN_ACCEL_FILTER_RATE = 4,
+	-- Tiempo mínimo en una marcha antes de que el kickdown pueda actuar (contra la caza de marchas).
+	GEAR_HOLD_SECONDS = 1.0,
 	SHIFT_DURATION_SECONDS = 0.25,
 	SHIFT_TORQUE_FRACTION = 0,
 	REVERSE_ENGAGE_SPEED = 1,

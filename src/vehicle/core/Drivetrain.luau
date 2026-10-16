@@ -82,19 +82,54 @@ local function wantsForward(controls: VehicleControls, forwardSpeed: number, set
 	return controls.throttle > 0 and math.abs(forwardSpeed) < settings.REVERSE_ENGAGE_SPEED
 end
 
--- Kickdown: con el acelerador a fondo baja una marcha si la de abajo queda con margen antes del corte y empuja
--- bastante más (histéresis), así no baja para volver a subir.
-local function shouldKickDown(gear: number, forwardSpeed: number, settings: VehicleSettings): boolean
-	if gear <= FIRST_GEAR then
-		return false
+-- Aceleración hacia adelante filtrada con `1 − exp(−k·dt)`. Sin velocidad anterior (primer paso) no hay aceleración.
+function Drivetrain.filteredAcceleration(
+	state: VehicleState,
+	forwardSpeed: number,
+	dt: number,
+	config: VehicleSettings?
+): number
+	local settings = config or VehicleConfig
+	local previous = state.previousForwardSpeed
+	if previous == nil then
+		return state.filteredAcceleration
 	end
-	local below = gear - 1
-	local rpmLimit = settings.REDLINE_RPM - settings.SOFT_LIMITER_RPM - settings.KICKDOWN_RPM_MARGIN
-	if unclampedRpm(forwardSpeed, below, settings) > rpmLimit then
-		return false
+	local alpha = 1 - math.exp(-settings.KICKDOWN_ACCEL_FILTER_RATE * dt)
+	return state.filteredAcceleration + ((forwardSpeed - previous) / dt - state.filteredAcceleration) * alpha
+end
+
+-- Memoria de la caja tras un paso: tiempo en la marcha, velocidad de este paso y aceleración filtrada.
+function Drivetrain.nextMemory(
+	state: VehicleState,
+	newGear: number,
+	forwardSpeed: number,
+	dt: number,
+	config: VehicleSettings?
+): (number, number, number)
+	local secondsInGear = if newGear ~= state.gear then 0 else state.secondsInGear + dt
+	return secondsInGear, forwardSpeed, Drivetrain.filteredAcceleration(state, forwardSpeed, dt, config)
+end
+
+-- Kickdown: con el acelerador a fondo, sin ganar velocidad y pasado el tiempo mínimo en la marcha, baja a la más
+-- alta de las de abajo que empuje bastante más que la actual (histéresis) y cuyas RPM queden lejos del corte.
+-- Devuelve la marcha de destino, o nil si no hay kickdown.
+local function kickdownTarget(state: VehicleState, forwardSpeed: number, dt: number, settings: VehicleSettings): number?
+	if state.gear <= FIRST_GEAR or state.secondsInGear + dt < settings.GEAR_HOLD_SECONDS then
+		return nil
 	end
-	local currentForce = Drivetrain.gearForce(gear, forwardSpeed, settings)
-	return Drivetrain.gearForce(below, forwardSpeed, settings) > currentForce * (1 + settings.KICKDOWN_FORCE_MARGIN)
+	if Drivetrain.filteredAcceleration(state, forwardSpeed, dt, settings) > settings.KICKDOWN_MIN_ACCELERATION then
+		return nil
+	end
+	local currentForce = Drivetrain.gearForce(state.gear, forwardSpeed, settings)
+	for below = state.gear - 1, FIRST_GEAR, -1 do
+		local isFarFromLimiter = unclampedRpm(forwardSpeed, below, settings) <= settings.KICKDOWN_MAX_RPM
+		local isStronger = Drivetrain.gearForce(below, forwardSpeed, settings)
+			> currentForce * (1 + settings.KICKDOWN_FORCE_MARGIN)
+		if isFarFromLimiter and isStronger then
+			return below
+		end
+	end
+	return nil
 end
 
 -- Con el acelerador a fondo no sube mientras la marcha de arriba empuje menos que la actual, salvo que la actual
@@ -133,15 +168,16 @@ function Drivetrain.nextGear(
 		return gear, remaining
 	end
 	local isKickdownPedal = controls.throttle >= settings.KICKDOWN_THROTTLE
-	if isKickdownPedal and shouldKickDown(gear, forwardSpeed, settings) then
-		return gear - 1, settings.SHIFT_DURATION_SECONDS
+	local kickdownGear = if isKickdownPedal then kickdownTarget(state, forwardSpeed, dt, settings) else nil
+	if kickdownGear ~= nil then
+		return kickdownGear, settings.SHIFT_DURATION_SECONDS
 	end
 	if rpm >= settings.UPSHIFT_RPM and gear < #settings.GEAR_RATIOS then
 		if not isKickdownPedal or shouldUpshiftAtFullThrottle(gear, forwardSpeed, rpm, settings) then
 			return gear + 1, settings.SHIFT_DURATION_SECONDS
 		end
 	end
-	if rpm <= settings.DOWNSHIFT_RPM and gear > FIRST_GEAR then
+	if not isKickdownPedal and rpm <= settings.DOWNSHIFT_RPM and gear > FIRST_GEAR then
 		return gear - 1, settings.SHIFT_DURATION_SECONDS
 	end
 	return gear, remaining

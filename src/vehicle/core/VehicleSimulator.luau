@@ -118,12 +118,17 @@ local function advanceDrivetrain(
 	local gear, shiftRemaining =
 		Drivetrain.nextGear(state, rpmBefore, context.forwardSpeed, context.controls, dt, settings)
 	local rpm = Drivetrain.engineRpm(context.forwardSpeed, gear, settings)
+	local secondsInGear, previousSpeed, acceleration =
+		Drivetrain.nextMemory(state, gear, context.forwardSpeed, dt, settings)
 	local driveState: VehicleState = {
 		wheels = state.wheels,
 		gear = gear,
 		shiftRemainingSeconds = shiftRemaining,
 		engineRpm = rpm,
 		rearGripFactor = state.rearGripFactor,
+		secondsInGear = secondsInGear,
+		previousForwardSpeed = previousSpeed,
+		filteredAcceleration = acceleration,
 	}
 	local force = Drivetrain.driveForce(driveState, context.controls, rpm, context.mass, settings)
 	return driveState, Drivetrain.split(force, settings)
@@ -135,7 +140,16 @@ function VehicleSimulator.newState(config: VehicleSettings?): VehicleState
 	for index = 1, #settings.WHEELS do
 		wheels[index] = SurfaceGrip.newWheelState(settings)
 	end
-	return { wheels = wheels, gear = 1, shiftRemainingSeconds = 0, engineRpm = settings.IDLE_RPM, rearGripFactor = 1 }
+	return {
+		wheels = wheels,
+		gear = 1,
+		shiftRemainingSeconds = 0,
+		engineRpm = settings.IDLE_RPM,
+		rearGripFactor = 1,
+		secondsInGear = settings.GEAR_HOLD_SECONDS,
+		previousForwardSpeed = nil,
+		filteredAcceleration = 0,
+	}
 end
 
 function VehicleSimulator.step(
@@ -160,13 +174,9 @@ function VehicleSimulator.step(
 	local wheels, loads = updateWheels(state, contacts, context, stepSeconds)
 	local driveState, driveShares = advanceDrivetrain(state, context, stepSeconds)
 	local outputs, feedbacks = WheelForces.simulateWheels(context, wheels, loads, contacts, driveState, driveShares)
-	local nextState: VehicleState = {
-		wheels = wheels,
-		gear = driveState.gear,
-		shiftRemainingSeconds = driveState.shiftRemainingSeconds,
-		engineRpm = driveState.engineRpm,
-		rearGripFactor = rearGripFactor,
-	}
+	local nextState: VehicleState = table.clone(driveState)
+	nextState.wheels = wheels
+	nextState.rearGripFactor = rearGripFactor
 	return nextState, outputs, StepOutputs.buildFeedback(nextState, context, feedbacks)
 end
 

@@ -19,6 +19,9 @@ local function stateIn(gear: number, shiftRemaining: number?): VehicleState
 		shiftRemainingSeconds = shiftRemaining or 0,
 		engineRpm = VehicleConfig.IDLE_RPM,
 		rearGripFactor = 1,
+		secondsInGear = VehicleConfig.GEAR_HOLD_SECONDS,
+		previousForwardSpeed = nil,
+		filteredAcceleration = 0,
 	}
 end
 
@@ -401,14 +404,73 @@ Runner.test("the kickdown starts only from the configured throttle", function()
 	Runner.expectEqual(at, 4)
 end)
 
-Runner.test("it never kicks down to a gear that would be close to the limiter", function()
-	local speed = speedForRpm(
-		VehicleConfig.REDLINE_RPM - VehicleConfig.SOFT_LIMITER_RPM - VehicleConfig.KICKDOWN_RPM_MARGIN + 100,
-		3
-	)
+Runner.test("it never kicks down to a gear above the kickdown rpm limit", function()
+	local speed = speedForRpm(VehicleConfig.KICKDOWN_MAX_RPM + 100, 3)
 	local gear =
 		Drivetrain.nextGear(stateIn(4), Drivetrain.engineRpm(speed, 4), speed, controlsWith(1, 0), FRAME_SECONDS)
 	Runner.expectEqual(gear, 4)
+	local belowLimit = speedForRpm(VehicleConfig.KICKDOWN_MAX_RPM - 100, 3)
+	local allowed = Drivetrain.nextGear(
+		stateIn(4),
+		Drivetrain.engineRpm(belowLimit, 4),
+		belowLimit,
+		controlsWith(1, 0),
+		FRAME_SECONDS
+	)
+	Runner.expectEqual(allowed, 3)
+end)
+
+local function stateWithMemory(gear: number, secondsInGear: number, acceleration: number, previousSpeed: number?)
+	local state = stateIn(gear)
+	state.secondsInGear = secondsInGear
+	state.filteredAcceleration = acceleration
+	state.previousForwardSpeed = previousSpeed
+	return state
+end
+
+Runner.test("no kickdown before the minimum time in the gear", function()
+	local rpm = Drivetrain.engineRpm(KICKDOWN_SPEED, 5)
+	local hold = VehicleConfig.GEAR_HOLD_SECONDS
+	local early =
+		Drivetrain.nextGear(stateWithMemory(5, hold - 0.1, 0, nil), rpm, KICKDOWN_SPEED, controlsWith(1, 0), 0.05)
+	Runner.expectEqual(early, 5)
+	local ready =
+		Drivetrain.nextGear(stateWithMemory(5, hold - 0.04, 0, nil), rpm, KICKDOWN_SPEED, controlsWith(1, 0), 0.05)
+	Runner.expectEqual(ready, 4)
+end)
+
+Runner.test("no kickdown while the car is gaining speed", function()
+	local rpm = Drivetrain.engineRpm(KICKDOWN_SPEED, 5)
+	local gaining = stateWithMemory(5, 5, 3, KICKDOWN_SPEED - 0.1)
+	Runner.expectEqual((Drivetrain.nextGear(gaining, rpm, KICKDOWN_SPEED, controlsWith(1, 0), FRAME_SECONDS)), 5)
+	local losing = stateWithMemory(5, 5, -3, KICKDOWN_SPEED + 0.1)
+	Runner.expectEqual((Drivetrain.nextGear(losing, rpm, KICKDOWN_SPEED, controlsWith(1, 0), FRAME_SECONDS)), 4)
+end)
+
+Runner.test("the acceleration is filtered toward the measured one", function()
+	local state = stateWithMemory(5, 5, 0, 50)
+	local filtered = Drivetrain.filteredAcceleration(state, 51, FRAME_SECONDS)
+	local alpha = 1 - math.exp(-VehicleConfig.KICKDOWN_ACCEL_FILTER_RATE * FRAME_SECONDS)
+	Runner.expectNear(filtered, (1 / FRAME_SECONDS) * alpha, 1e-9)
+	Runner.expectEqual(Drivetrain.filteredAcceleration(stateWithMemory(5, 5, 7, nil), 51, FRAME_SECONDS), 7)
+end)
+
+Runner.test("the gearbox memory restarts the time in gear on a shift and keeps the speed", function()
+	local state = stateWithMemory(3, 2, 0, 40)
+	local sameGear, previous = Drivetrain.nextMemory(state, 3, 41, FRAME_SECONDS)
+	Runner.expectNear(sameGear, 2 + FRAME_SECONDS, 1e-12)
+	Runner.expectEqual(previous, 41)
+	Runner.expectEqual((Drivetrain.nextMemory(state, 2, 41, FRAME_SECONDS)), 0)
+	Runner.expectEqual((Drivetrain.nextMemory(state, 4, 41, FRAME_SECONDS)), 0)
+end)
+
+Runner.test("at full throttle the old downshift rpm no longer applies (the kickdown decides)", function()
+	local speed = 25
+	local rpm = Drivetrain.engineRpm(speed, 2)
+	Runner.expectEqual(rpm <= VehicleConfig.DOWNSHIFT_RPM, true)
+	local gaining = stateWithMemory(2, 5, 5, speed - 0.2)
+	Runner.expectEqual((Drivetrain.nextGear(gaining, rpm, speed, controlsWith(1, 0), FRAME_SECONDS)), 2)
+	Runner.expectEqual((Drivetrain.nextGear(gaining, rpm, speed, controlsWith(0.5, 0), FRAME_SECONDS)), 1)
 end)
 
 Runner.test("the kickdown needs the gear below to push more by the margin", function()
