@@ -43,7 +43,7 @@ Que con el acelerador a fondo la caja elija la marcha que más empuja (dentro de
 3. **`VehicleConfig`:**
    - `KICKDOWN_THROTTLE` = 0,9;
    - `KICKDOWN_FORCE_MARGIN` = 0,1, la histéresis: hace falta un 10% más de empuje para bajar;
-   - `KICKDOWN_RPM_MARGIN` = 300.
+   - ~~`KICKDOWN_RPM_MARGIN` = 300~~ (ver "Cambios después de la primera ejecución").
 4. **`docs/nombres.md`:** kickdown (`KICKDOWN_*`) y empuje relativo de una marcha (`gearForce`).
 
 ## Pruebas (`tests/vehicle/`, con `ToyWorld` donde haga falta)
@@ -61,6 +61,26 @@ Que con el acelerador a fondo la caja elija la marcha que más empuja (dentro de
 - **Propiedad 19 (sin "caza" de marchas):** en una pendiente constante de 10° y 15° con el acelerador a fondo, una vez estable no hay dos cambios seguidos en sentidos opuestos en menos de 1 s, a 30 y a 60 FPS.
 - **Propiedad 7 (caja en plano):** sigue pasando: pasa por todas las marchas en orden y la velocidad máxima es 150 ± 15.
 - **Todas las demás propiedades** y `RestAfterDriving`, `SlopeHold` y `LongitudinalLimit` siguen pasando.
+
+## Cambios después de la primera ejecución (regla corregida)
+
+La regla original (bajar si la de abajo empuja un 10% más y queda 300 RPM antes del corte) **caza** marchas. Medido en `ToyWorld`, pedal a fondo, 30 FPS, 20 s, pendiente constante:
+
+| Caso | Regla original | Kickdown apagado |
+| --- | --- | --- |
+| 15°, 5ta a 80 studs/s | 40 cambios, velocidad final 15,2 (oscila entre 12 y 40) | 36 cambios, final 36,8 |
+| 10°, 5ta a 80 studs/s | 20 cambios, final 84,1 | 1 cambio, final 103,4 |
+| 20°, 4ta a 60 studs/s | 13 cambios, final 27,9 | 11 cambios, final 9,7 |
+
+**Causa:** en 1ra a fondo el auto llega al corte suave (~40 studs/s) y sube a 2da. El corte de torque de 0,25 s (`SHIFT_TORQUE_FRACTION` = 0, parte de CP-4) le saca ~12 studs/s en 15° y la 1ra empuja bastante más que la 2da a esa velocidad, así que el kickdown vuelve a 1ra (cambios opuestos a 0,27 s). Subir `KICKDOWN_FORCE_MARGIN` a 0,5 o 1,0 no ayuda (15°: 24,1 studs/s con 38 cambios).
+
+**Regla nueva** (decidida por el orquestador; reemplaza a la de arriba):
+1. **Tiempo mínimo en marcha:** `GEAR_HOLD_SECONDS` = 1,0. Después de cualquier cambio el kickdown no actúa durante ese tiempo. Las subidas por RPM siguen como estaban.
+2. **Solo si no gana velocidad:** aceleración hacia adelante filtrada (`1 − exp(−KICKDOWN_ACCEL_FILTER_RATE · dt)`, tasa 4) ≤ `KICKDOWN_MIN_ACCELERATION` (0). La caja guarda en `VehicleState` el tiempo en marcha, la velocidad anterior y la aceleración filtrada; con un `dt` inválido el estado no cambia.
+3. **A qué marcha baja:** a la más alta de las de abajo que empuje `KICKDOWN_FORCE_MARGIN` (0,1) más que la actual y cuyas RPM queden ≤ `KICKDOWN_MAX_RPM` (4800). `KICKDOWN_RPM_MARGIN` ya no existe.
+4. **La subida a fondo** queda como en la regla original: no sube mientras la de arriba empuje menos, salvo en el corte suave.
+5. **`SHIFT_TORQUE_FRACTION` sigue en 0.**
+6. **A fondo, la bajada por `DOWNSHIFT_RPM` ya no actúa** (la decide el kickdown). Se agregó al ver que, aun con la regla nueva, después de subir de 1ra a 2da en 15° la regla vieja bajaba de nuevo apenas terminaba el cambio (3000 RPM) y repetía el ciclo cada ~1 s.
 
 ## Fuera de alcance
 - Mapas de cambio que dependan del acelerador para subir antes con el pedal suave.
