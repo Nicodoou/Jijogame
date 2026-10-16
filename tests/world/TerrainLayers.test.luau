@@ -26,7 +26,7 @@ local ROAD_SLOPES_DEGREES = { 5, 10, 20 }
 local HILL_SLOPES_DEGREES = { 20, 45, 62 }
 -- Una columna con el borde de la capa a menos de esto del límite no se juzga: es el redondeo de los floats.
 local BORDER_MARGIN = 1e-6
-local ROAD = "Limestone"
+local ROAD = "Mud"
 local BIOME_SURFACE = "Rock"
 local BIOME_DEEP = "Basalt"
 local FAR = math.huge

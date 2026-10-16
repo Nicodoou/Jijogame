@@ -69,8 +69,9 @@ local PREPARE_STEPS = 1
 local TOTAL_STEPS = PREPARE_STEPS + 2 * CHUNK_VOXELS
 -- Claves de material propias: el adaptador las traduce a Enum.Material.
 local AIR_MATERIAL = "Air"
--- El camino es ripio claro (WP-11); la banquina lleva el material del bioma, como el resto del suelo.
-local ROAD_MATERIAL = "Limestone"
+-- El camino es de tierra oscura: material Mud pintado de marrón por el adaptador (WP-11). La banquina lleva el material
+-- del bioma, como el resto del suelo.
+local ROAD_MATERIAL = "Mud"
 local ROAD_HALF_WIDTH_STUDS = WorldConfig.ROAD_WIDTH_STUDS / 2
 local MUD_SURFACE = "Mud"
 

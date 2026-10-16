@@ -15,7 +15,6 @@ local HALF = 0.5
 local MATERIAL_BY_KEY: { [string]: Enum.Material } = {
 	Air = Enum.Material.Air,
 	Ground = Enum.Material.Ground,
-	Limestone = Enum.Material.Limestone,
 	Grass = Enum.Material.Grass,
 	LeafyGrass = Enum.Material.LeafyGrass,
 	Mud = Enum.Material.Mud,
@@ -67,9 +66,9 @@ local function newMaterialTranslator(
 end
 
 function TerrainWriter.new(terrain: Terrain): WorldPlanner.ChunkSink
-	-- El ripio es Limestone, blanco de fábrica: se pinta de gris medio (el color es global del Terrain).
+	-- El camino es Mud: se pinta de marrón oscuro (el color es global del Terrain). Hoy el Mud solo se usa en el camino.
 	local roadColor = WorldConfig.ROAD_COLOR_RGB
-	terrain:SetMaterialColor(Enum.Material.Limestone, Color3.fromRGB(roadColor[1], roadColor[2], roadColor[3]))
+	terrain:SetMaterialColor(Enum.Material.Mud, Color3.fromRGB(roadColor[1], roadColor[2], roadColor[3]))
 	local translateMaterials = newMaterialTranslator(WorldConfig.CHUNK_SIZE_STUDS // VOXEL_STUDS)
 
 	local function writeChunk(voxels: VoxelChunkBuilder.ChunkVoxels)

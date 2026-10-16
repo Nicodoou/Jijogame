@@ -2,6 +2,7 @@
 local BiomeBlend = require("../../src/world/core/BiomeBlend")
 local BiomeCatalog = require("../../src/world/core/BiomeCatalog")
 local BiomeMap = require("../../src/world/core/BiomeMap")
+local BiomeTestCatalog = require("./BiomeTestCatalog")
 local PathHelpers = require("./PathHelpers")
 local RoadPath = require("../../src/world/core/RoadPath")
 local RoadQuery = require("../../src/world/core/RoadQuery")
@@ -22,13 +23,15 @@ local MUD_START = SHOULDER_EDGE + WorldConfig.MUD_MIN_DISTANCE_FROM_SHOULDER_STU
 local SCAN_COUNT = 400
 local FAR_LATERAL_STUDS = 60
 
-local function createWorld(classifierSeed: number)
+-- Sin catálogo es el del juego (bosque solo de pasto); los manchones de barro se prueban con el bosque con barro de las pruebas.
+local function createWorld(classifierSeed: number, catalog: { BiomeTestCatalog.BiomeDefinition }?)
+	local biomes = catalog or BiomeCatalog.all
 	local path = RoadPath.new(PATH_SEED)
 	PathHelpers.generateSegments(path, GENERATED_SEGMENTS)
 	path.releaseSegmentsBefore(FIRST_LOADED_SEGMENT)
 	local query = RoadQuery.new(path)
-	local picker = BiomeBlend.newPicker(classifierSeed, BiomeCatalog.all)
-	local biomeMap = BiomeMap.new(classifierSeed, BiomeCatalog.all)
+	local picker = BiomeBlend.newPicker(classifierSeed, biomes)
+	local biomeMap = BiomeMap.new(classifierSeed, biomes)
 	local function createClassifier()
 		return SurfaceClassifier.createGetSurfaceAt(query, picker, biomeMap)
 	end
@@ -68,13 +71,12 @@ Runner.test("the shoulder starts right after the road and ends right before the 
 	for _, side in { -1, 1 } do
 		Runner.expectEqual(classifyAt(getSurfaceAt, side * (ROAD_HALF_WIDTH + EDGE_GAP_STUDS), 60, path), "Shoulder")
 		Runner.expectEqual(classifyAt(getSurfaceAt, side * (SHOULDER_EDGE - EDGE_GAP_STUDS), 60, path), "Shoulder")
-		local beyond = classifyAt(getSurfaceAt, side * (SHOULDER_EDGE + EDGE_GAP_STUDS), 60, path)
-		Runner.expectEqual(beyond == "Grass" or beyond == "Mud", true)
+		Runner.expectEqual(classifyAt(getSurfaceAt, side * (SHOULDER_EDGE + EDGE_GAP_STUDS), 60, path), "Grass")
 	end
 end)
 
-Runner.test("there is never mud on the road, the shoulder or within the minimum distance", function()
-	local path, getSurfaceAt = createWorld(1)
+Runner.test("with mud patches there is never mud on the road, the shoulder or within the minimum distance", function()
+	local path, getSurfaceAt = createWorld(1, BiomeTestCatalog.muddyForestOnly)
 	for sampleIndex = 1, 120 do
 		for step = 0, 20 do
 			local lateral = MUD_START * step / 20 - EDGE_GAP_STUDS
@@ -84,16 +86,43 @@ Runner.test("there is never mud on the road, the shoulder or within the minimum 
 	end
 end)
 
-Runner.test("between the shoulder and the mud distance the surface is grass", function()
-	local path, getSurfaceAt = createWorld(1)
+Runner.test("with mud patches, between the shoulder and the mud distance the surface is grass", function()
+	local path, getSurfaceAt = createWorld(1, BiomeTestCatalog.muddyForestOnly)
 	local lateral = (SHOULDER_EDGE + MUD_START) / 2
 	for sampleIndex = 1, 120 do
 		Runner.expectEqual(classifyAt(getSurfaceAt, lateral, sampleIndex, path), "Grass")
 	end
 end)
 
-Runner.test("mud shows up beyond the minimum distance, in patches that leave grass around", function()
-	local path, getSurfaceAt = createWorld(1)
+Runner.test("in the forest of the game everything outside the road and the shoulder is grass, near and far", function()
+	for _, seed in { 1, 5, -3 } do
+		local path, getSurfaceAt = createWorld(seed)
+		for sampleIndex = 1, 120 do
+			for _, side in { -1, 1 } do
+				for _, lateral in
+					{
+						SHOULDER_EDGE + 1,
+						MUD_START + EDGE_GAP_STUDS,
+						FAR_LATERAL_STUDS,
+					}
+				do
+					Runner.expectEqual(classifyAt(getSurfaceAt, side * lateral, sampleIndex, path), "Grass")
+				end
+				Runner.expectEqual(
+					classifyAt(getSurfaceAt, side * (ROAD_HALF_WIDTH - EDGE_GAP_STUDS), sampleIndex, path),
+					"Road"
+				)
+				Runner.expectEqual(
+					classifyAt(getSurfaceAt, side * (SHOULDER_EDGE - EDGE_GAP_STUDS), sampleIndex, path),
+					"Shoulder"
+				)
+			end
+		end
+	end
+end)
+
+Runner.test("with mud patches, mud shows up beyond the minimum distance, in patches that leave grass around", function()
+	local path, getSurfaceAt = createWorld(1, BiomeTestCatalog.muddyForestOnly)
 	local counts = { Mud = 0, Grass = 0 }
 	for sampleIndex = 1, 120 do
 		for _, lateral in { FAR_LATERAL_STUDS, -FAR_LATERAL_STUDS, 3 * FAR_LATERAL_STUDS } do
@@ -105,10 +134,10 @@ Runner.test("mud shows up beyond the minimum distance, in patches that leave gra
 	Runner.expectEqual(counts.Grass > 0, true)
 end)
 
-Runner.test("the same seed gives the same mud and another seed gives another pattern", function()
-	local path, firstSurface = createWorld(5)
-	local _, secondSurface = createWorld(5)
-	local _, otherSurface = createWorld(6)
+Runner.test("with mud patches, the same seed gives the same mud and another seed gives another pattern", function()
+	local path, firstSurface = createWorld(5, BiomeTestCatalog.muddyForestOnly)
+	local _, secondSurface = createWorld(5, BiomeTestCatalog.muddyForestOnly)
+	local _, otherSurface = createWorld(6, BiomeTestCatalog.muddyForestOnly)
 	local differences = 0
 	for segmentIndex = FIRST_LOADED_SEGMENT + 1, GENERATED_SEGMENTS - 2 do
 		for sampleIndex = 1, SCAN_COUNT / 4 do

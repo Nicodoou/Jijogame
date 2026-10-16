@@ -3,6 +3,7 @@ local BiomeBlend = require("../../src/world/core/BiomeBlend")
 local BiomeCatalog = require("../../src/world/core/BiomeCatalog")
 local BiomeMap = require("../../src/world/core/BiomeMap")
 local BiomeTypes = require("../../src/world/core/BiomeTypes")
+local BiomeTestCatalog = require("./BiomeTestCatalog")
 local RoadBlocks = require("../../src/world/core/RoadBlocks")
 local RoadPath = require("../../src/world/core/RoadPath")
 local Runner = require("../Runner")
@@ -22,6 +23,7 @@ local NEAR_COLUMNS = 3
 -- Los centros de las columnas quedan a 2, 6 y 10 studs del eje: las dos primeras son camino (hasta 8) y la tercera banquina.
 local ROAD_COLUMNS = 2
 local ROAD_HALF_WIDTH = WorldConfig.ROAD_WIDTH_STUDS / 2
+local ROAD_WIDTH_COLUMNS = WorldConfig.ROAD_WIDTH_STUDS // VOXEL
 -- Con la superficie en 50,5 el relleno llega a 12,125 vóxeles: la capa de superficie (8 studs) arranca en el vóxel 10.
 local TOP_FLOOR_VOXEL = 10
 local TOLERANCE = 1e-9
@@ -173,7 +175,7 @@ Runner.test(
 		for row = 1, CHUNK_VOXELS do
 			for column = 1, NEAR_COLUMNS do
 				local topLayer = findTopLayer(result, row, column)
-				local topMaterial = if column <= ROAD_COLUMNS then "Limestone" else "Rock"
+				local topMaterial = if column <= ROAD_COLUMNS then "Mud" else "Rock"
 				for layer = firstTopLayer, topLayer do
 					Runner.expectEqual(result.materials[row][layer][column], topMaterial)
 				end
@@ -201,40 +203,53 @@ Runner.test("outside the road the top is the surface material of the biome, neve
 	Runner.expectEqual(checked > 500, true)
 end)
 
-Runner.test(
-	"with forest the road is Limestone and the rest grass or leafy grass (shoulder included), with mud only far from the shoulder",
-	function()
-		local world = createWorld(50.5)
-		local counts: { [string]: number } = {}
-		for _, chunkZ in { 0, 1, -1 } do
-			local result = buildChunk(world.builder, ROAD_CHUNK_X, chunkZ, nil)
-			for row = 1, CHUNK_VOXELS do
-				for column = 1, CHUNK_VOXELS do
-					local top = result.materials[row][findTopLayer(result, row, column)][column]
-					counts[top] = (counts[top] or 0) + 1
-					local x, z = getColumnCenter(ROAD_CHUNK_X, chunkZ, row, column)
-					local _, beyondShoulder, axisDistance = world.field.sampleColumn(x, z, { forest = 1 })
-					if beyondShoulder == 0 then
-						if axisDistance <= ROAD_HALF_WIDTH then
-							Runner.expectEqual(top, "Limestone")
-						else
-							Runner.expectEqual(top == "Grass" or top == "LeafyGrass", true)
-						end
-					elseif top == "Mud" then
-						Runner.expectEqual(beyondShoulder > WorldConfig.MUD_MIN_DISTANCE_FROM_SHOULDER_STUDS, true)
+-- Cuenta los materiales de la superficie en tres chunks de la ruta y revisa, columna por columna, la regla de cada uno.
+local function countForestSurface(catalog: { BiomeTypes.BiomeDefinition }, allowsMud: boolean): { [string]: number }
+	local world = createWorld(50.5, catalog)
+	local counts: { [string]: number } = {}
+	for _, chunkZ in { 0, 1, -1 } do
+		local result = buildChunk(world.builder, ROAD_CHUNK_X, chunkZ, nil)
+		for row = 1, CHUNK_VOXELS do
+			for column = 1, CHUNK_VOXELS do
+				local top = result.materials[row][findTopLayer(result, row, column)][column]
+				counts[top] = (counts[top] or 0) + 1
+				local x, z = getColumnCenter(ROAD_CHUNK_X, chunkZ, row, column)
+				local _, beyondShoulder, axisDistance = world.field.sampleColumn(x, z, { forest = 1 })
+				if beyondShoulder == 0 then
+					if axisDistance <= ROAD_HALF_WIDTH then
+						Runner.expectEqual(top, "Mud")
 					else
 						Runner.expectEqual(top == "Grass" or top == "LeafyGrass", true)
 					end
+				elseif top == "Mud" then
+					Runner.expectEqual(allowsMud, true)
+					Runner.expectEqual(beyondShoulder > WorldConfig.MUD_MIN_DISTANCE_FROM_SHOULDER_STUDS, true)
+				else
+					Runner.expectEqual(top == "Grass" or top == "LeafyGrass", true)
 				end
 			end
 		end
-		Runner.expectEqual((counts.Mud or 0) > 20, true)
-		Runner.expectEqual((counts.Grass or 0) > 500, true)
-		Runner.expectEqual((counts.LeafyGrass or 0) > 100, true)
-		Runner.expectEqual((counts.Limestone or 0) > 100, true)
-		Runner.expectEqual(counts.Ground, nil)
 	end
-)
+	return counts
+end
+
+Runner.test("with the forest of the game the road is Mud and the rest, shoulder included, is only grass", function()
+	local counts = countForestSurface(BiomeCatalog.all, false)
+	Runner.expectEqual((counts.Grass or 0) > 500, true)
+	Runner.expectEqual((counts.LeafyGrass or 0) > 100, true)
+	-- Todo el Mud es el camino: el ancho de la ruta en columnas, por cada fila de x del chunk que la cruza.
+	Runner.expectEqual(counts.Mud, ROAD_WIDTH_COLUMNS * CHUNK_VOXELS)
+	Runner.expectEqual(counts.Ground, nil)
+	Runner.expectEqual(counts.Limestone, nil)
+end)
+
+Runner.test("with a forest with mud patches there is mud also far from the shoulder, besides the road", function()
+	local counts = countForestSurface(BiomeTestCatalog.muddyForestOnly, true)
+	Runner.expectEqual((counts.Mud or 0) > ROAD_WIDTH_COLUMNS * CHUNK_VOXELS + 20, true)
+	Runner.expectEqual((counts.Grass or 0) > 500, true)
+	Runner.expectEqual((counts.LeafyGrass or 0) > 100, true)
+	Runner.expectEqual(counts.Ground, nil)
+end)
 
 Runner.test(
 	"every column is solid up to one voxel and empty above, and its surface is the height of the field",
