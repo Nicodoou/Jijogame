@@ -194,6 +194,21 @@ Quién aprobó, fecha y link al comentario.
 
 Si la arquitectura aprobada resulta no servir durante la implementación, **se frena**, se documenta por qué y se vuelve al paso 4. No se cambia la arquitectura sobre la marcha.
 
+### Presentar un WP o un PR a la persona
+
+Pedido de Nico (2026-10-16): los WPs y los PRs se presentaban de forma muy vaga, con dos o tres preguntas semiabiertas, y así la persona no tiene control. **Todo WP y todo PR de código que se pida aprobar se presenta en el chat con esta estructura, en este orden.** El WP o el PR tiene el detalle completo; la presentación es lo que la persona tiene que leer para decidir.
+
+1. **Qué hace, en concreto:** qué va a poder hacer o ver la persona cuando esté, y qué no.
+2. **Módulos y responsabilidades:** cada módulo nuevo o cambiado, en una línea, con la capa a la que pertenece (núcleo, adaptador, arranque o contrato).
+3. **Patrones y por qué:** cada patrón usado (por ejemplo, núcleo puro con `step`, configuración como datos, composición, estrategia u observador), con el problema que resuelve en este WP. Si no se usa ninguno nuevo, se dice.
+4. **Alternativas descartadas:** qué otra forma había y por qué no.
+5. **Riesgos y supuestos:** lo que puede salir mal y lo que todavía no está medido.
+6. **Opinión del orquestador sobre el código** (solo en PRs de código): lo que está bien, lo que está flojo, la deuda que queda y si se pasa de algún límite (líneas, funciones, cobertura). Basada en haber leído el código, no solo el informe del subagente.
+7. **Qué prueban las pruebas y qué no:** los números que importan y lo que queda para la prueba manual.
+8. **Decisiones que tiene que tomar la persona:** cerradas, cada una con las opciones, lo que implica cada una y la recomendación. Nada de "¿te parece bien?" sin opciones.
+
+Si algo de esto no aplica, se dice "no aplica" en vez de omitirlo.
+
 ### Experimentos
 
 A veces investigar requiere probar código (por ejemplo, ver cómo se comporta la física de Roblox). Para eso existen las ramas `exp/<tema>`:
