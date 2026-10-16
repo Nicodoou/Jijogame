@@ -28,6 +28,7 @@ export type ToyWorldOptions = {
 	-- Apoya el auto alineado con el plano (su "arriba" es la normal) en vez de derecho.
 	isAlignedToSlope: boolean?,
 	-- Centro de masa respecto del origen del marco de las ruedas, en coordenadas locales (z positivo es atrás).
+	-- Por defecto, el que arma el adaptador con la configuración (ver `configuredCenterOfMass`).
 	centerOfMassOffset: vector?,
 	yawInertiaFraction: number?,
 }
@@ -52,6 +53,20 @@ export type ToyWorld = {
 }
 
 local ToyWorld = {}
+
+-- Centro de masa que arma el adaptador con el lastre (WP-7) a partir de `FRONT_WEIGHT_FRACTION` y
+-- `CENTER_OF_MASS_HEIGHT_STUDS`, respecto del origen del marco de las ruedas (z positivo atrás). Es el de por defecto:
+-- las pruebas que necesiten el centro de masa centrado pasan `centerOfMassOffset = vector.create(0, 0, 0)`.
+function ToyWorld.configuredCenterOfMass(settings: VehicleSettings): vector
+	local frontZ = settings.WHEELS[1].offset.z
+	local rearZ = settings.WHEELS[#settings.WHEELS].offset.z
+	local mountPlaneY = settings.WHEELS[1].offset.y
+	return vector.create(
+		0,
+		mountPlaneY + settings.CENTER_OF_MASS_HEIGHT_STUDS,
+		rearZ - settings.FRONT_WEIGHT_FRACTION * (rearZ - frontZ)
+	)
+end
 
 local PHYSICS_HZ = 240
 local DEFAULT_FRAME_SECONDS = 1 / 30
@@ -248,7 +263,7 @@ function ToyWorld.new(options: ToyWorldOptions?): Runner
 		mass = resolved.mass or DEFAULT_MASS,
 		gravity = gravity,
 		settings = settings,
-		centerOfMassOffset = resolved.centerOfMassOffset or vector.create(0, 0, 0),
+		centerOfMassOffset = resolved.centerOfMassOffset or ToyWorld.configuredCenterOfMass(settings),
 		yawInertiaFraction = resolved.yawInertiaFraction or 1,
 	}
 	world.position = base + mountWorldOffset(world, world.centerOfMassOffset)

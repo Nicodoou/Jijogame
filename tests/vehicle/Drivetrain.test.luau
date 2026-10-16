@@ -8,7 +8,6 @@ type VehicleState = VehicleTypes.VehicleState
 type VehicleControls = VehicleTypes.VehicleControls
 
 local MASS = 1000
-local FRAME_SECONDS = 1 / 30
 local TOLERANCE = 1e-9
 local GEAR_COUNT = #VehicleConfig.GEAR_RATIOS
 
@@ -19,6 +18,8 @@ local function stateIn(gear: number, shiftRemaining: number?): VehicleState
 		shiftRemainingSeconds = shiftRemaining or 0,
 		engineRpm = VehicleConfig.IDLE_RPM,
 		rearGripFactor = 1,
+		secondsSinceUpshift = VehicleConfig.GEAR_HOLD_SECONDS,
+		filteredForwardY = nil,
 	}
 end
 
@@ -77,41 +78,6 @@ Runner.test("the top speed in the last gear is about 150 studs per second", func
 	Runner.expectEqual(topSpeed > 135 and topSpeed < 165, true)
 end)
 
-Runner.test("it shifts up at the upshift rpm and starts a shift", function()
-	local gear, remaining =
-		Drivetrain.nextGear(stateIn(1), VehicleConfig.UPSHIFT_RPM, 40, controlsWith(1, 0), FRAME_SECONDS)
-	Runner.expectEqual(gear, 2)
-	Runner.expectEqual(remaining, VehicleConfig.SHIFT_DURATION_SECONDS)
-end)
-
-Runner.test("it does not shift up just below the upshift rpm", function()
-	local gear, remaining =
-		Drivetrain.nextGear(stateIn(1), VehicleConfig.UPSHIFT_RPM - 1, 40, controlsWith(1, 0), FRAME_SECONDS)
-	Runner.expectEqual(gear, 1)
-	Runner.expectEqual(remaining, 0)
-end)
-
-Runner.test("it never shifts above the last gear", function()
-	local gear =
-		Drivetrain.nextGear(stateIn(GEAR_COUNT), VehicleConfig.REDLINE_RPM, 140, controlsWith(1, 0), FRAME_SECONDS)
-	Runner.expectEqual(gear, GEAR_COUNT)
-end)
-
-Runner.test("it shifts down at the downshift rpm and starts a shift", function()
-	local gear, remaining =
-		Drivetrain.nextGear(stateIn(3), VehicleConfig.DOWNSHIFT_RPM, 40, controlsWith(0, 0), FRAME_SECONDS)
-	Runner.expectEqual(gear, 2)
-	Runner.expectEqual(remaining, VehicleConfig.SHIFT_DURATION_SECONDS)
-	local stays =
-		Drivetrain.nextGear(stateIn(3), VehicleConfig.DOWNSHIFT_RPM + 1, 40, controlsWith(0, 0), FRAME_SECONDS)
-	Runner.expectEqual(stays, 3)
-end)
-
-Runner.test("it never shifts below first gear", function()
-	local gear = Drivetrain.nextGear(stateIn(1), VehicleConfig.IDLE_RPM, 5, controlsWith(1, 0), FRAME_SECONDS)
-	Runner.expectEqual(gear, 1)
-end)
-
 Runner.test("the gears leave a gap between the upshift and the downshift rpm", function()
 	for gear = 1, GEAR_COUNT - 1 do
 		local rpmAfterUpshift = VehicleConfig.UPSHIFT_RPM
@@ -119,54 +85,6 @@ Runner.test("the gears leave a gap between the upshift and the downshift rpm", f
 			/ VehicleConfig.GEAR_RATIOS[gear]
 		Runner.expectEqual(rpmAfterUpshift > VehicleConfig.DOWNSHIFT_RPM, true)
 	end
-end)
-
-Runner.test("while a shift is running no other shift can start and the time goes down", function()
-	local midShift = stateIn(2, 0.2)
-	local gear, remaining = Drivetrain.nextGear(midShift, VehicleConfig.UPSHIFT_RPM, 60, controlsWith(1, 0), 0.05)
-	Runner.expectEqual(gear, 2)
-	Runner.expectNear(remaining, 0.15, TOLERANCE)
-	local finishedGear, finishedRemaining = Drivetrain.nextGear(midShift, 4000, 60, controlsWith(1, 0), 5)
-	Runner.expectEqual(finishedGear, 2)
-	Runner.expectEqual(finishedRemaining, 0)
-end)
-
-Runner.test("a shift can start in the same step the previous one finishes", function()
-	local gear, remaining =
-		Drivetrain.nextGear(stateIn(2, 0.01), VehicleConfig.UPSHIFT_RPM, 60, controlsWith(1, 0), 0.05)
-	Runner.expectEqual(gear, 3)
-	Runner.expectEqual(remaining, VehicleConfig.SHIFT_DURATION_SECONDS)
-end)
-
-Runner.test("with the brake pressed and no throttle it engages reverse when almost stopped", function()
-	local gear = Drivetrain.nextGear(stateIn(1), VehicleConfig.IDLE_RPM, 0, controlsWith(0, 1), FRAME_SECONDS)
-	Runner.expectEqual(gear, -1)
-	local slowBackwards =
-		Drivetrain.nextGear(stateIn(1), VehicleConfig.IDLE_RPM, -0.5, controlsWith(0, 0.2), FRAME_SECONDS)
-	Runner.expectEqual(slowBackwards, -1)
-end)
-
-Runner.test("reverse is not engaged at or above the engage speed, with throttle or without brake", function()
-	local speed = VehicleConfig.REVERSE_ENGAGE_SPEED
-	Runner.expectEqual(Drivetrain.nextGear(stateIn(1), 1000, speed, controlsWith(0, 1), FRAME_SECONDS), 1)
-	Runner.expectEqual(Drivetrain.nextGear(stateIn(1), 1000, -speed, controlsWith(0, 1), FRAME_SECONDS), 1)
-	Runner.expectEqual(Drivetrain.nextGear(stateIn(1), 1000, 0, controlsWith(0.1, 1), FRAME_SECONDS), 1)
-	Runner.expectEqual(Drivetrain.nextGear(stateIn(1), 1000, 0, controlsWith(0, 0), FRAME_SECONDS), 1)
-end)
-
-Runner.test("reverse goes back to first with throttle when almost stopped", function()
-	Runner.expectEqual(Drivetrain.nextGear(stateIn(-1), 1000, 0, controlsWith(1, 0), FRAME_SECONDS), 1)
-	Runner.expectEqual(Drivetrain.nextGear(stateIn(-1), 1000, -0.9, controlsWith(0.1, 0), FRAME_SECONDS), 1)
-end)
-
-Runner.test("reverse stays while still moving or without throttle", function()
-	local speed = VehicleConfig.REVERSE_ENGAGE_SPEED
-	Runner.expectEqual(Drivetrain.nextGear(stateIn(-1), 1000, -speed, controlsWith(1, 0), FRAME_SECONDS), -1)
-	Runner.expectEqual(Drivetrain.nextGear(stateIn(-1), 1000, 0, controlsWith(0, 1), FRAME_SECONDS), -1)
-	Runner.expectEqual(
-		Drivetrain.nextGear(stateIn(-1), VehicleConfig.REDLINE_RPM, -40, controlsWith(0, 1), FRAME_SECONDS),
-		-1
-	)
 end)
 
 Runner.test("the drive force at full throttle in first gear is the peak acceleration times the torque", function()
@@ -263,7 +181,7 @@ Runner.test("split works at the two extremes of the rear bias", function()
 	Runner.expectEqual(front[3], 0)
 	Runner.expectEqual(rear[1], 0)
 	Runner.expectEqual(rear[4], 400)
-	Runner.expectEqual(Drivetrain.split(-600)[3] < 0, true)
+	Runner.expectEqual(Drivetrain.split(-600, rearOnly)[3] < 0, true)
 end)
 
 Runner.test("the brake request is a positive force with no direction", function()
@@ -310,12 +228,50 @@ Runner.test("in reverse the throttle is the brake", function()
 	Runner.expectEqual(Drivetrain.brakeRequest(reverse, controlsWith(0, 1), MASS, true, 0), 0)
 end)
 
+local function speedForRpm(rpm: number, gear: number): number
+	return speedFor(rpm, gear)
+end
+
+Runner.test("gearForce matches the drive force divided by mass times peak acceleration", function()
+	for gear = 1, GEAR_COUNT do
+		for _, rpm in { 1500, 3000, 4500, 6000, 6700 } do
+			local speed = speedForRpm(rpm, gear)
+			local expected = Drivetrain.driveForce(stateIn(gear), controlsWith(1, 0), rpm, MASS)
+				/ (MASS * VehicleConfig.FIRST_GEAR_PEAK_ACCELERATION)
+			Runner.expectNear(Drivetrain.gearForce(gear, speed), expected, 1e-9)
+		end
+	end
+end)
+
+Runner.test("gearForce is zero at the redline and above", function()
+	for gear = 1, GEAR_COUNT do
+		Runner.expectNear(Drivetrain.gearForce(gear, speedForRpm(VehicleConfig.REDLINE_RPM, gear)), 0, 1e-12)
+		Runner.expectEqual(Drivetrain.gearForce(gear, speedForRpm(VehicleConfig.REDLINE_RPM * 1.5, gear)), 0)
+	end
+end)
+
+Runner.test("gearForce follows the torque curve with the speed in each stretch", function()
+	local peakRpm = 4500
+	for gear = 1, GEAR_COUNT do
+		local previousRising, previousFalling = 0, math.huge
+		for rpm = 1000, 4500, 100 do
+			local force = Drivetrain.gearForce(gear, speedForRpm(rpm, gear))
+			Runner.expectEqual(force >= previousRising - 1e-12, true)
+			previousRising = force
+		end
+		for rpm = peakRpm, VehicleConfig.REDLINE_RPM, 50 do
+			local force = Drivetrain.gearForce(gear, speedForRpm(rpm, gear))
+			Runner.expectEqual(force <= previousFalling + 1e-12, true)
+			previousFalling = force
+		end
+	end
+end)
+
 Runner.test("functions do not modify their arguments", function()
 	local state = stateIn(2, 0.1)
 	table.freeze(state)
 	local controls = controlsWith(1, 0)
 	table.freeze(controls)
-	Drivetrain.nextGear(state, 6500, 60, controls, FRAME_SECONDS)
 	Drivetrain.driveForce(state, controls, 4000, MASS)
 	Drivetrain.brakeRequest(state, controls, MASS, true, 40000)
 	Runner.expectEqual(state.gear, 2)

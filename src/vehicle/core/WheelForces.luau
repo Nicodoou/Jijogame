@@ -67,7 +67,7 @@ local function groundedWheel(
 	local brakeAndRolling =
 		WheelFriction.opposingLongitudinal(context, wheel, isFront, longitudinalSpeed, load, driveState, scale)
 	local grip = wheel.gripMultiplier * WheelFriction.axleGripMultiplier(context, isFront)
-	local limitedLateral = WheelFriction.opposingLateral(context, slipAngle, lateralSpeed, load, grip)
+	local limitedLateral = WheelFriction.opposingLateral(context, index, slipAngle, lateralSpeed, load, grip)
 	local longitudinal, lateral, slipRatio, isSliding = Tire.combine(
 		driveShare + brakeAndRolling,
 		limitedLateral,

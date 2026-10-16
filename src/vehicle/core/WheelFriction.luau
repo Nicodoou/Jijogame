@@ -100,13 +100,15 @@ end
 
 function WheelFriction.opposingLateral(
 	context: StepContext,
+	index: number,
 	slipAngle: number,
 	lateralSpeed: number,
 	load: number,
 	grip: number
 ): number
 	local settings = context.settings
-	local limit = VehicleMath.opposingForceLimit(context.mass, #settings.WHEELS, lateralSpeed, context.stepSeconds)
+	local limit =
+		VehicleMath.opposingForceLimit(context.mass, context.loadShares[index], lateralSpeed, context.stepSeconds)
 	return math.clamp(Tire.lateralForce(slipAngle, load, grip, settings), -limit, limit)
 end
 
