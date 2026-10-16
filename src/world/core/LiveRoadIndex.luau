@@ -23,9 +23,9 @@ export type LiveRoadIndex = {
 type Cell = { head: number, last: number, [number]: number }
 
 local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
--- Las dos reglas miran muestras hasta un radio; la celda es la mitad del mayor, así que alcanzan las celdas a dos de distancia.
+-- Las dos reglas miran muestras hasta un radio; la celda es la tercera parte del mayor, así que alcanzan las celdas a tres de distancia.
 -- Celdas más grandes hacen revisar muchas muestras que quedan fuera del radio: la consulta es la parte cara de la ruta.
-local CELLS_PER_RADIUS = 2
+local CELLS_PER_RADIUS = 3
 local CELL_STUDS = math.max(WorldConfig.LIVE_CLEARANCE_STUDS, WorldConfig.LIVE_HEIGHT_RULE_RADIUS_STUDS)
 	/ CELLS_PER_RADIUS
 local KEY_STRIDE = WorldConfig.ROAD_QUERY_GRID_KEY_STRIDE
