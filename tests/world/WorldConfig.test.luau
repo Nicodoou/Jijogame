@@ -61,6 +61,34 @@ Runner.test("the start height is inside the hill band and the maximum slope is a
 	Runner.expectEqual(WorldConfig.MAX_SLOPE_DEGREES > 0 and WorldConfig.MAX_SLOPE_DEGREES < 90, true)
 end)
 
+Runner.test("the flat start fits in the straight first segment of the guide, and starts at the base height", function()
+	Runner.expectEqual(WorldConfig.START_FLAT_STUDS > 0, true)
+	Runner.expectEqual(WorldConfig.START_FLAT_STUDS < WorldConfig.GUIDE_STEP_STUDS, true)
+	Runner.expectEqual(WorldConfig.START_HILL_FADE_STUDS > 0, true)
+	Runner.expectEqual(WorldConfig.START_POSITION.y, WorldConfig.HILL_BASE_HEIGHT_STUDS)
+end)
+
+Runner.test(
+	"the terrain border rises between the shoulder blend and the corridor, at a slope the terrain can have",
+	function()
+		local shoulderEdge = WorldConfig.ROAD_WIDTH_STUDS / 2 + WorldConfig.SHOULDER_WIDTH_STUDS
+		local width = WorldConfig.TERRAIN_BORDER_END_STUDS - WorldConfig.TERRAIN_BORDER_START_STUDS
+		Runner.expectEqual(
+			WorldConfig.TERRAIN_BORDER_START_STUDS > shoulderEdge + WorldConfig.TERRAIN_BLEND_WIDTH_STUDS,
+			true
+		)
+		Runner.expectEqual(width > 0, true)
+		Runner.expectEqual(WorldConfig.TERRAIN_BORDER_END_STUDS <= WorldConfig.TERRAIN_CORRIDOR_HALF_WIDTH_STUDS, true)
+		Runner.expectEqual(
+			WorldConfig.TERRAIN_BORDER_END_STUDS <= shoulderEdge + WorldConfig.TERRAIN_ROAD_REACH_STUDS,
+			true
+		)
+		-- La pendiente máxima de un smoothstep es 1,5 veces el alto sobre el ancho.
+		local steepestDegrees = math.deg(math.atan(1.5 * WorldConfig.TERRAIN_BORDER_HEIGHT_STUDS / width))
+		Runner.expectEqual(steepestDegrees >= 45 and steepestDegrees <= WorldConfig.TERRAIN_MAX_SLOPE_DEGREES, true)
+	end
+)
+
 Runner.test("the alternative guide turns are growing angles of at most a right angle", function()
 	local previous = 0
 	for _, degrees in WorldConfig.GUIDE_ALTERNATIVE_TURNS_DEGREES do

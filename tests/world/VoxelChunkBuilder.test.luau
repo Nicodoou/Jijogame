@@ -279,7 +279,7 @@ Runner.test(
 	end
 )
 
-Runner.test("a chunk far from the road is ambient height plus hills with no road material", function()
+Runner.test("a chunk far from the road is the border plateau plus hills with no road material", function()
 	local world = createWorld(50)
 	local result = buildChunk(world.builder, ROAD_CHUNK_X, FAR_CHUNK_Z, nil)
 	for row = 1, CHUNK_VOXELS, 4 do
@@ -287,7 +287,9 @@ Runner.test("a chunk far from the road is ambient height plus hills with no road
 			local top = result.materials[row][findTopLayer(result, row, column)][column]
 			Runner.expectEqual(top ~= "Ground", true)
 			local height = readSurfaceHeight(result, row, column)
-			Runner.expectEqual(math.abs(height - WorldConfig.HILL_BASE_HEIGHT_STUDS) <= 16, true)
+			-- Lejos de toda ruta el terreno está en la cima del borde (WP-12).
+			local plateau = WorldConfig.HILL_BASE_HEIGHT_STUDS + WorldConfig.TERRAIN_BORDER_HEIGHT_STUDS
+			Runner.expectEqual(math.abs(height - plateau) <= 16, true)
 		end
 	end
 end)

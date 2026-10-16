@@ -357,6 +357,16 @@ El enfoque que eligió Beni, una guía grande con curvas locales, se probó en u
 3. WP del terreno.
 4. WP del decorado.
 
+## Nota del WP-12 (#80): largada plana y recta
+
+El auto aparece a `SPAWN_ARC_LENGTH_STUDS` del inicio, donde la ruta ya bajaba unos 13°, y rodaba solo. Ahora los primeros `START_FLAT_STUDS` (160) son una recta con pendiente 0, a la altura de `START_POSITION`, y la amplitud de las lomas sube de 0 a la completa en `START_HILL_FADE_STUDS` (200). Son tres cambios chicos, uno por módulo:
+
+- **`HillProfile`** (altura): la altura a la que apunta la ruta es la base más un porcentaje (smoothstep sobre el arcLength actual) de la distancia hasta el objetivo. Hasta `START_FLAT_STUDS` el porcentaje es 0, así que la pendiente es 0 y la altura es exactamente la de salida. Después, el límite de cambio de pendiente por paso sigue valiendo y no hay escalones (RC-4).
+- **`RoadPieceChooser`** (recta): mientras el arcLength sea menor que `START_FLAT_STUDS`, la pieza elegida se reemplaza por una recta del largo que falta. Igual se sortea la pieza, así cada decisión consume la misma cantidad de azar.
+- **`RoadGuide`** (para que la recta entre siempre): el primer segmento de la guía es recto, en el rumbo de salida. Sin esto, la guía arrancaba a 50° o 100° del rumbo y la recta se acercaba al borde del túnel o no pasaba la salida de emergencia (en 200 semillas, 2 se encerraban en el primer tramo). Como `START_FLAT_STUDS` < `GUIDE_STEP_STUDS`, la recta cabe en ese segmento.
+
+El anti-cruce, la regla de altura y el determinismo no cambian. El hash de los primeros 20 tramos con la semilla 12345 pasó de 3610431248 a 2603694605.
+
 ## Aprobación
 Revisión #37: aprobó Beni el 2026-10-15 ([#37](https://github.com/Nicodoou/Jijogame/issues/37#issuecomment-6183216378)). Esa versión 1 no se implementó.
 Revisión #37, versión 2 (guía grande): aprobó Beni el 2026-10-15 ([#37](https://github.com/Nicodoou/Jijogame/issues/37#issuecomment-6191803451)).

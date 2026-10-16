@@ -1,6 +1,7 @@
 --!strict
 -- Elige la próxima pieza: ubica la ruta sobre la guía, apunta al objetivo que está adelante y sortea la clase de pieza, el
 -- lado y sus medidas. El orden en que consume el azar es parte del resultado de la semilla.
+-- Los primeros START_FLAT_STUDS de la ruta son una sola recta (WP-12), en lugar de la pieza sorteada.
 
 local RoadFrame = require("./RoadFrame")
 local RoadGuide = require("./RoadGuide")
@@ -20,6 +21,9 @@ export type Choice = {
 	guideSegment: number,
 	guideArcLength: number,
 }
+
+local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
+local START_FLAT_STUDS = WorldConfig.START_FLAT_STUDS
 
 local RoadPieceChooser = {}
 
@@ -43,8 +47,15 @@ function RoadPieceChooser.choose(
 	local definition = RoadPieceSelector.pickDefinition(random, steering)
 	local turnSign = RoadPieceSelector.pickTurnSign(random, steering, definition)
 	local drawn = RoadPieceBuilder.draw(random, definition)
+	local piece = if turnSign > 0 then drawn else RoadPieceBuilder.flip(drawn)
+	local flatStuds = START_FLAT_STUDS - state.sampleIndex * STEP_STUDS
+	if flatStuds > 0 then
+		-- Largada: la recta que falta hasta START_FLAT_STUDS en lugar de la pieza sorteada. Se sortea igual, así cada decisión
+		-- consume la misma cantidad de azar. La guía sale recta, así que la recta entra siempre.
+		piece = RoadPieceBuilder.createStraight(math.ceil(flatStuds / STEP_STUDS))
+	end
 	return {
-		piece = if turnSign > 0 then drawn else RoadPieceBuilder.flip(drawn),
+		piece = piece,
 		towardSign = RoadPieceSelector.getTowardSign(steering),
 		guideSegment = segment,
 		guideArcLength = arcLength,

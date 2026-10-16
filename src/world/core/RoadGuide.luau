@@ -3,6 +3,7 @@
 -- dando vueltas sin acercarse a sí mismos. La ruta local sigue esta guía. Se genera de a poco, siempre unos puntos
 -- por delante de lo que usa la ruta, y retrocede (descarta los últimos puntos) cuando se queda sin salida.
 -- No se descartan los puntos viejos: son uno cada 1.200 studs y no pesan.
+-- El primer segmento es recto, en el rumbo de salida (la largada plana y recta, WP-12); los demás giran.
 
 local RoadFrame = require("./RoadFrame")
 local SeededRandom = require("./SeededRandom")
@@ -103,6 +104,15 @@ function RoadGuideModule.new(random: SeededRandom.SeededRandom): RoadGuide
 	local function tryToGrow(): boolean
 		local count = #waypoints
 		local last, heading = waypoints[count], headings[count]
+		if count == 1 then
+			-- El primer segmento sigue el rumbo de salida: la recta de la largada va sobre la guía y no se desvía de ella.
+			table.insert(
+				waypoints,
+				vector.create(last.x + STEP_STUDS * math.cos(heading), 0, last.z + STEP_STUDS * math.sin(heading))
+			)
+			table.insert(headings, heading)
+			return true
+		end
 		local keepsSide = random.nextNumber() < WorldConfig.GUIDE_TURN_PERSISTENCE
 		local side = if keepsSide then lastTurnSide else -lastTurnSide
 		local drawn = side * (MIN_TURN_RADIANS + random.nextNumber() * (MAX_TURN_RADIANS - MIN_TURN_RADIANS))

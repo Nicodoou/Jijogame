@@ -132,5 +132,17 @@ Beni eligió el 2026-10-14, en la sesión con el Agente B: **T1, todo con Terrai
 ## Arquitectura
 Está en `ruta.md`, sección Arquitectura, que cubre toda el área de Calles infinitas (ruta y terreno).
 
+## Nota del WP-12 (#80): borde natural del corredor
+
+El terreno solo se genera en un corredor alrededor de la ruta viva, y un auto que se iba derecho por el pasto caía al vacío donde termina. `TerrainHeightField` le suma a la altura una **loma de borde** que depende solo de la distancia al eje de la ruta viva más cercana (la misma que ya calcula):
+
+- vale 0 hasta `TERRAIN_BORDER_START_STUDS` (100), así que la ruta, la banquina y el campo cercano no cambian;
+- **pie de cuneta:** los primeros `TERRAIN_BORDER_FOOT_STUDS` (8) suben a `TERRAIN_BORDER_FOOT_SLOPE_DEGREES` (18°). A pidió que el pie sea suave (el auto trepa como mucho ~21° en pasto y ~27° en ruta) para que un auto que se sale pierda velocidad y no use la loma de rampa;
+- **pared:** de ahí un cúbico (Hermite) que empieza con la pendiente del pie, se empina hasta 61,1° como máximo (entre 45° y `TERRAIN_MAX_SLOPE_DEGREES`) y llega a `TERRAIN_BORDER_HEIGHT_STUDS` (48) en `TERRAIN_BORDER_END_STUDS` (144) con pendiente 0, sin arista en la cima;
+- **meseta:** plana desde ahí, también donde ya no hay ruta al alcance. Llega al borde del corredor (160) y sigue 64 studs más por la histéresis, así que un auto que salta la pared cae arriba. Se acortó el borde (de 112–152 a 100–144) para ensancharla;
+- como mide contra la pasada más cercana, entre dos pasadas a menos de 100 studs del eje no aparece una loma.
+
+Las colinas siguen sumándose arriba, así que en la pared la pendiente local puede pasar de `TERRAIN_MAX_SLOPE_DEGREES`: ese tope es el que salva el terreno entre pasadas (regla de altura), no el de la pared. Descartado: generar terreno alrededor del auto y confiar solo en el reset (ver `docs/decisiones.md`).
+
 ## Aprobación
 Aprobó Beni el 2026-10-14, en la sesión con el Agente B: [#9](https://github.com/Nicodoou/Jijogame/issues/9#issuecomment-6181254772) y [#10](https://github.com/Nicodoou/Jijogame/issues/10#issuecomment-6181255081). Revisión del Agente A en el PR #21.

@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-16 — Terreno: borde natural del corredor y largada plana y recta
+**Decidió:** Beni
+**Issue:** #80 (WP-12)
+**Decisión:** (1) Más allá de `TERRAIN_BORDER_START_STUDS` (100) del eje de la ruta viva, el terreno sube primero como una cuneta de 8 studs a 18° (para que un auto que se sale pierda velocidad en vez de usar la loma de rampa), después se empina con un cúbico (61,1° como máximo, el auto trepa ~21° en pasto) hasta `TERRAIN_BORDER_HEIGHT_STUDS` (48) en `TERRAIN_BORDER_END_STUDS` (144) y sigue plano: un valle ancho con una meseta arriba, sin paredes invisibles. (2) Los primeros `START_FLAT_STUDS` (160) de la ruta son una recta sin pendiente a la altura de `START_POSITION`, y la amplitud de las lomas sube de 0 a la completa en `START_HILL_FADE_STUDS` (200).
+**Por qué:** probando en Studio, el auto que se iba derecho por el pasto caía al vacío a unos 230 studs, donde termina el corredor generado, y en la largada la ruta ya bajaba unos 13°, así que el auto rodaba solo y se salía. El borde es la primera defensa; el reset de RC-12 queda como último recurso.
+**Descartado:** generar terreno también alrededor del auto (nunca se acaba el suelo, pero se puede manejar sin límite lejos de la ruta y cuesta más generar; queda como alternativa si el borde no gusta) y confiar solo en el reset de A (es el último recurso, no la primera defensa).
+
 ## 2026-10-16 — Auto: tracción delantera, peso adelante y contravolante asistido
 **Decidió:** Nico (después de manejar sobre las calles del Agente B)
 **Issue:** #8 (cambia el valor de "Auto: vuelve a AWD 50/50 y freno de mano suave")

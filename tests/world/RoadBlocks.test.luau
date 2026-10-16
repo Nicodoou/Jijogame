@@ -21,8 +21,8 @@ local TOLERANCE_STUDS = 1e-6
 local NEAR_FIELD_STUDS = 30
 local NEAR_FIELD_TOLERANCE_STUDS = 0.01
 -- Cuando dos aristas quedan casi a la misma distancia (un milímetro de diferencia), la bisección puede elegir la otra y la
--- altura del eje difiere unos centímetros: sigue lejos del margen de 0,5 studs de la superficie.
-local NEAR_FIELD_HEIGHT_TOLERANCE_STUDS = 0.1
+-- altura del eje difiere unos centímetros (10,5 con la ruta de la largada recta): sigue lejos del margen de 0,5 studs de la superficie.
+local NEAR_FIELD_HEIGHT_TOLERANCE_STUDS = 0.2
 local MIN_NEAR_FIELD_QUERIES = 300
 local HEIGHT_PER_STEP = 0.25
 local HUGE_STUDS = 1e6

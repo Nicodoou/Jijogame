@@ -26,6 +26,8 @@ local WAVE_STUDS = 20
 local HEIGHT_TOLERANCE = 0.01
 -- Las colinas con rugosidad 1 no pasan de la amplitud por (1 + proporción de la octava fina) porque math.noise no pasa de 1.
 local HILL_BOUND = WorldConfig.TERRAIN_HILL_AMPLITUDE_STUDS * (1 + WorldConfig.TERRAIN_HILL_FINE_AMPLITUDE_RATIO)
+-- Hasta esta distancia al eje el borde natural no suma nada (WP-12): ahí valen las pruebas de las colinas y de la pendiente.
+local INSIDE_BORDER_STUDS = WorldConfig.TERRAIN_BORDER_START_STUDS
 local REAL_SEEDS = { 1, 2, 3, 4 }
 local REAL_SEGMENTS = 14
 
@@ -130,7 +132,7 @@ local function measureHillSpread(weights: Weights, catalog: { BiomeTypes.BiomeDe
 	local count = 800
 	for _ = 1, count do
 		local x = MIDDLE_X + (random.nextNumber() - 0.5) * 300
-		local z = (if random.nextNumber() < 0.5 then -1 else 1) * (80 + random.nextNumber() * 100)
+		local z = (if random.nextNumber() < 0.5 then -1 else 1) * (50 + random.nextNumber() * 50)
 		local deviation = sampleHeight(field, x, z, weights) - FLAT_HEIGHT
 		total += deviation * deviation
 	end
@@ -150,12 +152,14 @@ end)
 
 Runner.test("with forest alone the hills are the ones of the configuration", function()
 	local field = createField(7, { createRoad(0, 0, flatHeight) })
-	prepareAround(field, MIDDLE_X, 0, 300)
+	prepareAround(field, MIDDLE_X, 0, 600)
 	local largest = 0
 	local random = SeededRandom.new(4)
 	for _ = 1, 3000 do
-		local x = MIDDLE_X + (random.nextNumber() - 0.5) * 300
-		local z = SHOULDER_EDGE + WorldConfig.TERRAIN_BLEND_WIDTH_STUDS + random.nextNumber() * 100
+		local x = MIDDLE_X + (random.nextNumber() - 0.5) * 1000
+		-- Hasta donde empieza el borde (desde ahí se le suma la loma del WP-12).
+		local hillsStudsWide = INSIDE_BORDER_STUDS - SHOULDER_EDGE - WorldConfig.TERRAIN_BLEND_WIDTH_STUDS
+		local z = SHOULDER_EDGE + WorldConfig.TERRAIN_BLEND_WIDTH_STUDS + random.nextNumber() * hillsStudsWide
 		largest = math.max(largest, math.abs(sampleHeight(field, x, z, nil) - FLAT_HEIGHT))
 	end
 	Runner.expectEqual(largest <= HILL_BOUND, true)
@@ -168,8 +172,8 @@ Runner.test("neighbor columns never differ more than the maximum slope allows, a
 	local spacing = 0.5
 	local maximumStep = MAX_SLOPE * spacing
 	for _, x in { MIDDLE_X - 50, MIDDLE_X, MIDDLE_X + 77.3 } do
-		local previous = sampleHeight(field, x, -250, nil)
-		for z = -250 + spacing, 250, spacing do
+		local previous = sampleHeight(field, x, -INSIDE_BORDER_STUDS, nil)
+		for z = -INSIDE_BORDER_STUDS + spacing, INSIDE_BORDER_STUDS, spacing do
 			local height = sampleHeight(field, x, z, nil)
 			Runner.expectEqual(math.abs(height - previous) <= maximumStep, true)
 			previous = height
@@ -185,12 +189,12 @@ Runner.test("neighbor columns never differ more than the maximum slope allows, a
 	end
 end)
 
-Runner.test("far from every road the terrain is the ambient height plus the hills", function()
+Runner.test("far from every road the terrain is the ambient height plus the border plateau plus the hills", function()
 	local field = createField(7, { createRoad(0, 0, flatHeight) })
 	field.setArea(MIDDLE_X, 5000, MIDDLE_X + 100, 5100)
 	local height, beyondShoulder = field.sampleColumn(MIDDLE_X + 10, 5050, FOREST)
 	Runner.expectEqual(beyondShoulder, math.huge)
-	Runner.expectEqual(math.abs(height - FLAT_HEIGHT) <= HILL_BOUND, true)
+	Runner.expectEqual(math.abs(height - FLAT_HEIGHT - WorldConfig.TERRAIN_BORDER_HEIGHT_STUDS) <= HILL_BOUND, true)
 end)
 
 -- Dos caminos paralelos a `gap` studs entre ejes, el segundo `rise` studs más alto.
@@ -332,7 +336,7 @@ Runner.test("on real routes the road is flat across and the terrain is continuou
 	Runner.expectEqual(columns, #REAL_SEEDS * 40)
 end)
 
-local PAIR_SEED = 40
+local PAIR_SEED = 46
 local PAIR_SEGMENTS = 100
 local PAIR_CELL_STUDS = 64
 local PAIR_MIN_ARC_GAP = 1200

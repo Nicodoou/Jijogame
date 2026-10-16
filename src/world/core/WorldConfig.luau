@@ -113,6 +113,11 @@ return table.freeze({
 	HILL_MIN_HEIGHT_STUDS = -150,
 	HILL_MAX_HEIGHT_STUDS = 250,
 	HILL_MAX_SLOPE_CHANGE_DEGREES_PER_STEP = 1.5,
+	-- Largada (WP-12): los primeros START_FLAT_STUDS de la ruta son una recta sin pendiente, a la altura de START_POSITION (que es
+	-- HILL_BASE_HEIGHT_STUDS). Después la amplitud de las lomas sube de 0 a la completa en START_HILL_FADE_STUDS. START_FLAT_STUDS
+	-- tiene que ser menor que GUIDE_STEP_STUDS: el primer segmento de la guía es recto y la recta de la largada cabe en él.
+	START_FLAT_STUDS = 160,
+	START_HILL_FADE_STUDS = 200,
 	-- A cuántos studs por delante apunta la altura objetivo: cuanto más, más suave el seguimiento.
 	HILL_LOOKAHEAD_STUDS = 50,
 	-- Una octava tiene la amplitud y la longitud de onda de la anterior multiplicadas por estos factores.
@@ -190,6 +195,17 @@ return table.freeze({
 	-- Más allá de este alcance sobre la banquina, la altura mide cada bloque contra su cuerda y no su arco, en este ancho de mezcla.
 	TERRAIN_CHORD_SMOOTH_START_STUDS = 10,
 	TERRAIN_CHORD_SMOOTH_SPAN_STUDS = 20,
+
+	-- Borde natural (WP-12): más allá de TERRAIN_BORDER_START_STUDS del eje de la ruta viva, el terreno sube primero como una cuneta
+	-- (TERRAIN_BORDER_FOOT_STUDS a TERRAIN_BORDER_FOOT_SLOPE_DEGREES, para que un auto que se sale pierda velocidad en vez de usarla
+	-- de rampa), después se empina con un cúbico y llega a TERRAIN_BORDER_HEIGHT_STUDS, con pendiente 0, en TERRAIN_BORDER_END_STUDS.
+	-- Sigue plano más allá: una meseta que llega hasta el borde del corredor generado (TERRAIN_CORRIDOR_HALF_WIDTH_STUDS), así un
+	-- auto que salta la pared cae arriba. La pendiente máxima (~61°) tiene que quedar entre 45° y TERRAIN_MAX_SLOPE_DEGREES.
+	TERRAIN_BORDER_START_STUDS = 100,
+	TERRAIN_BORDER_FOOT_STUDS = 8,
+	TERRAIN_BORDER_FOOT_SLOPE_DEGREES = 18,
+	TERRAIN_BORDER_END_STUDS = 144,
+	TERRAIN_BORDER_HEIGHT_STUDS = 48,
 
 	-- Planificación del mundo (WorldPlanner).
 	ROUTE_AHEAD_STUDS = 2000,

@@ -3,6 +3,9 @@
 -- desplazamiento sorteado por la semilla) da una altura objetivo, y la pendiente la sigue con tres límites: la
 -- pendiente máxima, el cambio máximo por paso y la franja de alturas. Todo depende solo de la altura, la pendiente y el
 -- arcLength, así que no cambia con el trazado en el plano.
+-- Largada (WP-12): hasta startFlatStuds la ruta apunta a la altura base (la de la salida), así que la pendiente es 0; después
+-- la distancia entre la altura base y la objetivo entra de a poco, con un smoothstep en startFadeStuds. El límite de cambio de
+-- pendiente por paso sigue valiendo, así que tampoco hay escalones.
 
 local SeededRandom = require("./SeededRandom")
 local WorldConfig = require("./WorldConfig")
@@ -19,6 +22,9 @@ export type HillSettings = {
 	lookaheadStuds: number,
 	amplitudeFactor: number,
 	wavelengthFactor: number,
+	-- Largo de la recta plana de la largada y ancho (mayor que 0) en el que las lomas entran hasta su amplitud completa.
+	startFlatStuds: number,
+	startFadeStuds: number,
 }
 
 export type HillProfile = {
@@ -49,6 +55,8 @@ local defaultSettings: HillSettings = table.freeze({
 	lookaheadStuds = WorldConfig.HILL_LOOKAHEAD_STUDS,
 	amplitudeFactor = WorldConfig.HILL_OCTAVE_AMPLITUDE_FACTOR,
 	wavelengthFactor = WorldConfig.HILL_OCTAVE_WAVELENGTH_FACTOR,
+	startFlatStuds = WorldConfig.START_FLAT_STUDS,
+	startFadeStuds = WorldConfig.START_HILL_FADE_STUDS,
 })
 
 -- Altura que todavía se sube si la pendiente (>= 0) baja a cero con el máximo cambio por paso.
@@ -128,8 +136,16 @@ function HillProfileModule.new(seed: number, settings: HillSettings?): HillProfi
 		return safe
 	end
 
+	-- Cuánto de las lomas entra a ese arcLength: 0 en la recta de la largada, 1 pasado el desvanecimiento. Se mide en el
+	-- arcLength actual y no en el que se apunta: así la pendiente es 0 hasta el final de la recta y no 50 studs antes.
+	local function getHillShare(arcLength: number): number
+		local fraction = math.clamp((arcLength - config.startFlatStuds) / config.startFadeStuds, 0, 1)
+		return fraction * fraction * (3 - 2 * fraction)
+	end
+
 	local function nextSlope(currentHeight: number, currentSlope: number, arcLength: number): number
-		local aimedHeight = getTargetHeight(arcLength + config.lookaheadStuds)
+		local rawHeight = getTargetHeight(arcLength + config.lookaheadStuds)
+		local aimedHeight = config.baseHeightStuds + getHillShare(arcLength) * (rawHeight - config.baseHeightStuds)
 		local wanted = math.atan((aimedHeight - currentHeight) / config.lookaheadStuds)
 		wanted = math.clamp(wanted, -config.maxSlopeRadians, config.maxSlopeRadians)
 		wanted = math.clamp(

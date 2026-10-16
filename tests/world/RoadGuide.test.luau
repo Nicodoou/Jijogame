@@ -194,4 +194,17 @@ Runner.test("the guide keeps turning to the same side most of the time, so it wi
 	Runner.expectEqual(sameSide / total > 0.6, true)
 end)
 
+Runner.test("the first segment goes straight along the start heading and the second one turns", function()
+	local startHeading = RoadFrame.getStartHeadingRadians()
+	for seed = 1, SEED_COUNT do
+		local guide = createGuide(seed, 10 * STEP)
+		Runner.expectEqual(guide.getSegmentHeading(1), startHeading)
+		local endX, endZ = guide.getPointAt(STEP)
+		Runner.expectNear(endX, WorldConfig.START_POSITION.x + STEP * math.cos(startHeading), TOLERANCE)
+		Runner.expectNear(endZ, WorldConfig.START_POSITION.z + STEP * math.sin(startHeading), TOLERANCE)
+		local turn = math.abs(RoadFrame.wrapAngleRadians(guide.getSegmentHeading(2) - startHeading))
+		Runner.expectEqual(turn > 0, true)
+	end
+end)
+
 Runner.finish()

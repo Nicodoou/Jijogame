@@ -6,6 +6,12 @@
 --     dos pasadas cercanas a distinta altura se unen con una rampa y no con una pared. Lejos de la ruta la base se
 --     desvanece hacia la altura ambiente.
 --   * Sobre esa base se suman las colinas, que entran de a poco en TERRAIN_BLEND_WIDTH_STUDS.
+--   * Y el borde natural: una loma que depende solo de la distancia al eje de la ruta viva más cercana. Vale 0 hasta
+--     TERRAIN_BORDER_START_STUDS, sube primero como una cuneta (TERRAIN_BORDER_FOOT_STUDS a TERRAIN_BORDER_FOOT_SLOPE_DEGREES,
+--     para que un auto que se sale pierda velocidad), después se empina con un cúbico hasta TERRAIN_BORDER_HEIGHT_STUDS y llega
+--     a la cima, con pendiente 0, en TERRAIN_BORDER_END_STUDS. Sigue plana más allá (también donde ya no hay ruta al alcance),
+--     como una meseta ancha. Encierra la ruta en un valle que el auto no puede trepar. Como mide contra la pasada más
+--     cercana, entre dos pasadas cercanas no aparece una loma.
 -- Cada bloque de ruta (un arco de 64 studs) aporta su punto más cercano. Mezclar bloques y no tomar solo el punto
 -- más cercano de toda la ruta evita que la altura salte cerca del centro de una curva cerrada, donde el punto más
 -- cercano da la vuelta entera con un desplazamiento chico.
@@ -42,6 +48,19 @@ local BLEND_STUDS = WorldConfig.TERRAIN_BLEND_WIDTH_STUDS
 -- Más allá de esta distancia al eje un bloque ya no pesa.
 local DISTANCE_LIMIT_STUDS = SHOULDER_EDGE_STUDS + REACH_STUDS
 local DISTANCE_LIMIT_SQUARED = DISTANCE_LIMIT_STUDS * DISTANCE_LIMIT_STUDS
+local BORDER_START_STUDS = WorldConfig.TERRAIN_BORDER_START_STUDS
+local BORDER_FOOT_STUDS = WorldConfig.TERRAIN_BORDER_FOOT_STUDS
+local BORDER_FOOT_SLOPE = math.tan(math.rad(WorldConfig.TERRAIN_BORDER_FOOT_SLOPE_DEGREES))
+local BORDER_FOOT_HEIGHT_STUDS = BORDER_FOOT_STUDS * BORDER_FOOT_SLOPE
+-- Después de la cuneta, un cúbico a(u^3) + b(u^2) + c(u) con u de 0 a 1 que empieza con la pendiente de la cuneta y termina
+-- en la altura que falta con pendiente 0.
+local BORDER_RISE_STUDS = WorldConfig.TERRAIN_BORDER_END_STUDS
+	- WorldConfig.TERRAIN_BORDER_START_STUDS
+	- BORDER_FOOT_STUDS
+local BORDER_RISE_HEIGHT_STUDS = WorldConfig.TERRAIN_BORDER_HEIGHT_STUDS - BORDER_FOOT_HEIGHT_STUDS
+local BORDER_CUBIC_C = BORDER_FOOT_SLOPE * BORDER_RISE_STUDS
+local BORDER_CUBIC_A = BORDER_CUBIC_C - 2 * BORDER_RISE_HEIGHT_STUDS
+local BORDER_CUBIC_B = 3 * BORDER_RISE_HEIGHT_STUDS - 2 * BORDER_CUBIC_C
 local NO_ROAD_STUDS = math.huge
 local MIN_BEYOND_SHOULDER_STUDS = 0.001
 -- Desde esta distancia al eje (y hasta SMOOTH_SPAN_STUDS más) el bloque se mide contra su cuerda en vez de su arco.
@@ -61,6 +80,19 @@ end
 -- Sube de 0 a 1 con pendiente cero en los dos extremos.
 local function smoothStep(fraction: number): number
 	return fraction * fraction * (3 - 2 * fraction)
+end
+
+-- Altura de la loma de borde a esa distancia del borde de la banquina (math.huge si no hay ruta al alcance: meseta).
+local function getBorderHeight(beyondShoulder: number): number
+	local distance = beyondShoulder + SHOULDER_EDGE_STUDS - BORDER_START_STUDS
+	if distance <= 0 then
+		return 0
+	elseif distance < BORDER_FOOT_STUDS then
+		return distance * BORDER_FOOT_SLOPE
+	end
+	local fraction = math.min((distance - BORDER_FOOT_STUDS) / BORDER_RISE_STUDS, 1)
+	return BORDER_FOOT_HEIGHT_STUDS
+		+ ((BORDER_CUBIC_A * fraction + BORDER_CUBIC_B) * fraction + BORDER_CUBIC_C) * fraction
 end
 
 local TerrainHeightFieldModule = {}
@@ -173,7 +205,8 @@ function TerrainHeightFieldModule.new(
 		local hillShare = smoothStep(math.min(nearestBeyondShoulder / BLEND_STUDS, 1))
 		local amplitudeScale = BiomeBlend.blendNumber(weights, catalog, getAmplitudeScale)
 		local roughness = BiomeBlend.blendNumber(weights, catalog, getRoughness)
-		return base + hillShare * hills.getHeight(x, z, amplitudeScale, roughness), nearestBeyondShoulder
+		local hillsHeight = hillShare * hills.getHeight(x, z, amplitudeScale, roughness)
+		return base + hillsHeight + getBorderHeight(nearestBeyondShoulder), nearestBeyondShoulder
 	end
 
 	return {

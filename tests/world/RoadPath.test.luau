@@ -8,7 +8,7 @@ local DETERMINISM_SEGMENTS = 20
 local STEPS_PER_SEGMENT = WorldConfig.SEGMENT_LENGTH_STUDS / WorldConfig.INTEGRATION_STEP_STUDS
 local REFERENCE_SEED = 12345
 -- Semilla en la que la ruta retrocede dentro de los primeros 70 tramos (ver RoadPieceSequencer.test.luau).
-local STEP_BACKTRACK_SEED = 54
+local STEP_BACKTRACK_SEED = 16
 local STEP_SEGMENTS = 70
 
 local function hashFirstSegments(path: RoadPath.RoadPath, releaseEvery: number?): number
