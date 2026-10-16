@@ -18,6 +18,12 @@ local RANDOM_QUERIES = 600
 local AREA_STUDS = 2500
 local CROWDED_AREA_STUDS = 600
 local MAX_HEIGHT_STUDS = 150
+local ZIGZAG_LEG_STUDS = 400
+local ZIGZAG_LEGS = 6
+local ZIGZAG_QUERIES = 300
+local ZIGZAG_BASE_HEIGHT_STUDS = 50
+local ZIGZAG_HILL_STUDS = 35
+local ZIGZAG_HILL_WAVELENGTH_STUDS = 120
 local HEIGHT_RADIUS = WorldConfig.LIVE_HEIGHT_RULE_RADIUS_STUDS
 local ROAD_AND_SHOULDERS = WorldConfig.ROAD_WIDTH_STUDS + 2 * WorldConfig.SHOULDER_WIDTH_STUDS
 
@@ -289,6 +295,79 @@ Runner.test("a cell that emptied out and came back is found again by the same qu
 	index.add(0, 0, 0, 0)
 	index.add(0, 0, 0, STEP_STUDS)
 	Runner.expectEqual(index.isClear(0, 0, 0, queryArc), false)
+end)
+
+-- Una ruta en zigzag de pasos de un paso de integración, con lomas: tramos paralelos separados `legSpacing` que se unen en las
+-- puntas. Es lo que permite saltear muestras seguidas.
+local function createZigzag(legSpacing: number, legCount: number): ({ number }, { number }, { number }, { number })
+	local xs, ys, zs, arcs = {}, {}, {}, {}
+	local x, z, direction = 0, 0, 1
+	for _ = 1, legCount do
+		for _ = 1, ZIGZAG_LEG_STUDS // STEP_STUDS do
+			x += direction * STEP_STUDS
+			table.insert(xs, x)
+			table.insert(zs, z)
+		end
+		for _ = 1, legSpacing // STEP_STUDS do
+			z += STEP_STUDS
+			table.insert(xs, x)
+			table.insert(zs, z)
+		end
+		direction = -direction
+	end
+	for id = 1, #xs do
+		arcs[id] = id * STEP_STUDS
+		ys[id] = ZIGZAG_BASE_HEIGHT_STUDS + ZIGZAG_HILL_STUDS * math.sin(arcs[id] / ZIGZAG_HILL_WAVELENGTH_STUDS)
+	end
+	return xs, ys, zs, arcs
+end
+
+Runner.test("skipping samples along a continuous road never changes the answer", function()
+	local random = SeededRandom.new(31)
+	local clearCount, queryCount = 0, 0
+	for _, legSpacing in { 40, 100, 160 } do
+		local xs, ys, zs, arcs = createZigzag(legSpacing, ZIGZAG_LEGS)
+		local index = LiveRoadIndex.new()
+		for id = 1, #xs do
+			index.add(xs[id], ys[id], zs[id], arcs[id])
+		end
+		local lastArc = arcs[#arcs]
+		for _ = 1, ZIGZAG_QUERIES do
+			local x = random.nextNumber() * ZIGZAG_LEG_STUDS
+			local z = random.nextNumber() * legSpacing * ZIGZAG_LEGS
+			local y = ZIGZAG_BASE_HEIGHT_STUDS + (random.nextNumber() * 2 - 1) * ZIGZAG_HILL_STUDS * 2
+			local arc = lastArc + STEP_STUDS * random.nextInteger(0, LOOKBACK // STEP_STUDS)
+			local expected = true
+			for id = 1, #xs do
+				local arcDifference = arc - arcs[id]
+				if arcDifference > NEAR_ARC and arcDifference <= LOOKBACK then
+					local required = if arcDifference <= NEIGHBOR_ARC then NEAR_CLEARANCE else CLEARANCE
+					local distance = math.sqrt((x - xs[id]) ^ 2 + (z - zs[id]) ^ 2)
+					local isHigh = distance < HEIGHT_RADIUS and math.abs(y - ys[id]) > getAllowedRise(distance)
+					expected = expected and distance >= required and not isHigh
+				end
+			end
+			Runner.expectEqual(index.isClear(x, y, z, arc), expected)
+			queryCount += 1
+			clearCount += if expected then 1 else 0
+		end
+	end
+	Runner.expectEqual(clearCount > queryCount / 20 and clearCount < queryCount * 19 / 20, true)
+end)
+
+Runner.test("a jump in the road stops the skipping, so a sample after it is still found", function()
+	local index = LiveRoadIndex.new()
+	for step = 0, 99 do
+		index.add(step * STEP_STUDS, 0, 0, step * STEP_STUDS)
+	end
+	index.add(5000, 0, 0, 100 * STEP_STUDS)
+	for step = 101, 200 do
+		index.add(5000 + (step - 100) * STEP_STUDS, 0, 0, step * STEP_STUDS)
+	end
+	local queryArc = 200 * STEP_STUDS + NEIGHBOR_ARC
+	Runner.expectEqual(index.isClear(5001, 0, 0, queryArc), false)
+	Runner.expectEqual(index.isClear(5001, 0, 2 * CLEARANCE, queryArc), true)
+	Runner.expectEqual(index.isClear(150, 0, 0, queryArc), false)
 end)
 
 Runner.finish()

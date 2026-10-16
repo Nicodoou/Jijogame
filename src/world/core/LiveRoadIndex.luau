@@ -5,9 +5,11 @@
 -- ni a menos de LIVE_NEAR_CLEARANCE_STUDS de una que lo preceda en más de LIVE_NEAR_ARC_STUDS.
 -- Regla de altura: una muestra que queda a menos de LIVE_HEIGHT_RULE_RADIUS_STUDS de otra no vecina (las mismas que cuentan
 -- para el anti-cruce) no puede estar a más altura de la que el terreno logra salvar con la pendiente máxima en el espacio libre
--- que queda entre las dos banquinas (menos un margen). Así no quedan paredes entre pasadas cercanas (WP-9).
+-- que queda entre las dos banquinas (menos un margen). Así no quedan paredes entre pasadas cercanas (WP-9). Las reglas
+-- están en LiveRoadRules.
 -- Guarda además LIVE_BACKTRACK_MEMORY_STUDS más hacia atrás, para poder retroceder y volver a mirar esas muestras.
 
+local LiveRoadRules = require("./LiveRoadRules")
 local WorldConfig = require("./WorldConfig")
 
 export type LiveRoadIndex = {
@@ -23,21 +25,13 @@ export type LiveRoadIndex = {
 type Cell = { head: number, last: number, [number]: number }
 
 local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
--- Las dos reglas miran muestras hasta un radio; la celda es la tercera parte del mayor, así que alcanzan las celdas a tres de distancia.
--- Celdas más grandes hacen revisar muchas muestras que quedan fuera del radio: la consulta es la parte cara de la ruta.
+-- Las dos reglas miran muestras hasta un radio; la celda es la tercera parte del mayor, así que alcanzan las celdas a tres
+-- de distancia. Celdas más grandes hacen revisar muchas muestras que quedan fuera del radio: la consulta es lo más caro de la ruta.
 local CELLS_PER_RADIUS = 3
 local CELL_STUDS = math.max(WorldConfig.LIVE_CLEARANCE_STUDS, WorldConfig.LIVE_HEIGHT_RULE_RADIUS_STUDS)
 	/ CELLS_PER_RADIUS
 local KEY_STRIDE = WorldConfig.ROAD_QUERY_GRID_KEY_STRIDE
-local CLEARANCE_SQUARED = WorldConfig.LIVE_CLEARANCE_STUDS ^ 2
-local NEIGHBOR_ARC_STUDS = WorldConfig.LIVE_NEIGHBOR_ARC_STUDS
 local NEAR_ARC_STUDS = WorldConfig.LIVE_NEAR_ARC_STUDS
-local NEAR_CLEARANCE_SQUARED = WorldConfig.LIVE_NEAR_CLEARANCE_STUDS ^ 2
-local HEIGHT_RADIUS_SQUARED = WorldConfig.LIVE_HEIGHT_RULE_RADIUS_STUDS ^ 2
--- Espacio entre los ejes de dos pasadas que ocupan la ruta y las dos banquinas: ahí el terreno no puede subir.
-local ROAD_AND_SHOULDERS_STUDS = WorldConfig.ROAD_WIDTH_STUDS + 2 * WorldConfig.SHOULDER_WIDTH_STUDS
-local RISE_PER_STUD =
-	math.tan(math.rad(WorldConfig.TERRAIN_MAX_SLOPE_DEGREES - WorldConfig.LIVE_HEIGHT_RULE_MARGIN_DEGREES))
 local LOOKBACK_STUDS = WorldConfig.LIVE_LOOKBACK_STUDS
 local KEPT_ARC_STUDS = LOOKBACK_STUDS + WorldConfig.LIVE_BACKTRACK_MEMORY_STUDS
 -- Anillo de muestras: cada una ocupa el lugar `id % RING_SIZE`, que ya se liberó cuando llega el id nuevo.
@@ -58,6 +52,9 @@ function LiveRoadIndexModule.new(): LiveRoadIndex
 	local ys = table.create(RING_SIZE, 0)
 	local zs = table.create(RING_SIZE, 0)
 	local arcs = table.create(RING_SIZE, 0)
+	-- Cuántas veces, hasta cada muestra, la ruta dio un salto mayor que un paso: entre dos muestras con el mismo número no
+	-- hay saltos y se pueden saltear las del medio (ver LiveRoadRules).
+	local jumps = table.create(RING_SIZE, 0)
 	local cells: { [number]: Cell } = {}
 	-- Las celdas que rodean a la última consulta. Una pieza se previsualiza paso a paso desde el mismo estado de la grilla,
 	-- y mientras no cambie la celda del centro se reutilizan en vez de buscarlas de nuevo.
@@ -94,10 +91,23 @@ function LiveRoadIndexModule.new(): LiveRoadIndex
 		newestId -= 1
 	end
 
+	-- Saltos de la ruta hasta la muestra nueva (`newestId` ya cuenta la nueva).
+	local function countJumps(x: number, y: number, z: number): number
+		if newestId - 1 < oldestId then
+			return 0
+		end
+		local previousSlot = (newestId - 1) % RING_SIZE + 1
+		local offsetX, offsetZ = x - xs[previousSlot], z - zs[previousSlot]
+		local planDistanceSquared = offsetX * offsetX + offsetZ * offsetZ
+		local isStep = LiveRoadRules.isContinuousStep(planDistanceSquared, math.abs(y - ys[previousSlot]))
+		return jumps[previousSlot] + (if isStep then 0 else 1)
+	end
+
 	local function add(x: number, y: number, z: number, arcLength: number)
 		neighborhoodKey = nil
 		newestId += 1
 		local slot = newestId % RING_SIZE + 1
+		jumps[slot] = countJumps(x, y, z)
 		xs[slot], ys[slot], zs[slot], arcs[slot] = x, y, z, arcLength
 		local key = getCellKey(getCellCoordinate(x), getCellCoordinate(z))
 		local cell = cells[key]
@@ -135,6 +145,22 @@ function LiveRoadIndexModule.new(): LiveRoadIndex
 		return low
 	end
 
+	-- Dónde sigue la revisión de la celda después de la muestra de `position`, que cumplió y deja saltear las `safeSteps`
+	-- siguientes de la ruta. Solo se saltea si esas muestras están realmente todas en la celda, una detrás de otra (ids
+	-- consecutivos) y sin saltos de la ruta en el medio; si no, se sigue con la que viene.
+	local function getNextPosition(cell: Cell, position: number, safeSteps: number): number
+		local skippedCount = math.floor(safeSteps)
+		local target = math.min(position + skippedCount + 1, cell.last)
+		local firstId, targetId = cell[position], cell[target]
+		local isSameRun = targetId - firstId == target - position
+			and jumps[targetId % RING_SIZE + 1] == jumps[firstId % RING_SIZE + 1]
+		if not isSameRun then
+			return position + 1
+		end
+		-- Si el salto llega al final de la celda sin pasar por una muestra sin revisar, ya no queda nada.
+		return if target - position <= skippedCount then cell.last + 1 else target
+	end
+
 	-- Las muestras de la celda van de las más viejas a las más nuevas y se corta en la primera que es vecina. Las que están a más
 	-- de NEAR_ARC_STUDS y hasta NEIGHBOR_ARC_STUDS solo piden no cruzarse (NEAR_CLEARANCE_STUDS): así la ruta puede cerrar un
 	-- círculo o una horquilla, pero no pasar por encima de sí misma.
@@ -144,29 +170,25 @@ function LiveRoadIndexModule.new(): LiveRoadIndex
 		if oldestDifference <= NEAR_ARC_STUDS then
 			return true
 		end
-		local first = if oldestDifference <= LOOKBACK_STUDS then cell.head else findFirstWithinLookback(cell, arcLength)
-		for position = first, cell.last do
+		local position = if oldestDifference <= LOOKBACK_STUDS
+			then cell.head
+			else findFirstWithinLookback(cell, arcLength)
+		while position <= cell.last do
 			local slot = cell[position] % RING_SIZE + 1
 			local arcDifference = arcLength - arcs[slot]
 			if arcDifference <= NEAR_ARC_STUDS then
-				break
-			else
-				local offsetX, offsetZ = x - xs[slot], z - zs[slot]
-				local required = if arcDifference <= NEIGHBOR_ARC_STUDS
-					then NEAR_CLEARANCE_SQUARED
-					else CLEARANCE_SQUARED
-				local distanceSquared = offsetX * offsetX + offsetZ * offsetZ
-				if distanceSquared < required then
-					return false
-				elseif distanceSquared < HEIGHT_RADIUS_SQUARED then
-					-- Dentro del radio, la diferencia de altura admitida crece con la distancia entre los ejes.
-					local allowedRise = RISE_PER_STUD
-						* math.max(0, math.sqrt(distanceSquared) - ROAD_AND_SHOULDERS_STUDS)
-					if math.abs(y - ys[slot]) > allowedRise then
-						return false
-					end
-				end
+				return true
 			end
+			local offsetX, offsetZ = x - xs[slot], z - zs[slot]
+			local safeSteps = LiveRoadRules.getSafeSteps(
+				math.sqrt(offsetX * offsetX + offsetZ * offsetZ),
+				arcDifference,
+				math.abs(y - ys[slot])
+			)
+			if safeSteps < 0 then
+				return false
+			end
+			position = if safeSteps < 1 then position + 1 else getNextPosition(cell, position, safeSteps)
 		end
 		return true
 	end
