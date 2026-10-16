@@ -7,9 +7,6 @@
       "shared": {
         "$path": "src/shared"
       },
-      "app": {
-        "$path": "src/app/shared"
-      },
       "vehicle": {
         "$className": "Folder",
         "core": {
