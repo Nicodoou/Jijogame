@@ -466,4 +466,27 @@ Runner.test("pickDeepMaterial is an error when no biome of the catalog weighs an
 	end)
 end)
 
+Runner.test("when the proportions of a biome do not add up to one the last material takes what is left", function()
+	local short = table.clone(BiomeTestCatalog.pair[1])
+	short.id = "short"
+	short.materials = {
+		surface = { { material = "Sand", proportion = 0.3 }, { material = "Salt", proportion = 0.3 } },
+		transition = "Ground",
+		deep = "Ground",
+	}
+	local catalog: { BiomeTypes.BiomeDefinition } = { short }
+	local random = SeededRandom.new(31)
+	local counts: { [string]: number } = { Sand = 0, Salt = 0 }
+	for _ = 1, 2000 do
+		local x, z = drawPoint(random)
+		local material = BiomeBlend.pickMaterial({ short = 1 }, catalog, x, z, 1)
+		if material == "Sand" or material == "Salt" then
+			counts[material] += 1
+		end
+	end
+	-- Solo el 30 por ciento cae en cada tramo; el resto del intervalo va al último material.
+	Runner.expectEqual(counts.Sand > 300 and counts.Sand < 900, true)
+	Runner.expectEqual(counts.Salt > counts.Sand, true)
+end)
+
 Runner.finish()
