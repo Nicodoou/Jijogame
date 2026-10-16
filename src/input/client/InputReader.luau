@@ -1,6 +1,7 @@
 --!strict
 -- Lee el teclado y el gamepad en cada frame y entrega valores crudos al núcleo del input.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
 
 local InputSmoother = require(ReplicatedStorage.input.core.InputSmoother)
@@ -18,6 +19,7 @@ local KEYS = {
 local GAMEPAD = {
 	device = Enum.UserInputType.Gamepad1,
 	steerStick = Enum.KeyCode.Thumbstick1,
+	lookStick = Enum.KeyCode.Thumbstick2,
 	throttleTrigger = Enum.KeyCode.ButtonR2,
 	brakeTrigger = Enum.KeyCode.ButtonL2,
 	handbrakeButton = Enum.KeyCode.ButtonX,
@@ -32,6 +34,8 @@ type GamepadReading = {
 	brake: number,
 	isHandbrakeDown: boolean,
 	isLookBackDown: boolean,
+	lookX: number,
+	lookY: number,
 }
 
 local InputReader = {}
@@ -55,11 +59,13 @@ end
 -- Sin gamepad conectado, la lista de estados viene vacía y todo da 0.
 local function readGamepad(): GamepadReading
 	local reading: GamepadReading =
-		{ steer = 0, throttle = 0, brake = 0, isHandbrakeDown = false, isLookBackDown = false }
+		{ steer = 0, throttle = 0, brake = 0, isHandbrakeDown = false, isLookBackDown = false, lookX = 0, lookY = 0 }
 	for _, input in UserInputService:GetGamepadState(GAMEPAD.device) do
 		local keyCode = input.KeyCode
 		if keyCode == GAMEPAD.steerStick then
 			reading.steer = input.Position.X
+		elseif keyCode == GAMEPAD.lookStick then
+			reading.lookX, reading.lookY = input.Position.X, input.Position.Y
 		elseif keyCode == GAMEPAD.throttleTrigger then
 			reading.throttle = input.Position.Z
 		elseif keyCode == GAMEPAD.brakeTrigger then
@@ -73,8 +79,18 @@ local function readGamepad(): GamepadReading
 	return reading
 end
 
+-- Con el menú de Roblox abierto (Esc) el mouse queda libre y no se lee. Si no, se mantiene bloqueado al centro.
+local function readMouseDelta(): Vector2
+	if GuiService.MenuIsOpen then
+		return Vector2.zero
+	end
+	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+	return UserInputService:GetMouseDelta()
+end
+
 function InputReader.read(_self: InputReader): RawInput
 	local gamepad = readGamepad()
+	local mouseDelta = readMouseDelta()
 	return {
 		isSteerLeftDown = isAnyKeyDown(KEYS.steerLeft),
 		isSteerRightDown = isAnyKeyDown(KEYS.steerRight),
@@ -85,10 +101,10 @@ function InputReader.read(_self: InputReader): RawInput
 		gamepadSteer = gamepad.steer,
 		gamepadThrottle = gamepad.throttle,
 		gamepadBrake = gamepad.brake,
-		lookDeltaX = 0,
-		lookDeltaY = 0,
-		gamepadLookX = 0,
-		gamepadLookY = 0,
+		lookDeltaX = mouseDelta.X,
+		lookDeltaY = mouseDelta.Y,
+		gamepadLookX = gamepad.lookX,
+		gamepadLookY = gamepad.lookY,
 	}
 end
 
