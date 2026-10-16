@@ -12,7 +12,7 @@ local WorldReady = require(ReplicatedStorage.shared.contracts.WorldReady)
 local VectorConversion = require(ReplicatedStorage.vehicle.shared.VectorConversion)
 local VehicleParts = require(ReplicatedStorage.vehicle.shared.VehicleParts)
 local VehicleTypes = require(ReplicatedStorage.vehicle.core.VehicleTypes)
-local TuningOverrides = require("./TuningOverrides")
+local TuningOverrides = require(ReplicatedStorage.vehicle.shared.TuningOverrides)
 local VehicleRig = require("./VehicleRig")
 local WheelRays = require("./WheelRays")
 local WheelVisuals = require("./WheelVisuals")
@@ -130,6 +130,7 @@ end
 local function readChassis(body: BasePart): ChassisSample
 	local cframe = body.CFrame
 	return {
+		origin = VectorConversion.toVector(body.Position),
 		position = VectorConversion.toVector(body.AssemblyCenterOfMass),
 		right = VectorConversion.toVector(cframe.RightVector),
 		up = VectorConversion.toVector(cframe.UpVector),

@@ -38,6 +38,11 @@ local CORNER_THROTTLE = 0.2
 local EXIT_SECONDS = 2
 local MIN_REAR_BIAS_DRIFT_GAIN_DEGREES = 10
 local WHEEL_COUNT = 4
+local SHIFT_FORWARD_STUDS = 0.15
+local SHIFT_DOWN_STUDS = 0.3
+local SHIFT_SIDE_STUDS = 0.1
+local MAX_REST_TILT_DEGREES = 1
+local REST_LOAD_TOLERANCE = 0.05
 local REVERSE_SECONDS = 6
 local REVERSE_MAX_SPEED = 32
 local REVERSE_MOVING_SPEED = 5
@@ -151,6 +156,57 @@ Runner.test("1. at rest after a sideways push and a small spin the car settles a
 		Runner.expectEqual(maxSpeed < REST_MAX_SPEED, true)
 		Runner.expectEqual(height > 1, true)
 	end
+end)
+
+local function runShiftedRest(frameSeconds: number, centerOffset: vector): (number, number, number, number, number)
+	local runner = ToyWorld.new({
+		frameSeconds = frameSeconds,
+		dropStuds = REST_DROP_STUDS,
+		centerOfMassOffset = centerOffset,
+	})
+	local settledPosition = runner.world.position
+	local maxDrift, maxSpeed, maxTilt = 0, 0, 0
+	runner.run(REST_SECONDS, constant(IDLE), function(world)
+		if world.timeSeconds < SETTLE_SECONDS then
+			settledPosition = world.position
+			return
+		end
+		maxDrift = math.max(maxDrift, horizontalDistance(world.position, settledPosition))
+		maxSpeed = math.max(maxSpeed, vector.magnitude(world.linearVelocity))
+		maxTilt = math.max(maxTilt, math.deg(math.asin(math.max(math.abs(world.forward.y), math.abs(world.right.y)))))
+	end)
+	local front, rear = frontLoad(runner.world), rearLoad(runner.world)
+	return maxDrift, maxSpeed, maxTilt, front / (front + rear), leftLoad(runner.world) / (front + rear)
+end
+
+Runner.test(
+	"17. at rest with the center of mass shifted the car settles level and loads each axle as expected",
+	function()
+		local wheelbase = VehicleConfig.WHEELS[3].offset.z - VehicleConfig.WHEELS[1].offset.z
+		local halfTrack = VehicleConfig.WHEELS[2].offset.x
+		local cases = {
+			vector.create(0, -SHIFT_DOWN_STUDS, -SHIFT_FORWARD_STUDS),
+			vector.create(0, -SHIFT_DOWN_STUDS, SHIFT_FORWARD_STUDS),
+			vector.create(SHIFT_SIDE_STUDS, -SHIFT_DOWN_STUDS, -SHIFT_FORWARD_STUDS),
+		}
+		for _, frameSeconds in { 1 / 30, 1 / 60 } do
+			for _, centerOffset in cases do
+				local drift, speed, tilt, frontShare, leftShare = runShiftedRest(frameSeconds, centerOffset)
+				Runner.expectEqual(drift < REST_MAX_DRIFT_STUDS, true)
+				Runner.expectEqual(speed < REST_MAX_SPEED, true)
+				Runner.expectEqual(tilt < MAX_REST_TILT_DEGREES, true)
+				local expectedFront = (wheelbase / 2 - centerOffset.z) / wheelbase
+				local expectedLeft = (halfTrack - centerOffset.x) / (2 * halfTrack)
+				Runner.expectNear(frontShare / expectedFront, 1, REST_LOAD_TOLERANCE)
+				Runner.expectNear(leftShare / expectedLeft, 1, REST_LOAD_TOLERANCE)
+			end
+		end
+	end
+)
+
+Runner.test("17. the front wheels carry more than the rear ones when the center of mass is forward", function()
+	local _, _, _, frontShare = runShiftedRest(1 / 30, vector.create(0, -SHIFT_DOWN_STUDS, -SHIFT_FORWARD_STUDS))
+	Runner.expectEqual(frontShare > 0.5, true)
 end)
 
 Runner.test(
@@ -540,6 +596,7 @@ Runner.test("10. nothing gives NaN or infinity and the forces stay inside the ca
 			for trial = 1, 12 do
 				local velocity = vector.create((random() - 0.5) * 300, (random() - 0.5) * 40, (random() - 0.5) * 300)
 				local chassis: VehicleTypes.ChassisSample = {
+					origin = vector.create(0, 4, 0),
 					position = vector.create(0, 4, 0),
 					right = vector.create(1, 0, 0),
 					up = vector.create(0, 1, 0),

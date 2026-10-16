@@ -18,6 +18,8 @@ export type VehicleControls = {
 -- `position` es el centro de masa y los ejes son unitarios en el mundo.
 -- `mass` y `gravity` los lee el adaptador del motor, así la configuración no depende de la masa del modelo.
 export type ChassisSample = {
+	-- Origen del marco de las ruedas (la posición del `Body`). `position` es el centro de masa.
+	origin: vector,
 	position: vector,
 	right: vector,
 	up: vector,

@@ -204,4 +204,28 @@ Runner.test("a custom configuration changes the spring", function()
 	Runner.expectNear(force, stiffRate * 0.8, 1e-6)
 end)
 
+Runner.test("a wheel with a load share carries that part of the weight at its static compression", function()
+	local share = 0.3
+	local staticCompression = GRAVITY / (2 * math.pi * VehicleConfig.SUSPENSION_FREQUENCY_HZ) ^ 2
+	local _, force =
+		Suspension.step(wheelWith(0), hitAt(REACH - staticCompression), 0, MASS, GRAVITY, FRAME_SECONDS, nil, share)
+	Runner.expectNear(force, share * MASS * GRAVITY, 1e-3)
+end)
+
+Runner.test("every share gives the same static compression, so the car sits level", function()
+	local compression = GRAVITY / (2 * math.pi * VehicleConfig.SUSPENSION_FREQUENCY_HZ) ^ 2
+	for _, share in { 0.2, 0.25, 0.4 } do
+		local _, force =
+			Suspension.step(wheelWith(0), hitAt(REACH - compression), 0, MASS, GRAVITY, FRAME_SECONDS, nil, share)
+		Runner.expectNear(force, share * MASS * GRAVITY, 1e-3)
+	end
+end)
+
+Runner.test("the force cap follows the load share", function()
+	local share = 0.1
+	local cap = VehicleConfig.SUSPENSION_MAX_FORCE_PER_STATIC_LOAD * share * MASS * GRAVITY
+	local _, force = Suspension.step(wheelWith(1), hitAt(REACH - 1), 1e9, MASS, GRAVITY, FRAME_SECONDS, nil, share)
+	Runner.expectNear(force, cap, 1e-6)
+end)
+
 Runner.finish()
