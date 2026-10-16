@@ -176,4 +176,38 @@ Runner.test("the road stays continuous in position even where pieces were taken 
 	end
 end)
 
+Runner.test("stepping gives the same pieces and counts as asking for whole pieces, also across retractions", function()
+	for _, seed in { SEED, BACKTRACK_SEED } do
+		local whole = RoadPieceSequencer.new(seed)
+		local stepped = RoadPieceSequencer.new(seed)
+		local stepCount = 0
+		for _ = 1, BACKTRACK_PIECES do
+			local expected = whole.generateNextPiece()
+			local stepResult = stepped.generatePieceStep()
+			stepCount += 1
+			while stepResult == nil do
+				stepResult = stepped.generatePieceStep()
+				stepCount += 1
+			end
+			local piece = stepResult :: PieceResult
+			Runner.expectEqual(piece.retractedAfterSampleNumber, expected.retractedAfterSampleNumber)
+			Runner.expectEqual(piece.finalizedSampleNumber, expected.finalizedSampleNumber)
+			Runner.expectEqual(#piece.samples, #expected.samples)
+			Runner.expectEqual(piece.samples[#piece.samples].position, expected.samples[#expected.samples].position)
+		end
+		Runner.expectEqual(stepCount > BACKTRACK_PIECES, true)
+		local wholeStatistics, steppedStatistics = whole.getStatistics(), stepped.getStatistics()
+		Runner.expectEqual(steppedStatistics.lastResortCount, wholeStatistics.lastResortCount)
+		Runner.expectEqual(steppedStatistics.backtrackCount, wholeStatistics.backtrackCount)
+		Runner.expectEqual(steppedStatistics.retractedPieceCount, wholeStatistics.retractedPieceCount)
+		Runner.expectEqual(steppedStatistics.arcLengthStuds, wholeStatistics.arcLengthStuds)
+	end
+end)
+
+Runner.test("the first step only draws the piece and gives nothing yet", function()
+	local sequencer = RoadPieceSequencer.new(SEED)
+	Runner.expectEqual(sequencer.generatePieceStep(), nil)
+	Runner.expectEqual(sequencer.getStatistics().pieceCount, 0)
+end)
+
 Runner.finish()

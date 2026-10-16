@@ -116,4 +116,57 @@ Runner.test("an empty or single sample road has nothing to measure", function()
 	Runner.expectEqual(ClearanceCheck.measure({ xs = { 5 }, zs = { 5 } }, NO_TOLERANCE).violationCount, 0)
 end)
 
+-- Una ida y vuelta cuya vuelta está `rise` studs más arriba.
+local function createOutAndBackRaised(separation: number, rise: number): ClearanceCheck.Polyline
+	local line = createOutAndBack(separation)
+	local heights = {}
+	local outwardCount = LEG_STUDS // STEP_STUDS + 1
+	for id = 1, #line.xs do
+		heights[id] = if id > outwardCount then rise else 0
+	end
+	line.ys = heights
+	return line
+end
+
+local function getSteepestAllowedRise(separation: number): number
+	local freeStuds = separation - WorldConfig.ROAD_WIDTH_STUDS - 2 * WorldConfig.SHOULDER_WIDTH_STUDS
+	return math.tan(math.rad(WorldConfig.TERRAIN_MAX_SLOPE_DEGREES)) * freeStuds
+end
+
+Runner.test(
+	"the height rule counts passes that are higher than the terrain can climb between their shoulders",
+	function()
+		local separation = CLEARANCE
+		local allowed = getSteepestAllowedRise(separation)
+		local fine = ClearanceCheck.measure(createOutAndBackRaised(separation, allowed - 1), NO_TOLERANCE)
+		Runner.expectEqual(fine.heightViolationCount, 0)
+		local walled = ClearanceCheck.measure(createOutAndBackRaised(separation, allowed + 1), NO_TOLERANCE)
+		Runner.expectEqual(walled.heightViolationCount > 0, true)
+		Runner.expectEqual(walled.steepestSlopeDegrees > WorldConfig.TERRAIN_MAX_SLOPE_DEGREES, true)
+		Runner.expectEqual(fine.steepestSlopeDegrees < WorldConfig.TERRAIN_MAX_SLOPE_DEGREES, true)
+	end
+)
+
+Runner.test("the height rule forgives the tolerance, looks at lower passes too and ignores far passes", function()
+	local allowed = getSteepestAllowedRise(CLEARANCE)
+	local barely = createOutAndBackRaised(CLEARANCE, allowed + 0.01)
+	Runner.expectEqual(ClearanceCheck.measure(barely, 0.05).heightViolationCount, 0)
+	Runner.expectEqual(ClearanceCheck.measure(barely, 0).heightViolationCount > 0, true)
+	local lower = createOutAndBackRaised(CLEARANCE, -allowed - 1)
+	Runner.expectEqual(ClearanceCheck.measure(lower, NO_TOLERANCE).heightViolationCount > 0, true)
+	local far = createOutAndBackRaised(WorldConfig.LIVE_HEIGHT_RULE_RADIUS_STUDS + 1, 1000)
+	Runner.expectEqual(ClearanceCheck.measure(far, NO_TOLERANCE).heightViolationCount, 0)
+end)
+
+Runner.test("without heights nothing is measured for the height rule", function()
+	local report = ClearanceCheck.measure(createOutAndBack(CLEARANCE), NO_TOLERANCE)
+	Runner.expectEqual(report.heightViolationCount, 0)
+	Runner.expectEqual(report.steepestSlopeDegrees, 0)
+end)
+
+Runner.test("two passes closer than the road and shoulders cannot differ in height at all", function()
+	local report = ClearanceCheck.measure(createOutAndBackRaised(CLOSE_STUDS, 0.5), NO_TOLERANCE)
+	Runner.expectEqual(report.heightViolationCount > 0, true)
+end)
+
 Runner.finish()

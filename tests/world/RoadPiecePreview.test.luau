@@ -18,6 +18,8 @@ local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
 local GUIDE_SEED = 21
 -- Con esta altura de partida, un perfil sin cerros queda plano.
 local START_HEIGHT = WorldConfig.HILL_BASE_HEIGHT_STUDS
+-- Mucho más que lo que el terreno salva entre dos pasadas a esa distancia.
+local TALL_WALL_STUDS = 150
 -- Un arcLength de partida lejano, para que lo ya recorrido pueda quedar como "no vecino" de lo que se previsualiza.
 local FAR_START_STEPS = 1000
 local OLD_ARC_STUDS = 0
@@ -161,12 +163,32 @@ Runner.test("a piece that comes too close to a non neighbor part of the road is 
 	state.sampleIndex = FAR_START_STEPS
 	local aheadX = state.x + 100 * math.cos(state.heading)
 	local aheadZ = state.z + 100 * math.sin(state.heading)
-	world.index.add(aheadX, aheadZ, OLD_ARC_STUDS)
+	world.index.add(aheadX, START_HEIGHT, aheadZ, OLD_ARC_STUDS)
 	expectRejected(world, state, RoadPieceBuilder.createStraight(100), "crowded")
 	local farAway = createWorld()
-	farAway.index.add(aheadX, aheadZ + 3 * WorldConfig.LIVE_CLEARANCE_STUDS, OLD_ARC_STUDS)
+	farAway.index.add(aheadX, START_HEIGHT, aheadZ + 3 * WorldConfig.LIVE_CLEARANCE_STUDS, OLD_ARC_STUDS)
 	Runner.expectEqual(farAway.preview.preview(state, RoadPieceBuilder.createStraight(100), 1) ~= nil, true)
 end)
+
+Runner.test(
+	"a piece that passes close to an old part of the road at a very different height is rejected for crowding",
+	function()
+		local state = createState(createWorld(), 0)
+		state.sampleIndex = FAR_START_STEPS
+		local sideX, sideZ = -math.sin(state.heading), math.cos(state.heading)
+		local distance = WorldConfig.LIVE_CLEARANCE_STUDS + 10
+		local piece = RoadPieceBuilder.createStraight(100)
+		local function createWorldWithOldPass(height: number): World
+			local world = createWorld()
+			local x, z = state.x + 100 * math.cos(state.heading), state.z + 100 * math.sin(state.heading)
+			world.index.add(x + distance * sideX, height, z + distance * sideZ, OLD_ARC_STUDS)
+			return world
+		end
+		Runner.expectEqual(createWorldWithOldPass(START_HEIGHT).preview.preview(state, piece, 1) ~= nil, true)
+		expectRejected(createWorldWithOldPass(START_HEIGHT + TALL_WALL_STUDS), state, piece, "crowded")
+		expectRejected(createWorldWithOldPass(START_HEIGHT - TALL_WALL_STUDS), state, piece, "crowded")
+	end
+)
 
 Runner.test("a piece that turns away from the guide too much is rejected for the relative heading", function()
 	local world = createWorld()
@@ -209,6 +231,7 @@ Runner.test("a piece is rejected when no tight turn back toward the guide fits a
 	local blockerDistance = WorldConfig.LIVE_CLEARANCE_STUDS + 15
 	world.index.add(
 		finalState.x + blockerDistance * math.cos(finalState.heading),
+		START_HEIGHT,
 		finalState.z + blockerDistance * math.sin(finalState.heading),
 		OLD_ARC_STUDS
 	)
@@ -227,6 +250,7 @@ Runner.test("a piece that ends facing the target needs no escape", function()
 	Runner.expectEqual(math.abs(headingError) <= math.rad(WorldConfig.ESCAPE_MIN_HEADING_ERROR_DEGREES), true)
 	world.index.add(
 		finalState.x + (WorldConfig.LIVE_CLEARANCE_STUDS + 15) * math.cos(finalState.heading),
+		START_HEIGHT,
 		finalState.z + (WorldConfig.LIVE_CLEARANCE_STUDS + 15) * math.sin(finalState.heading),
 		OLD_ARC_STUDS
 	)

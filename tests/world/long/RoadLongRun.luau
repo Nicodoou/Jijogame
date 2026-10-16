@@ -17,6 +17,9 @@ print(
 	`violaciones del anti-cruce: {report.clearanceViolations} (distancia mínima entre no vecinas: {report.minimumClearance})`
 )
 print(
+	`violaciones de la regla de altura: {report.heightViolations} (pendiente más empinada entre pasadas: {report.steepestSlopeDegrees}°)`
+)
+print(
 	`último recurso: {report.lastResortCount}, retrocesos de la ruta: {report.backtrackCount} ({report.retractedPieceCount} piezas retiradas)`
 )
 print(`retrocesos de la guía: {report.guideBacktrackCount}`)

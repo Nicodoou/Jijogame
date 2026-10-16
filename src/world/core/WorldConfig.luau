@@ -59,6 +59,14 @@ return table.freeze({
 	LIVE_NEAR_CLEARANCE_STUDS = 30,
 	-- El WP del terreno tiene que liberar todo lo que quede más atrás.
 	LIVE_LOOKBACK_STUDS = 4000,
+	-- Regla de altura (WP-9): dos pasadas no vecinas a menos de este radio (en el plano) no pueden estar a más altura de la que el
+	-- terreno salva con TERRAIN_MAX_SLOPE_DEGREES en el espacio que queda entre sus banquinas. Igual que el alcance de la ruta sobre
+	-- el terreno (TERRAIN_ROAD_REACH_STUDS, WP-6).
+	LIVE_HEIGHT_RULE_RADIUS_STUDS = 136,
+	-- Se exige una pendiente menor que la máxima en este margen: el terreno mezcla las alturas de varias pasadas y no es una rampa recta.
+	LIVE_HEIGHT_RULE_MARGIN_DEGREES = 1,
+	-- Pendiente máxima que se busca en el terreno entre pasadas (la usa la regla de altura; el WP-6 la usa para el terreno).
+	TERRAIN_MAX_SLOPE_DEGREES = 62,
 	-- Memoria extra para el retroceso. Tiene que ser >= ROAD_BACKTRACK_MAX_PIECES * la pieza más larga.
 	LIVE_BACKTRACK_MEMORY_STUDS = 13000,
 
@@ -111,6 +119,9 @@ return table.freeze({
 	HILL_OCTAVE_AMPLITUDE_FACTOR = 0.5,
 	HILL_OCTAVE_WAVELENGTH_FACTOR = 0.5,
 	HILL_NOISE_OFFSET_RANGE = 10000,
+	-- Dirección en que se recorre el plano (x, y) del ruido: math.noise repite cada 256 en cada eje, así que avanzar por un solo
+	-- eje repetía el perfil cada 256 longitudes de onda (#57). En diagonal, la repetición exacta no existe (la tangente es irracional).
+	HILL_NOISE_DIRECTION_DEGREES = 20,
 
 	-- Manchones de barro: ruido con semilla, solo más allá de la banquina.
 	MUD_NOISE_SCALE_PER_STUD = 0.01,

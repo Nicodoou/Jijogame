@@ -7,6 +7,9 @@ local WorldConfig = require("../../src/world/core/WorldConfig")
 local DETERMINISM_SEGMENTS = 20
 local STEPS_PER_SEGMENT = WorldConfig.SEGMENT_LENGTH_STUDS / WorldConfig.INTEGRATION_STEP_STUDS
 local REFERENCE_SEED = 12345
+-- Semilla en la que la ruta retrocede dentro de los primeros 70 tramos (ver RoadPieceSequencer.test.luau).
+local STEP_BACKTRACK_SEED = 54
+local STEP_SEGMENTS = 70
 
 local function hashFirstSegments(path: RoadPath.RoadPath, releaseEvery: number?): number
 	local segments = {}
@@ -159,6 +162,50 @@ Runner.test("releasing with an index that is not an integer is rejected", functi
 	Runner.expectError(function()
 		path.releaseSegmentsBefore(0 / 0)
 	end)
+end)
+
+Runner.test("generating step by step gives exactly the same segments as generateNextSegment", function()
+	for _, seed in { REFERENCE_SEED, STEP_BACKTRACK_SEED, 0, -7.5 } do
+		local reference = PathHelpers.generateSegments(RoadPath.new(seed), STEP_SEGMENTS)
+		local stepped = PathHelpers.generateSegmentsByStep(RoadPath.new(seed), STEP_SEGMENTS)
+		Runner.expectEqual(PathHelpers.hashSegments(stepped), PathHelpers.hashSegments(reference))
+		for index, segment in stepped do
+			Runner.expectEqual(segment.index, index - 1)
+		end
+	end
+end)
+
+Runner.test("a step does a little work and returns nil until it has a whole segment", function()
+	local path = RoadPath.new(REFERENCE_SEED)
+	Runner.expectEqual(path.generateStep(), nil)
+	local first, last = path.getLoadedRange()
+	Runner.expectEqual(last < first, true)
+	local _, mostCalls = PathHelpers.generateSegmentsByStep(RoadPath.new(REFERENCE_SEED), STEP_SEGMENTS)
+	Runner.expectEqual(mostCalls > 1, true)
+end)
+
+Runner.test("steps and whole segments can be mixed, and releasing in the middle changes nothing", function()
+	local reference = hashFirstSegments(RoadPath.new(REFERENCE_SEED), nil)
+	local path = RoadPath.new(REFERENCE_SEED)
+	local segments = {}
+	for index = 1, DETERMINISM_SEGMENTS do
+		local segment = if index % 2 == 0
+			then path.generateNextSegment()
+			else PathHelpers.generateSegmentsByStep(path, 1)[1]
+		segments[index] = segment
+		path.releaseSegmentsBefore(index - 1)
+	end
+	Runner.expectEqual(PathHelpers.hashSegments(segments), reference)
+end)
+
+Runner.test("after a segment is published the next steps start the following one", function()
+	local path = RoadPath.new(REFERENCE_SEED)
+	local firstBatch = PathHelpers.generateSegmentsByStep(path, 2)
+	Runner.expectEqual(firstBatch[2].index, 1)
+	local first, last = path.getLoadedRange()
+	Runner.expectEqual(first, 0)
+	Runner.expectEqual(last, 1)
+	Runner.expectEqual((path.getSegment(1) :: RoadPath.Segment).index, 1)
 end)
 
 Runner.finish()

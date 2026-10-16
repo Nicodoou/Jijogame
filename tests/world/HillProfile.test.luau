@@ -13,6 +13,13 @@ local SIMULATED_SEEDS = 10
 local SIMULATED_STEPS = 20000
 local TARGET_SAMPLES = 2000
 local TARGET_SAMPLE_SPACING_STUDS = 37
+-- Una sesión de 30 minutos a 150 studs/s (RC-6): el perfil no puede repetirse antes.
+local NO_REPEAT_STUDS = 30 * 60 * 150
+local MIN_REPEAT_LAG_STUDS = 5000
+local REPEAT_LAG_STEP_STUDS = 25
+local REPEAT_WINDOW_POINTS = 32
+local REPEAT_TOLERANCE_STUDS = 0.5
+local REPEAT_SEEDS = 3
 
 type Summary = {
 	lowestHeight: number,
@@ -177,6 +184,30 @@ Runner.test("close to the edge the slope is capped to what still lets the road b
 	Runner.expectEqual(limited > slope - MAX_SLOPE_CHANGE and limited < slope + MAX_SLOPE_CHANGE, true)
 	local needsNow = STEP_STUDS * math.tan(0.5 * (slope + limited)) + getBrakingClimb(limited)
 	Runner.expectEqual(needsNow <= headroom + TOLERANCE, true)
+end)
+
+-- Primer desfase (en studs, de a LAG_STEP_STUDS) en el que el perfil de una ventana vuelve a ser el mismo, o nil.
+local function findFirstRepeatedLag(hill: HillProfile.HillProfile): number?
+	for lag = MIN_REPEAT_LAG_STUDS, NO_REPEAT_STUDS, REPEAT_LAG_STEP_STUDS do
+		local largestDifference = 0
+		for point = 0, REPEAT_WINDOW_POINTS - 1 do
+			local arcLength = point * TARGET_SAMPLE_SPACING_STUDS
+			largestDifference = math.max(
+				largestDifference,
+				math.abs(hill.getTargetHeight(arcLength + lag) - hill.getTargetHeight(arcLength))
+			)
+		end
+		if largestDifference < REPEAT_TOLERANCE_STUDS then
+			return lag
+		end
+	end
+	return nil
+end
+
+Runner.test("the hill profile does not repeat itself during a 30 minute session (#57)", function()
+	for seed = 1, REPEAT_SEEDS do
+		Runner.expectEqual(findFirstRepeatedLag(HillProfile.new(seed)), nil)
+	end
 end)
 
 Runner.finish()
