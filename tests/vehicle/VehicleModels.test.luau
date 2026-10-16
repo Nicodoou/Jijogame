@@ -31,7 +31,7 @@ Runner.test("the meshes named by the sheet exist in the declared list", function
 	local sheet = VehicleModels.Fiat147
 	for meshName, wheelName in sheet.frontWheelMeshes do
 		Runner.expectEqual(contains(sheet.meshNames, meshName), true)
-		Runner.expectEqual(sheet.wheelCenters[wheelName] ~= nil, true)
+		Runner.expectEqual(typeof(sheet.wheelCenters[wheelName]), "vector")
 	end
 	for _, meshName in sheet.rearAxleMeshes do
 		Runner.expectEqual(contains(sheet.meshNames, meshName), true)

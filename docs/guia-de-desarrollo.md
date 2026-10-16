@@ -64,6 +64,7 @@ Rojo sincroniza el repo con Studio: lo que escribís en `src/` aparece en el jue
 | `src/shared/` | `ReplicatedStorage.shared` |
 | `src/<área>/core/` | `ReplicatedStorage.<área>.core`, para `vehicle`, `input`, `camera` y `world` |
 | `src/vehicle/shared/` | `ReplicatedStorage.vehicle.shared` |
+| `assets/vehicles/` | `ReplicatedStorage.vehicle.models` (solo los `.rbxm`) |
 | `src/vehicle/server/`, `src/world/server/` | `ServerScriptService.vehicle` y `world` |
 | `src/app/server/` | `ServerScriptService.app` |
 | `src/vehicle/client/`, `src/input/client/`, `src/camera/client/`, `src/world/client/`, `src/app/client/` | `StarterPlayer.StarterPlayerScripts.vehicle`, `input`, `camera`, `world` y `app` |
@@ -260,3 +261,20 @@ workspace:SetAttribute("Cfg_REAR_BIAS", 0.7)
 ```
 
 Se aplica en el acto, sin reiniciar. Los nombres que no existen en `VehicleConfig` y los valores de otro tipo se ignoran. Lo que te guste se pasa a `VehicleConfig` por PR; los atributos no se guardan.
+
+## 11. Importar un auto de Blockbench
+
+El modelo del auto (hoy el Fiat 147, `assets/vehicles/Fiat147.rbxm`) se importa desde Blockbench y se corrige antes de guardarlo en el repo. Studio importa cada pieza como un rig (un `Motor6D` con `C0` y `C1`) y la deja mal ubicada, porque el importador **resta** el pivote en vez de sumarlo:
+
+- una pieza que cuelga de la raíz queda en `raíz · C0 · C1⁻¹` y tiene que estar en `raíz · (2·C0 − C1)`;
+- las submallas de un grupo (con `C1` = 0) van en `centroDelGrupo + C0 − (C0_grupo − C1_grupo)`.
+
+Pasos:
+
+1. Importá el modelo a Studio (en un lugar de pruebas, nunca en un juego real) y seleccionalo.
+2. Abrí `tools/blockbench/FixImport.luau`, copiá todo y pegalo en la barra de comandos (Ver → Barra de comandos). Crea una copia `<nombre>_corregido` al lado y la selecciona. Avisa en la salida las piezas sin grupo, que no toca.
+3. Revisá la copia: tiene que verse como en Blockbench. Si no, no la uses.
+4. Guardala: clic derecho → **Save to File…** → `assets/vehicles/<Nombre>.rbxm`. El modelo guardado tiene que mirar a **+z** con el pivote en su origen, y las piezas ancladas.
+5. Sumá su ficha a `src/vehicle/core/VehicleModels.luau` (nombre del archivo, giro, altura de las ruedas sobre el pivote, lista de mallas, mallas de las ruedas delanteras y del eje trasero, centro de cada rueda y cabeza del conductor) y ajustá `WHEELS`, `WHEEL_RADIUS_STUDS` y `FINAL_DRIVE` en `VehicleConfig` a la geometría del modelo. La prueba `tests/vehicle/VehicleModels.test.luau` valida que la ficha coincida con `WHEELS`.
+
+El modelo es solo visual: el servidor lo marca sin masa, sin colisión y sin consulta (`markMassless`), así que cambiarlo no cambia el manejo. La herramienta se escribió a partir de la regla medida con el 147 y todavía no se probó con un import nuevo.
