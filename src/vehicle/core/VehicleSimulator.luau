@@ -12,6 +12,7 @@
 local Assists = require("./Assists")
 local ContactPlane = require("./ContactPlane")
 local Drivetrain = require("./Drivetrain")
+local Gearbox = require("./Gearbox")
 local Steering = require("./Steering")
 local SurfaceGrip = require("./SurfaceGrip")
 local StepOutputs = require("./StepOutputs")
@@ -125,15 +126,15 @@ local function advanceDrivetrain(
 	local settings = context.settings
 	local rpmBefore = Drivetrain.engineRpm(context.forwardSpeed, state.gear, settings)
 	local forwardY = context.chassis.forward.y
-	local load = Drivetrain.load(
-		Drivetrain.filteredSlope(state, forwardY, dt, settings),
+	local load = Gearbox.load(
+		Gearbox.filteredSlope(state, forwardY, dt, settings),
 		context.gravity,
 		averageRollingResistance(state.wheels)
 	)
 	local gear, shiftRemaining =
-		Drivetrain.nextGear(state, rpmBefore, context.forwardSpeed, context.controls, dt, settings, load)
+		Gearbox.nextGear(state, rpmBefore, context.forwardSpeed, context.controls, dt, settings, load)
 	local rpm = Drivetrain.engineRpm(context.forwardSpeed, gear, settings)
-	local secondsSinceUpshift, filteredForwardY = Drivetrain.nextMemory(state, gear, forwardY, dt, settings)
+	local secondsSinceUpshift, filteredForwardY = Gearbox.nextMemory(state, gear, forwardY, dt, settings)
 	local driveState: VehicleState = {
 		wheels = state.wheels,
 		gear = gear,
