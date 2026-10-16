@@ -63,10 +63,9 @@ local function attachPart(
 		weld(wheel, part)
 	elseif table.find(sheet.rearAxleMeshes, part.Name) ~= nil then
 		part.Anchored = true
-		part:SetAttribute(
-			VehicleParts.REAR_AXLE_OFFSET_ATTRIBUTE,
-			rearAxleRest(body, config):ToObjectSpace(part.CFrame)
-		)
+		-- Solo la orientación: el eje queda centrado entre las ruedas (el modelo lo trae 0,05 más abajo y al girar bailaría).
+		local offset = rearAxleRest(body, config):ToObjectSpace(part.CFrame)
+		part:SetAttribute(VehicleParts.REAR_AXLE_OFFSET_ATTRIBUTE, offset.Rotation)
 	else
 		weld(body, part)
 	end
