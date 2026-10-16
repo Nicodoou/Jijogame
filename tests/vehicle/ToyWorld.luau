@@ -27,6 +27,7 @@ export type ToyWorldOptions = {
 	initialYawDegrees: number?,
 	-- Centro de masa respecto del origen del marco de las ruedas, en coordenadas locales (z positivo es atrás).
 	centerOfMassOffset: vector?,
+	yawInertiaFraction: number?,
 }
 
 export type ToyWorld = {
@@ -45,6 +46,7 @@ export type ToyWorld = {
 	gravity: number,
 	settings: VehicleSettings,
 	centerOfMassOffset: vector,
+	yawInertiaFraction: number,
 }
 
 local ToyWorld = {}
@@ -128,7 +130,7 @@ end
 local function inertiaTimes(world: ToyWorld, value: vector, inverse: boolean): vector
 	local mass = world.mass
 	local pitch = mass * (BOX_HEIGHT * BOX_HEIGHT + BOX_LENGTH * BOX_LENGTH) / 12
-	local yaw = mass * (BOX_WIDTH * BOX_WIDTH + BOX_LENGTH * BOX_LENGTH) / 12
+	local yaw = world.yawInertiaFraction * mass * (BOX_WIDTH * BOX_WIDTH + BOX_LENGTH * BOX_LENGTH) / 12
 	local roll = mass * (BOX_WIDTH * BOX_WIDTH + BOX_HEIGHT * BOX_HEIGHT) / 12
 	local factorRight = if inverse then 1 / pitch else pitch
 	local factorUp = if inverse then 1 / yaw else yaw
@@ -236,6 +238,7 @@ function ToyWorld.new(options: ToyWorldOptions?): Runner
 		gravity = gravity,
 		settings = settings,
 		centerOfMassOffset = resolved.centerOfMassOffset or vector.create(0, 0, 0),
+		yawInertiaFraction = resolved.yawInertiaFraction or 1,
 	}
 	world.position = base + mountWorldOffset(world, world.centerOfMassOffset)
 	local function step(controls: VehicleControls)
