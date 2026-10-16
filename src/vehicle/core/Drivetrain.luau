@@ -49,11 +49,29 @@ function Drivetrain.torqueFraction(rpm: number, config: VehicleSettings?): numbe
 	return last.fraction
 end
 
+-- RPM que tendría el motor en esa marcha, sin recortar al ralentí ni al corte.
+local function unclampedRpm(forwardSpeed: number, gear: number, settings: VehicleSettings): number
+	local wheelRevolutionsPerSecond = math.abs(forwardSpeed) / settings.WHEEL_RADIUS_STUDS / (2 * math.pi)
+	return wheelRevolutionsPerSecond * SECONDS_PER_MINUTE * ratioOf(gear, settings) * settings.FINAL_DRIVE
+end
+
 function Drivetrain.engineRpm(forwardSpeed: number, gear: number, config: VehicleSettings?): number
 	local settings = config or VehicleConfig
-	local wheelRevolutionsPerSecond = math.abs(forwardSpeed) / settings.WHEEL_RADIUS_STUDS / (2 * math.pi)
-	local rpm = wheelRevolutionsPerSecond * SECONDS_PER_MINUTE * ratioOf(gear, settings) * settings.FINAL_DRIVE
-	return math.min(math.max(rpm, settings.IDLE_RPM), settings.REDLINE_RPM)
+	return math.min(math.max(unclampedRpm(forwardSpeed, gear, settings), settings.IDLE_RPM), settings.REDLINE_RPM)
+end
+
+-- Fracción del empuje de la primera marcha a pleno pedal que da una marcha con esas RPM: la curva de torque, la
+-- relación y el corte suave. Es la única fórmula del empuje por marcha: la usan `driveForce` y el kickdown.
+local function thrustFraction(rpm: number, gear: number, settings: VehicleSettings): number
+	local limiterFactor = math.clamp((settings.REDLINE_RPM - rpm) / settings.SOFT_LIMITER_RPM, 0, 1)
+	local gearMultiplier = ratioOf(gear, settings) / settings.GEAR_RATIOS[FIRST_GEAR]
+	return Drivetrain.torqueFraction(rpm, settings) * gearMultiplier * limiterFactor
+end
+
+-- Empuje relativo que daría esa marcha a esa velocidad (0 si las RPM llegan al corte).
+function Drivetrain.gearForce(gear: number, forwardSpeed: number, config: VehicleSettings?): number
+	local settings = config or VehicleConfig
+	return thrustFraction(Drivetrain.engineRpm(forwardSpeed, gear, settings), gear, settings)
 end
 
 local function wantsReverse(controls: VehicleControls, forwardSpeed: number, settings: VehicleSettings): boolean
@@ -62,6 +80,35 @@ end
 
 local function wantsForward(controls: VehicleControls, forwardSpeed: number, settings: VehicleSettings): boolean
 	return controls.throttle > 0 and math.abs(forwardSpeed) < settings.REVERSE_ENGAGE_SPEED
+end
+
+-- Kickdown: con el acelerador a fondo baja una marcha si la de abajo queda con margen antes del corte y empuja
+-- bastante más (histéresis), así no baja para volver a subir.
+local function shouldKickDown(gear: number, forwardSpeed: number, settings: VehicleSettings): boolean
+	if gear <= FIRST_GEAR then
+		return false
+	end
+	local below = gear - 1
+	local rpmLimit = settings.REDLINE_RPM - settings.SOFT_LIMITER_RPM - settings.KICKDOWN_RPM_MARGIN
+	if unclampedRpm(forwardSpeed, below, settings) > rpmLimit then
+		return false
+	end
+	local currentForce = Drivetrain.gearForce(gear, forwardSpeed, settings)
+	return Drivetrain.gearForce(below, forwardSpeed, settings) > currentForce * (1 + settings.KICKDOWN_FORCE_MARGIN)
+end
+
+-- Con el acelerador a fondo no sube mientras la marcha de arriba empuje menos que la actual, salvo que la actual
+-- ya esté en el corte suave. Así no sube para volver a bajar.
+local function shouldUpshiftAtFullThrottle(
+	gear: number,
+	forwardSpeed: number,
+	rpm: number,
+	settings: VehicleSettings
+): boolean
+	if rpm >= settings.REDLINE_RPM - settings.SOFT_LIMITER_RPM then
+		return true
+	end
+	return Drivetrain.gearForce(gear + 1, forwardSpeed, settings) >= Drivetrain.gearForce(gear, forwardSpeed, settings)
 end
 
 -- Devuelve la marcha y el tiempo que le queda al cambio. Un cambio nuevo solo puede empezar cuando terminó el anterior.
@@ -85,8 +132,14 @@ function Drivetrain.nextGear(
 	if remaining > 0 then
 		return gear, remaining
 	end
+	local isKickdownPedal = controls.throttle >= settings.KICKDOWN_THROTTLE
+	if isKickdownPedal and shouldKickDown(gear, forwardSpeed, settings) then
+		return gear - 1, settings.SHIFT_DURATION_SECONDS
+	end
 	if rpm >= settings.UPSHIFT_RPM and gear < #settings.GEAR_RATIOS then
-		return gear + 1, settings.SHIFT_DURATION_SECONDS
+		if not isKickdownPedal or shouldUpshiftAtFullThrottle(gear, forwardSpeed, rpm, settings) then
+			return gear + 1, settings.SHIFT_DURATION_SECONDS
+		end
 	end
 	if rpm <= settings.DOWNSHIFT_RPM and gear > FIRST_GEAR then
 		return gear - 1, settings.SHIFT_DURATION_SECONDS
@@ -103,18 +156,11 @@ function Drivetrain.driveForce(
 	config: VehicleSettings?
 ): number
 	local settings = config or VehicleConfig
-	local limiterFactor = math.clamp((settings.REDLINE_RPM - rpm) / settings.SOFT_LIMITER_RPM, 0, 1)
-	if limiterFactor == 0 then
-		return 0
-	end
 	local drivePedal = resolvePedals(state.gear, controls)
-	local gearMultiplier = ratioOf(state.gear, settings) / settings.GEAR_RATIOS[FIRST_GEAR]
 	local magnitude = mass
 		* settings.FIRST_GEAR_PEAK_ACCELERATION
-		* Drivetrain.torqueFraction(rpm, config)
-		* gearMultiplier
+		* thrustFraction(rpm, state.gear, settings)
 		* drivePedal
-		* limiterFactor
 	if state.shiftRemainingSeconds > 0 then
 		magnitude *= settings.SHIFT_TORQUE_FRACTION
 	end

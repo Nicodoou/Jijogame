@@ -79,7 +79,7 @@ end)
 
 Runner.test("it shifts up at the upshift rpm and starts a shift", function()
 	local gear, remaining =
-		Drivetrain.nextGear(stateIn(1), VehicleConfig.UPSHIFT_RPM, 40, controlsWith(1, 0), FRAME_SECONDS)
+		Drivetrain.nextGear(stateIn(1), VehicleConfig.UPSHIFT_RPM, 40, controlsWith(0.5, 0), FRAME_SECONDS)
 	Runner.expectEqual(gear, 2)
 	Runner.expectEqual(remaining, VehicleConfig.SHIFT_DURATION_SECONDS)
 end)
@@ -133,7 +133,7 @@ end)
 
 Runner.test("a shift can start in the same step the previous one finishes", function()
 	local gear, remaining =
-		Drivetrain.nextGear(stateIn(2, 0.01), VehicleConfig.UPSHIFT_RPM, 60, controlsWith(1, 0), 0.05)
+		Drivetrain.nextGear(stateIn(2, 0.01), VehicleConfig.UPSHIFT_RPM, 60, controlsWith(0.5, 0), 0.05)
 	Runner.expectEqual(gear, 3)
 	Runner.expectEqual(remaining, VehicleConfig.SHIFT_DURATION_SECONDS)
 end)
@@ -308,6 +308,135 @@ Runner.test("in reverse the throttle is the brake", function()
 	local reverse = stateIn(-1)
 	Runner.expectEqual(Drivetrain.brakeRequest(reverse, controlsWith(1, 0), MASS, true, 0) > 0, true)
 	Runner.expectEqual(Drivetrain.brakeRequest(reverse, controlsWith(0, 1), MASS, true, 0), 0)
+end)
+
+-- En quinta a esta velocidad las RPM están por encima de DOWNSHIFT_RPM: solo el kickdown puede bajar.
+local KICKDOWN_SPEED = 70
+
+local function speedForRpm(rpm: number, gear: number): number
+	return speedFor(rpm, gear)
+end
+
+Runner.test("gearForce matches the drive force divided by mass times peak acceleration", function()
+	for gear = 1, GEAR_COUNT do
+		for _, rpm in { 1500, 3000, 4500, 6000, 6700 } do
+			local speed = speedForRpm(rpm, gear)
+			local expected = Drivetrain.driveForce(stateIn(gear), controlsWith(1, 0), rpm, MASS)
+				/ (MASS * VehicleConfig.FIRST_GEAR_PEAK_ACCELERATION)
+			Runner.expectNear(Drivetrain.gearForce(gear, speed), expected, 1e-9)
+		end
+	end
+end)
+
+Runner.test("gearForce is zero at the redline and above", function()
+	for gear = 1, GEAR_COUNT do
+		Runner.expectNear(Drivetrain.gearForce(gear, speedForRpm(VehicleConfig.REDLINE_RPM, gear)), 0, 1e-12)
+		Runner.expectEqual(Drivetrain.gearForce(gear, speedForRpm(VehicleConfig.REDLINE_RPM * 1.5, gear)), 0)
+	end
+end)
+
+Runner.test("gearForce follows the torque curve with the speed in each stretch", function()
+	local peakRpm = 4500
+	for gear = 1, GEAR_COUNT do
+		local previousRising, previousFalling = 0, math.huge
+		for rpm = 1000, 4500, 100 do
+			local force = Drivetrain.gearForce(gear, speedForRpm(rpm, gear))
+			Runner.expectEqual(force >= previousRising - 1e-12, true)
+			previousRising = force
+		end
+		for rpm = peakRpm, VehicleConfig.REDLINE_RPM, 50 do
+			local force = Drivetrain.gearForce(gear, speedForRpm(rpm, gear))
+			Runner.expectEqual(force <= previousFalling + 1e-12, true)
+			previousFalling = force
+		end
+	end
+end)
+
+Runner.test("at full throttle in fifth at 40 studs per second it kicks down", function()
+	local gear, remaining = Drivetrain.nextGear(stateIn(5), 2000, 40, controlsWith(1, 0), FRAME_SECONDS)
+	Runner.expectEqual(gear, 4)
+	Runner.expectEqual(remaining, VehicleConfig.SHIFT_DURATION_SECONDS)
+end)
+
+Runner.test("at full throttle in second gear close to the limiter it shifts up", function()
+	local speed = speedForRpm(VehicleConfig.REDLINE_RPM - VehicleConfig.SOFT_LIMITER_RPM + 50, 2)
+	local rpm = Drivetrain.engineRpm(speed, 2)
+	local gear = Drivetrain.nextGear(stateIn(2), rpm, speed, controlsWith(1, 0), FRAME_SECONDS)
+	Runner.expectEqual(gear, 3)
+end)
+
+Runner.test("at full throttle it does not shift up while the gear above pushes less", function()
+	local speed = speedForRpm(VehicleConfig.UPSHIFT_RPM, 1)
+	local gear = Drivetrain.nextGear(stateIn(1), VehicleConfig.UPSHIFT_RPM, speed, controlsWith(1, 0), FRAME_SECONDS)
+	Runner.expectEqual(gear, 1)
+end)
+
+Runner.test("with the throttle at 0.5 there is no kickdown", function()
+	local gear = Drivetrain.nextGear(
+		stateIn(5),
+		Drivetrain.engineRpm(KICKDOWN_SPEED, 5),
+		KICKDOWN_SPEED,
+		controlsWith(0.5, 0),
+		FRAME_SECONDS
+	)
+	Runner.expectEqual(gear, 5)
+end)
+
+Runner.test("the kickdown starts only from the configured throttle", function()
+	local below = Drivetrain.nextGear(
+		stateIn(5),
+		Drivetrain.engineRpm(KICKDOWN_SPEED, 5),
+		KICKDOWN_SPEED,
+		controlsWith(VehicleConfig.KICKDOWN_THROTTLE - 0.01, 0),
+		FRAME_SECONDS
+	)
+	local at = Drivetrain.nextGear(
+		stateIn(5),
+		Drivetrain.engineRpm(KICKDOWN_SPEED, 5),
+		KICKDOWN_SPEED,
+		controlsWith(VehicleConfig.KICKDOWN_THROTTLE, 0),
+		FRAME_SECONDS
+	)
+	Runner.expectEqual(below, 5)
+	Runner.expectEqual(at, 4)
+end)
+
+Runner.test("it never kicks down to a gear that would be close to the limiter", function()
+	local speed = speedForRpm(
+		VehicleConfig.REDLINE_RPM - VehicleConfig.SOFT_LIMITER_RPM - VehicleConfig.KICKDOWN_RPM_MARGIN + 100,
+		3
+	)
+	local gear =
+		Drivetrain.nextGear(stateIn(4), Drivetrain.engineRpm(speed, 4), speed, controlsWith(1, 0), FRAME_SECONDS)
+	Runner.expectEqual(gear, 4)
+end)
+
+Runner.test("the kickdown needs the gear below to push more by the margin", function()
+	local settings = table.clone(VehicleConfig)
+	settings.KICKDOWN_FORCE_MARGIN = 100
+	local gear = Drivetrain.nextGear(
+		stateIn(5),
+		Drivetrain.engineRpm(KICKDOWN_SPEED, 5),
+		KICKDOWN_SPEED,
+		controlsWith(1, 0),
+		FRAME_SECONDS,
+		settings
+	)
+	Runner.expectEqual(gear, 5)
+end)
+
+Runner.test("no kickdown during a shift, in first gear or while reversing", function()
+	Runner.expectEqual((Drivetrain.nextGear(stateIn(5, 0.2), 2000, 40, controlsWith(1, 0), 0.05)), 5)
+	Runner.expectEqual((Drivetrain.nextGear(stateIn(1), 2000, 10, controlsWith(1, 0), FRAME_SECONDS)), 1)
+	Runner.expectEqual((Drivetrain.nextGear(stateIn(-1), 2000, -10, controlsWith(1, 0), FRAME_SECONDS)), -1)
+end)
+
+Runner.test("the last gear is never exceeded and the first never undercut at full throttle", function()
+	local topSpeed = speedForRpm(VehicleConfig.REDLINE_RPM - 100, GEAR_COUNT)
+	Runner.expectEqual(
+		(Drivetrain.nextGear(stateIn(GEAR_COUNT), 6900, topSpeed, controlsWith(1, 0), FRAME_SECONDS)),
+		GEAR_COUNT
+	)
 end)
 
 Runner.test("functions do not modify their arguments", function()
