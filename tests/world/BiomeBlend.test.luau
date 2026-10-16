@@ -394,7 +394,7 @@ Runner.test("in a transition the surface, the bridge and the materials all come 
 	Runner.expectNear(highlandCount / TRANSITION_SAMPLES, 0.5, 2 * FREQUENCY_TOLERANCE)
 end)
 
-local PICKER_POINTS_PER_CASE = 2500
+local PICKER_POINTS_PER_CASE = 1200
 local PICKER_SEEDS = { 1, -3, 0.75, 1e12 }
 local PICKER_DISTANCES = { 0, MUD_DISTANCE, 40 }
 

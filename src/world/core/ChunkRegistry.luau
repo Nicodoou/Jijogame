@@ -22,8 +22,8 @@ export type ChunkRegistry = {
 	remove: (key: number) -> (),
 	-- Avisa que llegó un tramo de ruta nuevo: los chunks escritos cerca de él pueden haber quedado viejos.
 	noteNewSegment: (segment: RoadPath.Segment) -> (),
-	-- Marca que hay que revisar todos los chunks en el próximo plan.
-	flagAllForCheck: () -> (),
+	-- Marca que hay que revisar un chunk en el próximo plan, aunque no haya llegado ruta nueva cerca.
+	flagForCheck: (key: number) -> (),
 	-- Olvida lo anotado sobre ruta nueva, una vez que el plan lo revisó.
 	clearNotes: () -> (),
 	-- true si el chunk se armó con una ruta distinta de la que lo influye ahora. Solo revisa los chunks anotados.
@@ -43,7 +43,7 @@ function ChunkRegistryModule.new(blocks: RoadBlocks.RoadBlocks, influenceStuds: 
 	local written: { [number]: WrittenChunk } = {}
 	local count = 0
 	local newSegmentBoxes: { Box } = {}
-	local isEveryChunkFlagged = false
+	local flaggedKeys: { [number]: boolean } = {}
 
 	local function getSignatureOfChunk(chunkX: number, chunkZ: number): number
 		local originX, originZ = ChunkGrid.getOriginStuds(chunkX), ChunkGrid.getOriginStuds(chunkZ)
@@ -94,7 +94,8 @@ function ChunkRegistryModule.new(blocks: RoadBlocks.RoadBlocks, influenceStuds: 
 	end
 
 	local function isStale(chunk: WrittenChunk): boolean
-		if not (isEveryChunkFlagged or isNearNewSegment(chunk.chunkX, chunk.chunkZ)) then
+		local isFlagged = flaggedKeys[ChunkGrid.getKey(chunk.chunkX, chunk.chunkZ)] == true
+		if not (isFlagged or isNearNewSegment(chunk.chunkX, chunk.chunkZ)) then
 			return false
 		end
 		return getSignatureOfChunk(chunk.chunkX, chunk.chunkZ) ~= chunk.signature
@@ -125,11 +126,11 @@ function ChunkRegistryModule.new(blocks: RoadBlocks.RoadBlocks, influenceStuds: 
 		record = record,
 		remove = remove,
 		noteNewSegment = noteNewSegment,
-		flagAllForCheck = function()
-			isEveryChunkFlagged = true
+		flagForCheck = function(key: number)
+			flaggedKeys[key] = true
 		end,
 		clearNotes = function()
-			newSegmentBoxes, isEveryChunkFlagged = {}, false
+			newSegmentBoxes, flaggedKeys = {}, {}
 		end,
 		isStale = isStale,
 		isReadyAt = isReadyAt,

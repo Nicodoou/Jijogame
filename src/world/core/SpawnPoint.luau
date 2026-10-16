@@ -25,10 +25,11 @@ function SpawnPoint.fromPath(path: RoadPath.RoadPath): RoadPoint.RoadPoint
 	local fraction = SPAWN_ARC_STUDS / STEP_STUDS - sampleNumber
 	local from = segment.samples[sampleNumber + 1]
 	local to = segment.samples[sampleNumber + 2]
+	local edge = to.position - from.position
 	return {
-		position = from.position + (to.position - from.position) * fraction,
+		position = from.position + edge * fraction,
 		-- Es la dirección de la arista, la misma que da RoadQuery en ese punto.
-		direction = vector.normalize(to.position - from.position),
+		direction = edge / vector.magnitude(edge),
 		arcLength = SPAWN_ARC_STUDS,
 	}
 end

@@ -116,7 +116,8 @@ function TerrainHeightFieldModule.new(
 
 	-- El punto más cercano de cada bloque que está al alcance de la columna.
 	local function measureBlocks(x: number, z: number)
-		for slot, block in areaBlocks do
+		for slot = 1, #areaBlocks do
+			local block = areaBlocks[slot]
 			local gapX = math.max(block.minX - x, x - block.maxX, 0)
 			local gapZ = math.max(block.minZ - z, z - block.maxZ, 0)
 			local boxDistanceSquared = gapX * gapX + gapZ * gapZ

@@ -116,7 +116,7 @@ Runner.test("a chunk is stale only if new road arrived near it and its signature
 	Runner.expectEqual(registry.isStale(touched), true)
 	registry.clearNotes()
 	Runner.expectEqual(registry.isStale(touched), false)
-	registry.flagAllForCheck()
+	registry.flagForCheck(ChunkGrid.getKey(1, 0))
 	Runner.expectEqual(registry.isStale(touched), true)
 	Runner.expectEqual(registry.isStale(near), false)
 	registry.clearNotes()

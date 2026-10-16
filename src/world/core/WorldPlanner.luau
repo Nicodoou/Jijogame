@@ -10,6 +10,7 @@ local BiomeCatalog = require("./BiomeCatalog")
 local BiomeMap = require("./BiomeMap")
 local BiomeTypes = require("./BiomeTypes")
 local ChunkCorridor = require("./ChunkCorridor")
+local ChunkGrid = require("./ChunkGrid")
 local ChunkPlan = require("./ChunkPlan")
 local ChunkRegistry = require("./ChunkRegistry")
 local RoadPath = require("./RoadPath")
@@ -97,7 +98,7 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 	local queueHead = 1
 	local current: CurrentWork? = nil
 	local isPlanDirty = true
-	local vehiclePosition = vector.zero
+	local vehiclePosition = vector.create(0, 0, 0)
 	local lastPlanPosition = vector.create(math.huge, 0, math.huge)
 
 	window.extend()
@@ -152,7 +153,7 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 		sink.writeChunk(voxels)
 		-- Si llegó ruta nueva mientras se armaba, el chunk ya salió viejo: se revisa en el próximo plan.
 		if registry.record(voxels) then
-			registry.flagAllForCheck()
+			registry.flagForCheck(ChunkGrid.getKey(voxels.chunkX, voxels.chunkZ))
 			isPlanDirty = true
 		end
 	end
