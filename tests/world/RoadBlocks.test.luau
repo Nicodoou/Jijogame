@@ -20,6 +20,9 @@ local TOLERANCE_STUDS = 1e-6
 -- por varios studs, y ahí la altura no usa el arco (ver TerrainHeightField).
 local NEAR_FIELD_STUDS = 30
 local NEAR_FIELD_TOLERANCE_STUDS = 0.01
+-- Cuando dos aristas quedan casi a la misma distancia (un milímetro de diferencia), la bisección puede elegir la otra y la
+-- altura del eje difiere unos centímetros: sigue lejos del margen de 0,5 studs de la superficie.
+local NEAR_FIELD_HEIGHT_TOLERANCE_STUDS = 0.1
 local MIN_NEAR_FIELD_QUERIES = 300
 local HEIGHT_PER_STEP = 0.25
 local HUGE_STUDS = 1e6
@@ -149,7 +152,7 @@ Runner.test("the bisection finds the same nearest point as trying every edge, on
 			if expectedDistance < NEAR_FIELD_STUDS then
 				compared += 1
 				Runner.expectNear(distance, expectedDistance, NEAR_FIELD_TOLERANCE_STUDS)
-				Runner.expectNear(height, expectedHeight, NEAR_FIELD_TOLERANCE_STUDS * 5)
+				Runner.expectNear(height, expectedHeight, NEAR_FIELD_HEIGHT_TOLERANCE_STUDS)
 			end
 		end
 	end

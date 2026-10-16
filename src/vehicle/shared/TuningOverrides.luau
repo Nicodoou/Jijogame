@@ -1,5 +1,5 @@
 --!strict
--- Afinación en vivo, solo en Studio: los atributos `Cfg_<NOMBRE>` de un objeto pisan los valores de VehicleConfig.
+-- Afinación en vivo, solo en Studio (cliente y servidor): los atributos `Cfg_<NOMBRE>` de un objeto pisan los valores de VehicleConfig.
 -- Los nombres que no existen en la configuración y los valores de otro tipo se ignoran.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 

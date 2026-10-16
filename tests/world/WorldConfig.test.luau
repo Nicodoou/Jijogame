@@ -184,4 +184,23 @@ Runner.test("the work budget decays slowly and a frame budget is a few milliseco
 	Runner.expectEqual(WorldConfig.WORK_BUDGET_MS_PER_FRAME > 0 and WorldConfig.WORK_BUDGET_MS_PER_FRAME < 16, true)
 end)
 
+Runner.test("the height rule reaches as far as the tallest hills can make two passes differ", function()
+	local fullWidth = WorldConfig.ROAD_WIDTH_STUDS + WIDTH_SIDES * WorldConfig.SHOULDER_WIDTH_STUDS
+	Runner.expectEqual(WorldConfig.LIVE_HEIGHT_RULE_RADIUS_STUDS > WorldConfig.LIVE_CLEARANCE_STUDS, true)
+	local factor = WorldConfig.HILL_OCTAVE_AMPLITUDE_FACTOR
+	local amplitudeSum = 0
+	for octave = 0, WorldConfig.HILL_OCTAVES - 1 do
+		amplitudeSum += WorldConfig.HILL_AMPLITUDE_STUDS * factor ^ octave
+	end
+	local largestRise =
+		math.min(WIDTH_SIDES * amplitudeSum, WorldConfig.HILL_MAX_HEIGHT_STUDS - WorldConfig.HILL_MIN_HEIGHT_STUDS)
+	local ruleSlope = math.rad(WorldConfig.TERRAIN_MAX_SLOPE_DEGREES - WorldConfig.LIVE_HEIGHT_RULE_MARGIN_DEGREES)
+	Runner.expectEqual(WorldConfig.LIVE_HEIGHT_RULE_RADIUS_STUDS >= fullWidth + largestRise / math.tan(ruleSlope), true)
+end)
+
+Runner.test("the margin of the height rule leaves a positive slope", function()
+	Runner.expectEqual(WorldConfig.LIVE_HEIGHT_RULE_MARGIN_DEGREES >= 0, true)
+	Runner.expectEqual(WorldConfig.LIVE_HEIGHT_RULE_MARGIN_DEGREES < WorldConfig.TERRAIN_MAX_SLOPE_DEGREES, true)
+end)
+
 Runner.finish()

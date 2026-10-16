@@ -19,7 +19,10 @@ export type RoadWindow = {
 	-- arcLength hasta el que hay ruta publicada.
 	getGeneratedEndArcLength: () -> number,
 	needsExtension: () -> boolean,
-	-- Genera un tramo más y lo devuelve.
+	-- Un paso acotado de la generación (una pieza, una alternativa o un retroceso): devuelve el tramo cuando se completa y
+	-- lo agrega a los bloques; mientras tanto, nil.
+	extendStep: () -> RoadPath.Segment?,
+	-- Genera un tramo más y lo devuelve (todos los pasos juntos).
 	extend: () -> RoadPath.Segment,
 	-- Libera la ruta y los bloques que quedaron muy atrás. Devuelve true si liberó algo.
 	releaseOldSegments: () -> boolean,
@@ -67,10 +70,20 @@ function RoadWindowModule.new(path: RoadPath.RoadPath, aheadStuds: number, block
 		return getGeneratedEndArcLength() < vehicleArcLength + aheadStuds
 	end
 
-	local function extend(): RoadPath.Segment
-		local segment = path.generateNextSegment()
-		blocks.addSegment(segment)
+	local function extendStep(): RoadPath.Segment?
+		local segment = path.generateStep()
+		if segment ~= nil then
+			blocks.addSegment(segment)
+		end
 		return segment
+	end
+
+	local function extend(): RoadPath.Segment
+		local segment = extendStep()
+		while segment == nil do
+			segment = extendStep()
+		end
+		return segment :: RoadPath.Segment
 	end
 
 	local function releaseOldSegments(): boolean
@@ -117,6 +130,7 @@ function RoadWindowModule.new(path: RoadPath.RoadPath, aheadStuds: number, block
 		getVehicleArcLength = getVehicleArcLength,
 		getGeneratedEndArcLength = getGeneratedEndArcLength,
 		needsExtension = needsExtension,
+		extendStep = extendStep,
 		extend = extend,
 		releaseOldSegments = releaseOldSegments,
 		forEachAxisPoint = forEachAxisPoint,

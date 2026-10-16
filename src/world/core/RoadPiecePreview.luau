@@ -2,7 +2,7 @@
 -- Previsualiza una pieza: la integra con RoadIntegrator, sin tocar el estado de nadie, y la acepta solo si cumple las
 -- cuatro condiciones:
 --   1. todas sus muestras quedan dentro del área y a no más de LOCAL_DEVIATION_MAX_STUDS de la guía (el túnel);
---   2. cumple el anti-cruce (LiveRoadIndex);
+--   2. cumple el anti-cruce y la regla de altura entre pasadas (LiveRoadIndex);
 --   3. su rumbo relativo a la guía no pasa de MAX_RELATIVE_HEADING_DEGREES (la horquilla doble queda exenta);
 --   4. desde su final cabe una salida de emergencia: un giro de radio mínimo hacia la guía.
 
@@ -100,7 +100,7 @@ function RoadPiecePreviewModule.new(
 			segment = projectedSegment
 			if math.abs(lateralOffset) > deviationLimit then
 				return nil, "deviation"
-			elseif not index.isClear(state.x, state.z, state.sampleIndex * STEP_STUDS) then
+			elseif not index.isClear(state.x, state.y, state.z, state.sampleIndex * STEP_STUDS) then
 				return nil, "crowded"
 			elseif getRelativeHeading(state.heading, segment) > headingLimit then
 				return nil, "heading"

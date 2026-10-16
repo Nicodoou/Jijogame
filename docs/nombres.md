@@ -16,6 +16,8 @@ Un concepto, un nombre. Se consulta antes de nombrar algo nuevo y se agrega acá
 | Punto de paso | `waypoint` | Cada punto de la guía, separado `GUIDE_STEP_STUDS` del anterior. |
 | Perfil de cerros | `HillProfile` | Altura de la ruta en función de su `arcLength`: ruido con semilla dentro de una franja, con la pendiente y su cambio acotados. |
 | Ruta viva | `LiveRoadIndex` | Las muestras de la ruta de los últimos `LIVE_LOOKBACK_STUDS` studs, en una grilla, para el anti-cruce. |
+| Regla de altura | `LIVE_HEIGHT_RULE_RADIUS_STUDS` | Parte del anti-cruce de `LiveRoadIndex`: dos pasadas no vecinas cercanas no pueden diferir en altura más de lo que el terreno salva con su pendiente máxima entre las dos banquinas. |
+| Paso de generación | `generateStep` | Avance acotado de la ruta (sortear una pieza, probar una alternativa o retroceder). `RoadPath.generateStep` devuelve el tramo cuando se completa y `nil` mientras tanto. |
 | Horquilla doble | `hairpinPair` | Pieza de dos horquillas para lados opuestos (de 120° a 180° cada una), unidas por una recta corta: el rumbo neto es cero. |
 | Longitud recorrida sobre el eje | `arcLength` | Distancia en studs, medida sobre el plano horizontal, desde el punto de partida de la ruta hasta una muestra o un punto del eje. |
 | Desvío lateral | `lateralOffset` | Distancia con signo entre una posición y el punto más cercano del eje: positiva a la derecha del sentido de marcha, negativa a la izquierda. Es la que usa `RoadQuery`. |

@@ -1,6 +1,7 @@
 --!strict
 local ChunkGrid = require("../../src/world/core/ChunkGrid")
 local FastChunkBuilder = require("./FastChunkBuilder")
+local PathHelpers = require("./PathHelpers")
 local RoadPath = require("../../src/world/core/RoadPath")
 local Runner = require("../Runner")
 local SpawnPoint = require("../../src/world/core/SpawnPoint")
@@ -545,5 +546,137 @@ Runner.test(
 		Runner.expectEqual(planner.hasWork(), false)
 	end
 )
+
+-- Una ruta real que cuenta las llamadas a la generación y se acuerda de los tramos que entregó, para compararlos.
+type CountingPath = {
+	path: RoadPath.RoadPath,
+	stepCalls: () -> number,
+	wholeSegmentCalls: () -> number,
+	delivered: { RoadPath.Segment },
+}
+
+local function createCountingPath(seed: number): CountingPath
+	local inner = RoadPath.new(seed)
+	local counting = {} :: CountingPath
+	local stepCalls, wholeSegmentCalls = 0, 0
+	counting.delivered = {}
+	counting.stepCalls = function()
+		return stepCalls
+	end
+	counting.wholeSegmentCalls = function()
+		return wholeSegmentCalls
+	end
+	local path = table.clone(inner)
+	path.generateStep = function(): RoadPath.Segment?
+		stepCalls += 1
+		local segment = inner.generateStep()
+		if segment ~= nil then
+			table.insert(counting.delivered, segment)
+		end
+		return segment
+	end
+	path.generateNextSegment = function(): RoadPath.Segment
+		wholeSegmentCalls += 1
+		return inner.generateNextSegment()
+	end
+	counting.path = path
+	return counting
+end
+
+-- Lleva al auto por la ruta que ya entregó el generador, hasta `targetArc`, y deja que el planificador termine.
+local function driveTo(planner: WorldPlanner.WorldPlanner, counting: CountingPath, targetArc: number)
+	local stepsPerSegment = SyntheticRoad.STEPS_PER_SEGMENT
+	local segment = counting.delivered[math.min(#counting.delivered, targetArc // WorldConfig.SEGMENT_LENGTH_STUDS + 1)]
+	local sample = segment.samples[math.min(#segment.samples, stepsPerSegment)]
+	planner.updatePlan(sample.position)
+end
+
+Runner.test(
+	"the planner generates the route one step per unit of work, with the same segments as generateNextSegment",
+	function()
+		local counting = createCountingPath(SEED)
+		local fake = createFakeSink()
+		local planner = WorldPlanner.new({
+			seed = SEED,
+			sink = fake.sink,
+			path = counting.path,
+			createBuilder = FastChunkBuilder.create,
+		})
+		local stepsAtConstruction = counting.stepCalls()
+		local worstCallsPerUnit, units = 0, 0
+		local function runUnit()
+			local before = counting.stepCalls()
+			planner.runStep()
+			worstCallsPerUnit = math.max(worstCallsPerUnit, counting.stepCalls() - before)
+			units += 1
+			Runner.expectEqual(units < MAX_STEPS, true)
+		end
+		-- Con presupuesto y reloj falso, como en el juego: cada unidad cuesta lo mismo, así que cada cuadro corre varias.
+		local now = 0
+		local source: WorkBudget.WorkSource = {
+			hasWork = planner.hasWork,
+			runStep = function()
+				runUnit()
+				now += 0.3
+			end,
+		}
+		local budget = WorkBudget.new(function(): number
+			return now
+		end, WorldConfig.WORK_BUDGET_MS_PER_FRAME)
+		planner.updatePlan(planner.getSpawnPoint().position)
+		for _ = 1, 3 do
+			while planner.hasWork() do
+				budget.advance(source)
+			end
+			driveTo(planner, counting, planner.getStatus().generatedEndArcLength - WorldConfig.ROUTE_AHEAD_STUDS / 2)
+		end
+		while planner.hasWork() do
+			budget.advance(source)
+		end
+		Runner.expectEqual(worstCallsPerUnit, 1)
+		Runner.expectEqual(counting.wholeSegmentCalls(), 0)
+		-- Hubo más pasos que tramos: la generación de un tramo se repartió en varias unidades.
+		Runner.expectEqual(counting.stepCalls() > #counting.delivered, true)
+		Runner.expectEqual(counting.stepCalls() > stepsAtConstruction, true)
+		Runner.expectEqual(#counting.delivered > 3, true)
+		local reference = PathHelpers.generateSegments(RoadPath.new(SEED), #counting.delivered)
+		Runner.expectEqual(PathHelpers.hashSegments(counting.delivered), PathHelpers.hashSegments(reference))
+	end
+)
+
+Runner.test("a segment that takes several steps is generated across that many units of work", function()
+	local fake = createFakeSink()
+	local stepsPerSegment = 5
+	local segments = SyntheticRoad.createSegments({
+		segmentCount = STRAIGHT_SEGMENTS,
+		startX = 0,
+		startZ = 0,
+		startHeadingRadians = 0,
+		curvatureAt = function()
+			return 0
+		end,
+		heightAt = function()
+			return ROAD_HEIGHT
+		end,
+	})
+	local planner = WorldPlanner.new({
+		seed = SEED,
+		sink = fake.sink,
+		path = SyntheticRoad.createPath(segments, stepsPerSegment),
+		createBuilder = FastChunkBuilder.create,
+	})
+	planner.updatePlan(pointOnStraight(16))
+	local endBefore = planner.getStatus().generatedEndArcLength
+	local unitsPerSegment = 0
+	while planner.getStatus().generatedEndArcLength == endBefore do
+		planner.runStep()
+		unitsPerSegment += 1
+		Runner.expectEqual(unitsPerSegment <= stepsPerSegment, true)
+	end
+	Runner.expectEqual(unitsPerSegment, stepsPerSegment)
+	runUntilIdle(planner)
+	Runner.expectEqual(planner.isWorldReadyAt(pointOnStraight(16)), true)
+	expectWantedAndKept(planner, fake)
+end)
 
 Runner.finish()

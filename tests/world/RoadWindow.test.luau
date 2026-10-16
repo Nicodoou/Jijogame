@@ -153,4 +153,32 @@ Runner.test("a stride shorter than a step still visits every point once", functi
 	Runner.expectEqual(count, 11)
 end)
 
+Runner.test("extending by steps adds the blocks only when the segment is complete", function()
+	local stepsPerSegment = 4
+	local segments = SyntheticRoad.createSegments({
+		segmentCount = 3,
+		startX = 0,
+		startZ = 0,
+		startHeadingRadians = 0,
+		curvatureAt = function()
+			return 0
+		end,
+		heightAt = function()
+			return ROAD_HEIGHT
+		end,
+	})
+	local window = RoadWindow.new(SyntheticRoad.createPath(segments, stepsPerSegment), AHEAD_STUDS, MEMORY_STUDS)
+	local blocksPerSegment = SEGMENT_STUDS / WorldConfig.INTEGRATION_STEP_STUDS / WorldConfig.TERRAIN_ROAD_BLOCK_STEPS
+	for expectedIndex = 0, 2 do
+		for _ = 1, stepsPerSegment - 1 do
+			Runner.expectEqual(window.extendStep(), nil)
+			Runner.expectEqual(countBlocks(window), expectedIndex * blocksPerSegment)
+		end
+		local segment = window.extendStep()
+		Runner.expectEqual(segment ~= nil and segment.index, expectedIndex)
+		Runner.expectEqual(countBlocks(window), (expectedIndex + 1) * blocksPerSegment)
+		Runner.expectEqual(window.getGeneratedEndArcLength(), (expectedIndex + 1) * SEGMENT_STUDS)
+	end
+end)
+
 Runner.finish()

@@ -14,6 +14,14 @@ return table.freeze({
 	}),
 	WHEEL_RADIUS_STUDS = 1.2,
 
+	-- Peso: solo los lee el adaptador para armar el lastre (CP-6); el núcleo saca el reparto del centro de masa real.
+	-- Fracción del peso sobre el eje delantero.
+	FRONT_WEIGHT_FRACTION = 0.5,
+	-- Altura del centro de masa sobre el plano de montaje de las ruedas (y = −1 local).
+	CENTER_OF_MASS_HEIGHT_STUDS = 1,
+	-- Parte de la masa total que lleva el lastre invisible.
+	BALLAST_MASS_FRACTION = 0.5,
+
 	-- Suspensión.
 	-- Como máximo 4 Hz (#32).
 	SUSPENSION_FREQUENCY_HZ = 2.5,

@@ -1,10 +1,12 @@
 --!strict
 -- Crea el auto anclado de cada jugador y lo suelta cuando el cliente avisa que el mundo está listo (RN-2).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local RoadPoint = require(ReplicatedStorage.shared.contracts.RoadPoint)
 local Suspension = require(ReplicatedStorage.vehicle.core.Suspension)
+local TuningOverrides = require(ReplicatedStorage.vehicle.shared.TuningOverrides)
 local VectorConversion = require(ReplicatedStorage.vehicle.shared.VectorConversion)
 local VehicleParts = require(ReplicatedStorage.vehicle.shared.VehicleParts)
 local VehicleTypes = require(ReplicatedStorage.vehicle.core.VehicleTypes)
@@ -27,7 +29,7 @@ VehicleSpawner.__index = VehicleSpawner
 export type VehicleSpawner = typeof(setmetatable(
 	{} :: {
 		_getSpawnPoint: RoadPoint.GetSpawnPoint,
-		_config: VehicleSettings,
+		_tuning: TuningOverrides.TuningOverrides,
 		_vehicles: { [Player]: Vehicle },
 		_lastRequestSeconds: { [Player]: number },
 		_remote: RemoteEvent,
@@ -41,7 +43,7 @@ function VehicleSpawner.new(getSpawnPoint: RoadPoint.GetSpawnPoint, config: Vehi
 	remote.Parent = ReplicatedStorage
 	local self = setmetatable({
 		_getSpawnPoint = getSpawnPoint,
-		_config = config,
+		_tuning = TuningOverrides.new(config, Workspace, RunService:IsStudio()),
 		_vehicles = {},
 		_lastRequestSeconds = {},
 		_remote = remote,
@@ -70,8 +72,10 @@ end
 
 function VehicleSpawner.spawnFor(self: VehicleSpawner, player: Player)
 	self:despawnFor(player)
-	local bodyCFrame = restingCFrame(self._getSpawnPoint(), self._config)
-	local model = VehicleModelBuilder.build(player.UserId, bodyCFrame, self._config)
+	-- Los Cfg_ del servidor (solo en Studio) se aplican al aparecer: el lastre se arma ahora.
+	local config = self._tuning:getConfig()
+	local bodyCFrame = restingCFrame(self._getSpawnPoint(), config)
+	local model = VehicleModelBuilder.build(player.UserId, bodyCFrame, config)
 	model.Parent = Workspace
 	local body = model.PrimaryPart :: BasePart
 	-- El cliente tiene que ver el auto aunque esté lejos, o el streaming lo oculta.

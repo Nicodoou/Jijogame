@@ -141,7 +141,12 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 	end
 
 	local function extendRoad()
-		registry.noteNewSegment(window.extend())
+		-- Un solo paso de generación por unidad de trabajo: el tramo completo puede costar picos de decenas de ms.
+		local segment = window.extendStep()
+		if segment == nil then
+			return
+		end
+		registry.noteNewSegment(segment)
 		-- Con ruta nueva el auto puede haber quedado sobre ella: si no se lo vuelve a ubicar acá, la ruta de adelante
 		-- se calcula desde un arcLength viejo hasta la próxima llamada de updatePlan.
 		window.trackVehicle(vehiclePosition)

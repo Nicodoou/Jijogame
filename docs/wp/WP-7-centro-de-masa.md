@@ -67,6 +67,7 @@ Que el núcleo use siempre el centro de masa real para los brazos de las ruedas 
 6. **`VehicleModelBuilder` (servidor):**
    - Agrega una pieza `Ballast` invisible (`Transparency = 1`, `CanCollide = false`, `CanQuery = false` y `CanTouch = false`), soldada al `Body`.
    - **Su masa:** `BALLAST_MASS_FRACTION` del total, con el `Body` llevando el resto. Se ajusta con la densidad de cada pieza.
+   - **Su tamaño es el del `Body` (6 × 2 × 10, de la misma constante).** El lastre no puede reducir la inercia de giro del conjunto: una pieza chica suma masa pero casi nada de inercia (483 medida en Studio contra 952 de la caja entera), y con esa mitad el giro a baja velocidad es inestable (bug `docs/bugs/2026-10-16-vibracion-reposo.md`; límite medido en `ToyWorld`: fracción de inercia mínima estable ≈ 0,71).
    - **Su posición local** pone el centro de masa del ensamble en:
      - `zCM = zTrasero − FRONT_WEIGHT_FRACTION · (zTrasero − zDelantero)`;
      - `yCM = −1 + CENTER_OF_MASS_HEIGHT_STUDS`;

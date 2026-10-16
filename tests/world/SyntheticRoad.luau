@@ -56,19 +56,37 @@ function SyntheticRoad.createSegments(layout: Layout): { RoadPath.Segment }
 end
 
 -- Una ruta con la API de RoadPath que entrega los tramos ya armados, en orden. Pedir más de los que hay es un error.
-function SyntheticRoad.createPath(segments: { RoadPath.Segment }): RoadPath.RoadPath
+-- `stepsPerSegment` (1 por defecto) imita la generación por pasos: `generateStep` da nil esa cantidad de veces menos una
+-- y recién después entrega el tramo.
+function SyntheticRoad.createPath(segments: { RoadPath.Segment }, stepsPerSegment: number?): RoadPath.RoadPath
 	local firstIndex = segments[1].index
 	local firstLoaded = firstIndex
 	local lastLoaded = firstIndex - 1
+	local stepsNeeded = stepsPerSegment or 1
+	local stepsDone = 0
+
+	local function generateStep(): RoadPath.Segment?
+		stepsDone += 1
+		if stepsDone < stepsNeeded then
+			return nil
+		end
+		stepsDone = 0
+		local segment = segments[lastLoaded + 1 - firstIndex + 1]
+		if segment == nil then
+			error("the synthetic road has no more segments", 2)
+		end
+		lastLoaded += 1
+		return segment
+	end
 
 	return {
+		generateStep = generateStep,
 		generateNextSegment = function(): RoadPath.Segment
-			local segment = segments[lastLoaded + 1 - firstIndex + 1]
-			if segment == nil then
-				error("the synthetic road has no more segments", 2)
+			local segment = generateStep()
+			while segment == nil do
+				segment = generateStep()
 			end
-			lastLoaded += 1
-			return segment
+			return segment :: RoadPath.Segment
 		end,
 		releaseSegmentsBefore = function(index: number)
 			firstLoaded = math.max(firstLoaded, math.min(index, lastLoaded + 1))

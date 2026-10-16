@@ -19,6 +19,8 @@ export type Report = {
 	continuityViolations: number,
 	clearanceViolations: number,
 	minimumClearance: number,
+	heightViolations: number,
+	steepestSlopeDegrees: number,
 	lastResortCount: number,
 	backtrackCount: number,
 	retractedPieceCount: number,
@@ -66,9 +68,9 @@ local SHARP_KIND: RoadPieceCatalog.PieceKind = "sharpCurve"
 local HAIRPIN_KIND: RoadPieceCatalog.PieceKind = "hairpinPair"
 
 local function toPolyline(road: { RoadPath.RoadSample }): ClearanceCheck.Polyline
-	local line = { xs = table.create(#road), zs = table.create(#road) }
+	local line = { xs = table.create(#road), ys = table.create(#road), zs = table.create(#road) }
 	for index, sample in road do
-		line.xs[index], line.zs[index] = sample.position.x, sample.position.z
+		line.xs[index], line.ys[index], line.zs[index] = sample.position.x, sample.position.y, sample.position.z
 	end
 	return line
 end
@@ -123,6 +125,8 @@ local function measureSeed(seed: number, report: Report, totals: Totals)
 	local clearance = ClearanceCheck.measure(toPolyline(road), RoadSampleChecks.vectorPrecisionStuds)
 	report.clearanceViolations += clearance.violationCount
 	report.minimumClearance = math.min(report.minimumClearance, clearance.minimumDistance)
+	report.heightViolations += clearance.heightViolationCount
+	report.steepestSlopeDegrees = math.max(report.steepestSlopeDegrees, clearance.steepestSlopeDegrees)
 	report.lastResortCount += statistics.lastResortCount
 	report.backtrackCount += statistics.backtrackCount
 	report.retractedPieceCount += statistics.retractedPieceCount
@@ -146,6 +150,8 @@ local function createReport(seedCount: number): Report
 		continuityViolations = 0,
 		clearanceViolations = 0,
 		minimumClearance = math.huge,
+		heightViolations = 0,
+		steepestSlopeDegrees = 0,
 		lastResortCount = 0,
 		backtrackCount = 0,
 		retractedPieceCount = 0,
@@ -218,6 +224,10 @@ function RoadPropertySuite.defineTests(seedCount: number): Report
 	expectZero("consecutive samples are one step apart on the ground", violations.step)
 	expectZero("every value of every sample is a finite number", violations.notFinite)
 	expectZero("the road keeps its distance from non neighbor parts of itself", report.clearanceViolations)
+	expectZero(
+		"two passes close to each other never differ in height more than the terrain can climb",
+		report.heightViolations
+	)
 	Runner.test("every seed has a window of 2000 studs that turns more than 180 degrees", function()
 		Runner.expectEqual(report.seedsWithBigTurn, seedCount)
 	end)

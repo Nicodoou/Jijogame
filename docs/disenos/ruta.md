@@ -345,6 +345,12 @@ El enfoque que eligió Beni, una guía grande con curvas locales, se probó en u
 
 **Relación con el WP del terreno:** el terreno de cada chunk sale solo de la ruta viva. Los chunks de la ruta que quedó a más de `LIVE_LOOKBACK_STUDS` se liberan, y se reescriben si la ruta vuelve. Por el buffer, la ruta publicada va unos 10 tramos por detrás de la generada, y el WP del terreno tiene que generar con margen suficiente para eso.
 
+**Nota del WP-9 (2026-10-16): regla de altura, generación por pasos y lomas.** Cambios de la implementación que no cambian las capas ni los contratos:
+
+- **Regla de altura (`LiveRoadIndex` y `RoadPiecePreview`).** El anti-cruce deja pasadas a 30 studs de eje (banquinas a unos 6 studs) sin mirar la altura, y ahí el terreno no puede bajar. Ahora, además de la distancia, una muestra nueva se rechaza si a menos de `LIVE_HEIGHT_RULE_RADIUS_STUDS` hay una muestra viva no vecina con una diferencia de altura mayor que `tan(TERRAIN_MAX_SLOPE_DEGREES − LIVE_HEIGHT_RULE_MARGIN_DEGREES) · max(0, distancia − ancho − 2 banquinas)`. El índice guarda la altura de cada muestra y usa celdas de la tercera parte del radio, con las vecinas a tres celdas guardadas en una lista que se reutiliza mientras no cambie la celda de la consulta. El radio sale de la altura máxima que pueden sacarse dos pasadas (las lomas suman 175 studs como máximo) dividida por la pendiente de la regla.
+- **Generación por pasos (`RoadPath`, `RoadPieceSequencer`).** `generateStep()` avanza un paso acotado: sortear una pieza (`RoadPieceChooser`), probar la próxima alternativa (`RoadPieceAlternatives` las entrega de a una, en el mismo orden y con el mismo consumo de azar) o retroceder. Devuelve el tramo cuando se completa. `generateNextSegment` y `generateNextPiece` lo repiten, y el resultado de la semilla no cambia.
+- **Lomas sin repetición (#57).** `HillProfile` recorre el plano (x, y) del ruido en diagonal (`HILL_NOISE_DIRECTION_DEGREES`) para que el perfil no se repita cada 256 longitudes de onda. Ver `docs/bugs/2026-10-16-lomas-repetidas.md`.
+
 **División en WPs (actualizada):**
 1. ~~WP de la ruta~~ (WP-2, en `main`).
 2. **WP-5, rediseño de la ruta de rally** (versión 2).
