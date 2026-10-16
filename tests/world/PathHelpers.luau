@@ -17,6 +17,22 @@ function PathHelpers.generateSegments(path: RoadPath.RoadPath, count: number): {
 	return segments
 end
 
+-- Igual que generateSegments, pero de a pasos: devuelve los tramos y la mayor cantidad de llamadas que hizo falta para uno.
+function PathHelpers.generateSegmentsByStep(path: RoadPath.RoadPath, count: number): ({ RoadPath.Segment }, number)
+	local segments = {}
+	local calls, mostCalls = 0, 0
+	while #segments < count do
+		calls += 1
+		local segment = path.generateStep()
+		if segment ~= nil then
+			table.insert(segments, segment)
+			mostCalls = math.max(mostCalls, calls)
+			calls = 0
+		end
+	end
+	return segments, mostCalls
+end
+
 -- Hash de los bits de todas las muestras: dos rutas iguales dan el mismo número, aunque difieran en un bit.
 function PathHelpers.hashSegments(segments: { RoadPath.Segment }): number
 	local hash = 0

@@ -3,6 +3,7 @@
 -- liberan atrás. Como el secuenciador puede retroceder sobre sus últimas piezas, las muestras esperan en un buffer y
 -- un tramo se publica recién cuando ya no cambia. Cada tramo depende solo de la semilla, aunque se hayan liberado los
 -- anteriores.
+-- La generación se puede hacer de a pasos (`generateStep`), para repartirla en una cola de trabajo con presupuesto.
 
 local RoadFrame = require("./RoadFrame")
 local RoadIntegrator = require("./RoadIntegrator")
@@ -17,6 +18,10 @@ export type Segment = {
 }
 
 export type RoadPath = {
+	-- Avanza la generación un paso acotado (a lo sumo una pieza, una alternativa o un retroceso) y devuelve el tramo cuando
+	-- queda completo; mientras tanto, nil. Da exactamente los mismos tramos que `generateNextSegment`.
+	generateStep: () -> Segment?,
+	-- Repite pasos hasta tener el próximo tramo.
 	generateNextSegment: () -> Segment,
 	releaseSegmentsBefore: (index: number) -> (),
 	getSegment: (index: number) -> Segment?,
@@ -44,8 +49,7 @@ function RoadPathModule.newWithStatistics(seed: number): (RoadPath, () -> RoadPi
 	local firstIndex = 0
 	local lastIndex = -1
 
-	local function receiveNextPiece()
-		local piece = sequencer.generateNextPiece()
+	local function receivePiece(piece: RoadPieceSequencer.PieceResult)
 		for number = pendingLast, piece.retractedAfterSampleNumber + 1, -1 do
 			pending[number] = nil
 		end
@@ -56,12 +60,9 @@ function RoadPathModule.newWithStatistics(seed: number): (RoadPath, () -> RoadPi
 		finalizedNumber = piece.finalizedSampleNumber
 	end
 
-	local function generateNextSegment(): Segment
+	local function publishNextSegment(): Segment
 		local firstNumber = (lastIndex + 1) * STEPS_PER_SEGMENT
 		local lastNumber = firstNumber + STEPS_PER_SEGMENT
-		while finalizedNumber < lastNumber do
-			receiveNextPiece()
-		end
 		local samples = table.create(STEPS_PER_SEGMENT + 1)
 		for offset = 0, STEPS_PER_SEGMENT do
 			samples[offset + 1] = pending[firstNumber + offset]
@@ -74,6 +75,29 @@ function RoadPathModule.newWithStatistics(seed: number): (RoadPath, () -> RoadPi
 		local segment = { index = lastIndex, samples = samples }
 		segments[lastIndex] = segment
 		return segment
+	end
+
+	local function generateStep(): Segment?
+		local lastNumber = (lastIndex + 2) * STEPS_PER_SEGMENT
+		if finalizedNumber < lastNumber then
+			local piece = sequencer.generatePieceStep()
+			if piece == nil then
+				return nil
+			end
+			receivePiece(piece)
+			if finalizedNumber < lastNumber then
+				return nil
+			end
+		end
+		return publishNextSegment()
+	end
+
+	local function generateNextSegment(): Segment
+		local segment = generateStep()
+		while segment == nil do
+			segment = generateStep()
+		end
+		return segment :: Segment
 	end
 
 	local function releaseSegmentsBefore(index: number)
@@ -95,6 +119,7 @@ function RoadPathModule.newWithStatistics(seed: number): (RoadPath, () -> RoadPi
 	end
 
 	local path = {
+		generateStep = generateStep,
 		generateNextSegment = generateNextSegment,
 		releaseSegmentsBefore = releaseSegmentsBefore,
 		getSegment = getSegment,
