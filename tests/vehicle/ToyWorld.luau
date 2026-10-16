@@ -25,6 +25,8 @@ export type ToyWorldOptions = {
 	dropStuds: number?,
 	initialForwardSpeed: number?,
 	initialYawDegrees: number?,
+	-- Centro de masa respecto del origen del marco de las ruedas, en coordenadas locales (z positivo es atrás).
+	centerOfMassOffset: vector?,
 }
 
 export type ToyWorld = {
@@ -42,6 +44,7 @@ export type ToyWorld = {
 	mass: number,
 	gravity: number,
 	settings: VehicleSettings,
+	centerOfMassOffset: vector,
 }
 
 local ToyWorld = {}
@@ -86,8 +89,14 @@ local function mountWorldOffset(world: ToyWorld, localOffset: vector): vector
 	return world.right * localOffset.x + world.up * localOffset.y - world.forward * localOffset.z
 end
 
+-- `position` es el centro de masa; el origen del marco de las ruedas queda desplazado de él.
+local function frameOrigin(world: ToyWorld): vector
+	return world.position - mountWorldOffset(world, world.centerOfMassOffset)
+end
+
 local function sampleChassis(world: ToyWorld): ChassisSample
 	return {
+		origin = frameOrigin(world),
 		position = world.position,
 		right = world.right,
 		up = world.up,
@@ -106,7 +115,7 @@ local function castWheels(world: ToyWorld, normal: vector, surfaceAt: (vector) -
 	local alignment = vector.dot(world.up, normal)
 	local contacts: { WheelContact? } = {}
 	for index, wheel in settings.WHEELS do
-		local mount = world.position + mountWorldOffset(world, wheel.offset)
+		local mount = frameOrigin(world) + mountWorldOffset(world, wheel.offset)
 		local distance = vector.dot(mount, normal) / alignment
 		if alignment > MIN_SLOPE_ALIGNMENT and distance <= reach and distance >= -RAY_START_ABOVE_MOUNT then
 			local point = mount - world.up * distance
@@ -143,7 +152,10 @@ local function integrate(world: ToyWorld, outputs: { WheelOutput }, substepSecon
 	for index, wheel in world.settings.WHEELS do
 		local wheelForce = outputs[index].force
 		force += wheelForce
-		torque += vector.cross(mountWorldOffset(world, wheel.offset), wheelForce)
+		torque += vector.cross(
+			mountWorldOffset(world, wheel.offset) - mountWorldOffset(world, world.centerOfMassOffset),
+			wheelForce
+		)
 	end
 	local angularMomentum = inertiaTimes(world, world.angularVelocity, false)
 	local gyroscopic = vector.cross(world.angularVelocity, angularMomentum)
@@ -223,7 +235,9 @@ function ToyWorld.new(options: ToyWorldOptions?): Runner
 		mass = resolved.mass or DEFAULT_MASS,
 		gravity = gravity,
 		settings = settings,
+		centerOfMassOffset = resolved.centerOfMassOffset or vector.create(0, 0, 0),
 	}
+	world.position = base + mountWorldOffset(world, world.centerOfMassOffset)
 	local function step(controls: VehicleControls)
 		ToyWorld.advanceFrame(world, controls, normal, surfaceAt)
 	end

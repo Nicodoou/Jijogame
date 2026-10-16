@@ -20,6 +20,7 @@ local Tire = require("./Tire")
 local VehicleConfig = require("./VehicleConfig")
 local VehicleMath = require("./VehicleMath")
 local VehicleTypes = require("./VehicleTypes")
+local WeightDistribution = require("./WeightDistribution")
 local WheelForces = require("./WheelForces")
 
 type ChassisSample = VehicleTypes.ChassisSample
@@ -74,6 +75,7 @@ local function buildContext(
 		steerAngle = math.clamp(requestedSteer, -maxSteer, maxSteer),
 		contactUp = ContactPlane.upDirection(ContactPlane.hitPoints(contacts, settings), chassis.up, settings),
 		offsets = offsets,
+		loadShares = WeightDistribution.wheelShares(chassis, settings),
 		velocities = velocities,
 		stepSeconds = stepSeconds,
 		rearGripFactor = rearGripFactor,
@@ -92,8 +94,16 @@ local function updateWheels(
 		local surface: SurfaceKind? = if contact ~= nil and contact.hasHit then contact.surface else nil
 		local gripped = SurfaceGrip.step(state.wheels[index], surface, dt, context.settings)
 		local compressionSpeed = -vector.dot(context.velocities[index], context.contactUp)
-		wheels[index], loads[index] =
-			Suspension.step(gripped, contact, compressionSpeed, context.mass, context.gravity, dt, context.settings)
+		wheels[index], loads[index] = Suspension.step(
+			gripped,
+			contact,
+			compressionSpeed,
+			context.mass,
+			context.gravity,
+			dt,
+			context.settings,
+			context.loadShares[index]
+		)
 	end
 	return wheels, loads
 end

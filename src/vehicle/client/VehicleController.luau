@@ -130,6 +130,7 @@ end
 local function readChassis(body: BasePart): ChassisSample
 	local cframe = body.CFrame
 	return {
+		origin = VectorConversion.toVector(body.Position),
 		position = VectorConversion.toVector(body.AssemblyCenterOfMass),
 		right = VectorConversion.toVector(cframe.RightVector),
 		up = VectorConversion.toVector(cframe.UpVector),

@@ -72,7 +72,8 @@ function Suspension.step(
 	mass: number,
 	gravity: number,
 	dt: number,
-	config: VehicleSettings?
+	config: VehicleSettings?,
+	loadShare: number?
 ): (WheelState, number)
 	local settings = config or VehicleConfig
 	local compression, isGrounded = resolveCompression(wheel, contact, settings)
@@ -90,7 +91,9 @@ function Suspension.step(
 	local alpha = VehicleMath.smoothingAlpha(settings.COMPRESSION_SPEED_FILTER_RATE, dt)
 	local rawSpeed = VehicleMath.finiteOr(compressionSpeedRaw, 0)
 	nextWheel.compressionSpeed = wheel.compressionSpeed + (rawSpeed - wheel.compressionSpeed) * alpha
-	local wheelCount = #settings.WHEELS
+	-- Cada rueda lleva su parte del peso: con `1 / parte` como cantidad de ruedas, la masa suspendida de la rueda
+	-- sale de las mismas fórmulas, y el auto queda nivelado en reposo con cualquier reparto.
+	local wheelCount = 1 / (loadShare or 1 / #settings.WHEELS)
 	local force = Suspension.springRate(mass, wheelCount, config) * compression
 		+ Suspension.damperRate(mass, wheelCount, config) * nextWheel.compressionSpeed
 	local maxForce = settings.SUSPENSION_MAX_FORCE_PER_STATIC_LOAD * Suspension.staticLoad(mass, gravity, wheelCount)

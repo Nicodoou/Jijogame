@@ -5,6 +5,7 @@ local Drivetrain = require("./Drivetrain")
 local Tire = require("./Tire")
 local VehicleMath = require("./VehicleMath")
 local VehicleTypes = require("./VehicleTypes")
+local WeightDistribution = require("./WeightDistribution")
 
 type ChassisSample = VehicleTypes.ChassisSample
 type VehicleControls = VehicleTypes.VehicleControls
@@ -26,6 +27,7 @@ export type StepContext = {
 	steerAngle: number,
 	contactUp: vector,
 	offsets: { vector },
+	loadShares: { number },
 	velocities: { vector },
 	stepSeconds: number,
 	rearGripFactor: number,
@@ -41,10 +43,12 @@ local function mountOffset(chassis: ChassisSample, localOffset: vector): vector
 	return chassis.right * localOffset.x + chassis.up * localOffset.y - chassis.forward * localOffset.z
 end
 
+-- Brazo de cada rueda desde el centro de masa y velocidad de su punto de montaje.
 function WheelForces.describeMounts(chassis: ChassisSample, settings: VehicleSettings): ({ vector }, { vector })
 	local offsets, velocities = {}, {}
+	local originArm = WeightDistribution.frameOrigin(chassis) - chassis.position
 	for index, wheel in settings.WHEELS do
-		offsets[index] = mountOffset(chassis, wheel.offset)
+		offsets[index] = originArm + mountOffset(chassis, wheel.offset)
 		velocities[index] = chassis.linearVelocity + vector.cross(chassis.angularVelocity, offsets[index])
 	end
 	return offsets, velocities
