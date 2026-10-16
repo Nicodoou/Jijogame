@@ -1,6 +1,7 @@
 --!strict
 local BiomeBlend = require("../../src/world/core/BiomeBlend")
 local BiomeCatalog = require("../../src/world/core/BiomeCatalog")
+local BiomeMap = require("../../src/world/core/BiomeMap")
 local BiomeTestCatalog = require("./BiomeTestCatalog")
 local BiomeTypes = require("../../src/world/core/BiomeTypes")
 local PathHelpers = require("./PathHelpers")
@@ -269,46 +270,71 @@ local function createWorld()
 	return path, RoadQuery.new(path)
 end
 
-Runner.test("pickOffroadSurface with forest gives the same mud and grass as SurfaceClassifier does today", function()
-	local mudCount, grassCount = 0, 0
-	local path, query = createWorld()
-	for _, seed in { 1, -3, 1e12 } do
-		local getSurfaceAt = SurfaceClassifier.createGetSurfaceAt(query, seed)
-		local samples = (path.getSegment(ROAD_SEGMENT_FOR_SCAN) :: RoadPath.Segment).samples
-		for index = 1, CLASSIFIER_SAMPLES_PER_SEED do
-			local from, to = samples[index], samples[index + 1]
-			local edge = to.position - from.position
-			local length = math.sqrt(edge.x * edge.x + edge.z * edge.z)
-			local right = vector.create(-edge.z / length, 0, edge.x / length)
-			for _, lateral in LATERAL_STEPS do
-				for _, side in { -1, 1 } do
-					local position = from.position + right * (lateral + SHOULDER_EDGE) * side
-					local nearest = query.findNearest(position, nil)
-					local expected = getSurfaceAt(position)
-					if nearest ~= nil and expected ~= "Road" and expected ~= "Shoulder" then
-						local distance = math.abs(nearest.lateralOffset) - SHOULDER_EDGE
-						local actual = BiomeBlend.pickOffroadSurface(
-							{ forest = 1 },
-							BiomeCatalog.all,
-							position.x,
-							position.z,
-							seed,
-							distance
-						)
-						Runner.expectEqual(actual, expected)
-						if actual == "Mud" then
-							mudCount += 1
-						else
-							grassCount += 1
+-- La cuenta que hacía SurfaceClassifier antes de usar los biomas, escrita a mano como referencia: barro más allá de la
+-- distancia mínima de la banquina donde el ruido pasa el umbral, pasto en el resto.
+local function createLegacyOffroadSurface(seed: number): (vector, number) -> string
+	local random = SeededRandom.new(seed)
+	local offsetX = math.floor(random.nextNumber() * WorldConfig.MUD_NOISE_OFFSET_RANGE) + 0.5
+	local offsetZ = math.floor(random.nextNumber() * WorldConfig.MUD_NOISE_OFFSET_RANGE) + 0.5
+	return function(position: vector, lateralStuds: number): string
+		local noise = math.noise(
+			position.x * WorldConfig.MUD_NOISE_SCALE_PER_STUD + offsetX,
+			position.z * WorldConfig.MUD_NOISE_SCALE_PER_STUD + offsetZ
+		)
+		local isFarEnough = lateralStuds > SHOULDER_EDGE + MUD_DISTANCE
+		return if isFarEnough and noise > WorldConfig.MUD_NOISE_THRESHOLD then "Mud" else "Grass"
+	end
+end
+
+Runner.test(
+	"pickOffroadSurface with forest gives the same mud and grass as SurfaceClassifier did before biomes",
+	function()
+		local mudCount, grassCount = 0, 0
+		local path, query = createWorld()
+		for _, seed in { 1, -3, 1e12 } do
+			local getSurfaceAt = SurfaceClassifier.createGetSurfaceAt(
+				query,
+				BiomeBlend.newPicker(seed, BiomeCatalog.all),
+				BiomeMap.new(seed, BiomeCatalog.all)
+			)
+			local legacySurface = createLegacyOffroadSurface(seed)
+			local samples = (path.getSegment(ROAD_SEGMENT_FOR_SCAN) :: RoadPath.Segment).samples
+			for index = 1, CLASSIFIER_SAMPLES_PER_SEED do
+				local from, to = samples[index], samples[index + 1]
+				local edge = to.position - from.position
+				local length = math.sqrt(edge.x * edge.x + edge.z * edge.z)
+				local right = vector.create(-edge.z / length, 0, edge.x / length)
+				for _, lateral in LATERAL_STEPS do
+					for _, side in { -1, 1 } do
+						local position = from.position + right * (lateral + SHOULDER_EDGE) * side
+						local nearest = query.findNearest(position, nil)
+						local classified = getSurfaceAt(position)
+						if nearest ~= nil and classified ~= "Road" and classified ~= "Shoulder" then
+							local distance = math.abs(nearest.lateralOffset) - SHOULDER_EDGE
+							local actual = BiomeBlend.pickOffroadSurface(
+								{ forest = 1 },
+								BiomeCatalog.all,
+								position.x,
+								position.z,
+								seed,
+								distance
+							)
+							Runner.expectEqual(actual, legacySurface(position, math.abs(nearest.lateralOffset)))
+							Runner.expectEqual(classified, actual)
+							if actual == "Mud" then
+								mudCount += 1
+							else
+								grassCount += 1
+							end
 						end
 					end
 				end
 			end
 		end
+		Runner.expectEqual(mudCount > 100, true)
+		Runner.expectEqual(grassCount > 100, true)
 	end
-	Runner.expectEqual(mudCount > 100, true)
-	Runner.expectEqual(grassCount > 100, true)
-end)
+)
 
 Runner.test("there is never mud up to the minimum distance from the shoulder, and it can start right after", function()
 	local random = SeededRandom.new(3)
@@ -366,6 +392,78 @@ Runner.test("in a transition the surface, the bridge and the materials all come 
 		end
 	end
 	Runner.expectNear(highlandCount / TRANSITION_SAMPLES, 0.5, 2 * FREQUENCY_TOLERANCE)
+end)
+
+local PICKER_POINTS_PER_CASE = 2500
+local PICKER_SEEDS = { 1, -3, 0.75, 1e12 }
+local PICKER_DISTANCES = { 0, MUD_DISTANCE, 40 }
+
+Runner.test("a picker gives exactly what pickMaterial and pickOffroadSurface give, over thousands of points", function()
+	local cases = {
+		{ weights = { forest = 1 }, catalog = BiomeCatalog.all },
+		{ weights = { lowland = 0.5, highland = 0.5 }, catalog = BiomeTestCatalog.pair },
+		{ weights = { lowland = 0.2, highland = 0.3, wetland = 0.5 }, catalog = BiomeTestCatalog.triple },
+	}
+	local random = SeededRandom.new(21)
+	local compared = 0
+	for _, seed in PICKER_SEEDS do
+		for _, case in cases do
+			local picker = BiomeBlend.newPicker(seed, case.catalog)
+			for _ = 1, PICKER_POINTS_PER_CASE do
+				local x, z = drawPoint(random)
+				Runner.expectEqual(
+					picker.pickMaterial(case.weights, x, z),
+					BiomeBlend.pickMaterial(case.weights, case.catalog, x, z, seed)
+				)
+				for _, distance in PICKER_DISTANCES do
+					Runner.expectEqual(
+						picker.pickOffroadSurface(case.weights, x, z, distance),
+						BiomeBlend.pickOffroadSurface(case.weights, case.catalog, x, z, seed, distance)
+					)
+				end
+				compared += 1
+			end
+		end
+	end
+	Runner.expectEqual(compared, #PICKER_SEEDS * #cases * PICKER_POINTS_PER_CASE)
+end)
+
+Runner.test("a picker is an error for weights that give no biome any weight, as the functions are", function()
+	local picker = BiomeBlend.newPicker(1, BiomeTestCatalog.pair)
+	Runner.expectError(function()
+		picker.pickMaterial({}, 0, 0)
+	end)
+	Runner.expectError(function()
+		picker.pickOffroadSurface({ ghost = 1 }, 0, 0, 20)
+	end)
+end)
+
+Runner.test(
+	"pickDeepMaterial takes the deep material of the heaviest biome and breaks ties by catalog order",
+	function()
+		Runner.expectEqual(BiomeBlend.pickDeepMaterial({ forest = 1 }, BiomeCatalog.all), "Ground")
+		Runner.expectEqual(
+			BiomeBlend.pickDeepMaterial({ lowland = 0.4, highland = 0.6 }, BiomeTestCatalog.pair),
+			"Basalt"
+		)
+		Runner.expectEqual(
+			BiomeBlend.pickDeepMaterial({ lowland = 0.6, highland = 0.4 }, BiomeTestCatalog.pair),
+			"Ground"
+		)
+		Runner.expectEqual(
+			BiomeBlend.pickDeepMaterial({ lowland = 0.5, highland = 0.5 }, BiomeTestCatalog.pair),
+			"Ground"
+		)
+	end
+)
+
+Runner.test("pickDeepMaterial is an error when no biome of the catalog weighs anything", function()
+	Runner.expectError(function()
+		BiomeBlend.pickDeepMaterial({}, BiomeTestCatalog.pair)
+	end)
+	Runner.expectError(function()
+		BiomeBlend.pickDeepMaterial({ ghost = 1 }, BiomeCatalog.all)
+	end)
 end)
 
 Runner.finish()
