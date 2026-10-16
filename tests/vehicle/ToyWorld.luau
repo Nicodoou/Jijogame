@@ -25,6 +25,7 @@ export type ToyWorldOptions = {
 	dropStuds: number?,
 	initialForwardSpeed: number?,
 	initialYawDegrees: number?,
+	yawInertiaFraction: number?,
 }
 
 export type ToyWorld = {
@@ -42,6 +43,7 @@ export type ToyWorld = {
 	mass: number,
 	gravity: number,
 	settings: VehicleSettings,
+	yawInertiaFraction: number,
 }
 
 local ToyWorld = {}
@@ -119,7 +121,7 @@ end
 local function inertiaTimes(world: ToyWorld, value: vector, inverse: boolean): vector
 	local mass = world.mass
 	local pitch = mass * (BOX_HEIGHT * BOX_HEIGHT + BOX_LENGTH * BOX_LENGTH) / 12
-	local yaw = mass * (BOX_WIDTH * BOX_WIDTH + BOX_LENGTH * BOX_LENGTH) / 12
+	local yaw = world.yawInertiaFraction * mass * (BOX_WIDTH * BOX_WIDTH + BOX_LENGTH * BOX_LENGTH) / 12
 	local roll = mass * (BOX_WIDTH * BOX_WIDTH + BOX_HEIGHT * BOX_HEIGHT) / 12
 	local factorRight = if inverse then 1 / pitch else pitch
 	local factorUp = if inverse then 1 / yaw else yaw
@@ -223,6 +225,7 @@ function ToyWorld.new(options: ToyWorldOptions?): Runner
 		mass = resolved.mass or DEFAULT_MASS,
 		gravity = gravity,
 		settings = settings,
+		yawInertiaFraction = resolved.yawInertiaFraction or 1,
 	}
 	local function step(controls: VehicleControls)
 		ToyWorld.advanceFrame(world, controls, normal, surfaceAt)
