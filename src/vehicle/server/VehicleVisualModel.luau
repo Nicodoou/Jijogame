@@ -4,7 +4,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
-local Suspension = require(ReplicatedStorage.vehicle.core.Suspension)
+local ModelPlacement = require(ReplicatedStorage.vehicle.core.ModelPlacement)
 local VehicleModels = require(ReplicatedStorage.vehicle.core.VehicleModels)
 local VehicleParts = require(ReplicatedStorage.vehicle.shared.VehicleParts)
 local VehicleTypes = require(ReplicatedStorage.vehicle.core.VehicleTypes)
@@ -12,27 +12,13 @@ local VehicleTypes = require(ReplicatedStorage.vehicle.core.VehicleTypes)
 type VehicleSettings = VehicleTypes.VehicleSettings
 type VehicleModelSheet = VehicleModels.VehicleModelSheet
 
--- La compresión estática no depende de la masa: se cancela entre la carga y la rigidez.
-local UNIT_MASS = 1
-
 local VehicleVisualModel = {}
-
-local function staticCompression(config: VehicleSettings): number
-	local wheelCount = #config.WHEELS
-	return Suspension.staticLoad(UNIT_MASS, Workspace.Gravity, wheelCount)
-		/ Suspension.springRate(UNIT_MASS, wheelCount, config)
-end
-
--- Altura (en el marco del Body) donde apoya el piso: es la misma cuenta del núcleo, con el resorte en reposo.
-local function groundHeight(config: VehicleSettings): number
-	local mountY = config.WHEELS[1].offset.y
-	return mountY - (config.SUSPENSION_REST_LENGTH_STUDS - staticCompression(config)) - config.WHEEL_RADIUS_STUDS
-end
 
 -- Centro del eje trasero en reposo, en el marco del Body.
 local function rearAxleRest(body: BasePart, config: VehicleSettings): CFrame
 	local rear = config.WHEELS[3].offset
-	local centerY = rear.y - (config.SUSPENSION_REST_LENGTH_STUDS - staticCompression(config))
+	local centerY = rear.y
+		- (config.SUSPENSION_REST_LENGTH_STUDS - ModelPlacement.staticCompression(config, Workspace.Gravity))
 	return body.CFrame * CFrame.new(0, centerY, rear.z)
 end
 
@@ -95,11 +81,8 @@ function VehicleVisualModel.attach(
 	end
 	local visual = template:Clone()
 	visual.Name = VehicleParts.VISUAL_MODEL_NAME
-	visual:PivotTo(
-		body.CFrame
-			* CFrame.new(0, groundHeight(config) - sheet.modelGroundY, 0)
-			* CFrame.Angles(0, math.rad(sheet.turnDegrees), 0)
-	)
+	local heightStuds, turnRadians = ModelPlacement.pivotOffset(sheet, config, Workspace.Gravity)
+	visual:PivotTo(body.CFrame * CFrame.new(0, heightStuds, 0) * CFrame.Angles(0, turnRadians, 0))
 	markMassless(visual)
 	for _, descendant in visual:GetDescendants() do
 		if descendant:IsA("BasePart") then
