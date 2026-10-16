@@ -35,4 +35,3 @@ Lo que está en curso, lo que sigue, lo que queda para después del MVP y las pr
 
 ## Calles infinitas (Agente B, con Beni)
 
-_Lo completa el Agente B._
