@@ -11,7 +11,12 @@ Un concepto, un nombre. Se consulta antes de nombrar algo nuevo y se agrega acá
 | Pasto | `"Grass"` | Terreno al costado de la ruta. |
 | Barro | `"Mud"` | Manchones fuera de la ruta, ubicados a partir de la semilla. |
 | Muestra | `RoadSample` | Punto del eje de la ruta que produce la integración en pasos fijos: posición, rumbo, curvatura, pendiente y `arcLength`. Los tramos son listas de muestras. |
-| Pieza | `RoadPiece` | Trozo de ruta con un perfil de curvatura definido (`straight`, `gentleCurve`, `sharpCurve` o `sCurve`). El `RoadPieceSequencer` las sortea una detrás de otra. |
+| Pieza | `RoadPiece` | Trozo de ruta con un perfil de curvatura definido (`straight`, `gentleCurve`, `sharpCurve`, `sCurve` o `hairpinPair`). El `RoadPieceSequencer` las sortea una detrás de otra. |
+| Guía | `RoadGuide` | Secuencia de puntos de paso, sorteada con la semilla, que recorre el área dando vueltas. La ruta local la sigue dentro de un túnel de `LOCAL_DEVIATION_MAX_STUDS`. |
+| Punto de paso | `waypoint` | Cada punto de la guía, separado `GUIDE_STEP_STUDS` del anterior. |
+| Perfil de cerros | `HillProfile` | Altura de la ruta en función de su `arcLength`: ruido con semilla dentro de una franja, con la pendiente y su cambio acotados. |
+| Ruta viva | `LiveRoadIndex` | Las muestras de la ruta de los últimos `LIVE_LOOKBACK_STUDS` studs, en una grilla, para el anti-cruce. |
+| Horquilla doble | `hairpinPair` | Pieza de dos horquillas para lados opuestos (de 120° a 180° cada una), unidas por una recta corta: el rumbo neto es cero. |
 | Longitud recorrida sobre el eje | `arcLength` | Distancia en studs, medida sobre el plano horizontal, desde el punto de partida de la ruta hasta una muestra o un punto del eje. |
 | Desvío lateral | `lateralOffset` | Distancia con signo entre una posición y el punto más cercano del eje: positiva a la derecha del sentido de marcha, negativa a la izquierda. Es la que usa `RoadQuery`. |
 | Posición del auto | `GetVehiclePosition` | Función que devuelve la posición actual del auto del jugador local. Contrato en `src/shared/contracts/VehiclePosition.luau` (#22). |

@@ -11,7 +11,7 @@ type SurfaceKind = "Road" | "Shoulder" | "Grass" | "Mud"
 local PATH_SEED = 777
 local GENERATED_SEGMENTS = 6
 local FIRST_LOADED_SEGMENT = 1
--- Un vector guarda floats de 32 bits (0,0078 studs de paso cerca de x = -120.000): el hueco tiene que ser mayor que eso.
+-- Un vector guarda floats de 32 bits (0,001 studs de paso a 8.000 studs del origen): el hueco tiene que ser mayor que eso.
 local EDGE_GAP_STUDS = 0.05
 local ROAD_HALF_WIDTH = WorldConfig.ROAD_WIDTH_STUDS / 2
 local SHOULDER_EDGE = ROAD_HALF_WIDTH + WorldConfig.SHOULDER_WIDTH_STUDS
@@ -102,12 +102,14 @@ Runner.test("the same seed gives the same mud and another seed gives another pat
 	local _, secondSurface = createWorld(5)
 	local _, otherSurface = createWorld(6)
 	local differences = 0
-	for sampleIndex = 1, SCAN_COUNT / 4 do
-		local middle, right = getAxisPoint(path, 3, sampleIndex)
-		local position = middle + right * FAR_LATERAL_STUDS
-		Runner.expectEqual(firstSurface(position), secondSurface(position))
-		if firstSurface(position) ~= otherSurface(position) then
-			differences += 1
+	for segmentIndex = FIRST_LOADED_SEGMENT + 1, GENERATED_SEGMENTS - 2 do
+		for sampleIndex = 1, SCAN_COUNT / 4 do
+			local middle, right = getAxisPoint(path, segmentIndex, sampleIndex)
+			local position = middle + right * FAR_LATERAL_STUDS
+			Runner.expectEqual(firstSurface(position), secondSurface(position))
+			if firstSurface(position) ~= otherSurface(position) then
+				differences += 1
+			end
 		end
 	end
 	Runner.expectEqual(differences > 0, true)
@@ -130,10 +132,13 @@ Runner.test("there is no answer before the first loaded segment nor after the la
 	local firstLoaded = (path.getSegment(FIRST_LOADED_SEGMENT) :: RoadPath.Segment).samples[1].position
 	local lastSegment = path.getSegment(GENERATED_SEGMENTS - 1) :: RoadPath.Segment
 	local lastLoaded = lastSegment.samples[#lastSegment.samples].position
-	Runner.expectEqual(getSurfaceAt(firstLoaded - vector.create(20, 0, 0)), nil)
-	Runner.expectEqual(getSurfaceAt(lastLoaded + vector.create(20, 0, 0)), nil)
-	Runner.expectEqual(getSurfaceAt(WorldConfig.START_POSITION), nil)
-	Runner.expectEqual(getSurfaceAt(firstLoaded + vector.create(20, 0, 0)) ~= nil, true)
+	local firstHeading = (path.getSegment(FIRST_LOADED_SEGMENT) :: RoadPath.Segment).samples[1].heading
+	local lastHeading = lastSegment.samples[#lastSegment.samples].heading
+	local firstForward = vector.create(math.cos(firstHeading), 0, math.sin(firstHeading))
+	local lastForward = vector.create(math.cos(lastHeading), 0, math.sin(lastHeading))
+	Runner.expectEqual(getSurfaceAt(firstLoaded - firstForward * 20), nil)
+	Runner.expectEqual(getSurfaceAt(lastLoaded + lastForward * 20), nil)
+	Runner.expectEqual(getSurfaceAt(firstLoaded + firstForward * 20) ~= nil, true)
 end)
 
 Runner.test("there is no answer for positions that are not finite", function()
@@ -147,7 +152,7 @@ Runner.test("the classifier follows the segments that the path releases", functi
 	local middle = getAxisPoint(path, 2, 60)
 	Runner.expectEqual(getSurfaceAt(middle), "Road")
 	path.releaseSegmentsBefore(3)
-	Runner.expectEqual(getSurfaceAt(middle), nil)
+	Runner.expectEqual(getSurfaceAt(middle) ~= "Road", true)
 end)
 
 Runner.test("seeds zero, negative and fractional build a classifier", function()

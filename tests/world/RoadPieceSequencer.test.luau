@@ -1,136 +1,179 @@
 --!strict
-local Runner = require("../Runner")
-local RoadPieceProfile = require("../../src/world/core/RoadPieceProfile")
+local RoadIntegrator = require("../../src/world/core/RoadIntegrator")
 local RoadPieceSequencer = require("../../src/world/core/RoadPieceSequencer")
-local SeededRandom = require("../../src/world/core/SeededRandom")
+local Runner = require("../Runner")
 local WorldConfig = require("../../src/world/core/WorldConfig")
 
-local SEED_COUNT = 200
-local PIECES_PER_SEED = 60
-local MAX_DEVIATION_RADIANS = math.rad(WorldConfig.MAX_HEADING_DEVIATION_DEGREES)
-local MAX_CURVATURE = 1 / WorldConfig.MIN_CURVE_RADIUS_STUDS
-local FORCED_DRIFT_STUDS = WorldConfig.MAX_LATERAL_DRIFT_STUDS * WorldConfig.STEERING_FORCED_DRIFT_FRACTION
-local TOLERANCE = 1e-9
--- Se sortea el contexto sobre todo el rango permitido, incluidos los extremos.
-local EXTREME_FRACTIONS = { -1, -0.999, -0.5, 0, 0.5, 0.999, 1 }
+type PieceResult = RoadPieceSequencer.PieceResult
 
-local function chooseWithContext(random: SeededRandom.SeededRandom, headingDeviation: number, lateralOffset: number)
-	return RoadPieceSequencer.chooseNextPiece(random, {
-		headingDeviationRadians = headingDeviation,
-		lateralOffsetStuds = lateralOffset,
-	})
+local STEP_STUDS = WorldConfig.INTEGRATION_STEP_STUDS
+local SEED = 12345
+local PIECES = 40
+-- Semillas en las que, en las primeras piezas, la ruta usa el último recurso y retrocede.
+local LAST_RESORT_SEED = 54
+local BACKTRACK_SEED = 54
+local BACKTRACK_PIECES = 60
+local LOOSE_STUDS = 0.001
+-- Un paso mide 2 studs sobre el plano, y en 3D un poco más si hay pendiente.
+local MAX_STEP_DISTANCE_STUDS = STEP_STUDS / math.cos(math.rad(WorldConfig.MAX_SLOPE_DEGREES))
+
+-- Sigue la ruta como la ve quien la usa: las muestras por número, con los retrocesos aplicados.
+type Stream = {
+	samples: { [number]: RoadIntegrator.RoadSample },
+	lastNumber: number,
+}
+
+local function createStream(sequencer: RoadPieceSequencer.RoadPieceSequencer): Stream
+	return { samples = { [0] = sequencer.getInitialSample() }, lastNumber = 0 }
 end
 
-local function getWorstDeviation(piece: RoadPieceProfile.RoadPiece, headingDeviation: number): number
-	return math.max(
-		math.abs(headingDeviation),
-		math.abs(headingDeviation + RoadPieceProfile.getFirstLobeHeadingChange(piece))
+local function applyPiece(stream: Stream, piece: PieceResult)
+	for number = stream.lastNumber, piece.retractedAfterSampleNumber + 1, -1 do
+		stream.samples[number] = nil
+	end
+	for offset, sample in piece.samples do
+		stream.samples[piece.retractedAfterSampleNumber + offset] = sample
+	end
+	stream.lastNumber = piece.retractedAfterSampleNumber + #piece.samples
+end
+
+local function generateStream(
+	seed: number,
+	pieceCount: number
+): (Stream, { PieceResult }, RoadPieceSequencer.RoadPieceSequencer)
+	local sequencer = RoadPieceSequencer.new(seed)
+	local stream = createStream(sequencer)
+	local results = {}
+	for index = 1, pieceCount do
+		local piece = sequencer.generateNextPiece()
+		applyPiece(stream, piece)
+		results[index] = piece
+	end
+	return stream, results, sequencer
+end
+
+Runner.test("the initial sample is the start of the road, with nothing else", function()
+	local sample = RoadPieceSequencer.new(SEED).getInitialSample()
+	Runner.expectEqual(sample.position, WorldConfig.START_POSITION)
+	Runner.expectEqual(sample.heading, math.rad(WorldConfig.START_HEADING_DEGREES))
+	Runner.expectEqual(sample.curvature, 0)
+	Runner.expectEqual(sample.slope, 0)
+	Runner.expectEqual(sample.arcLength, 0)
+end)
+
+Runner.test("the same seed gives the same road and another seed gives another one", function()
+	local first = generateStream(SEED, PIECES)
+	local second = generateStream(SEED, PIECES)
+	local other = generateStream(SEED + 1, PIECES)
+	Runner.expectEqual(first.lastNumber, second.lastNumber)
+	for number = 0, first.lastNumber do
+		Runner.expectEqual(first.samples[number].position, second.samples[number].position)
+		Runner.expectEqual(first.samples[number].heading, second.samples[number].heading)
+	end
+	local different = 0
+	for number = 0, math.min(first.lastNumber, other.lastNumber) do
+		different += if first.samples[number].position ~= other.samples[number].position then 1 else 0
+	end
+	Runner.expectEqual(different > 100, true)
+end)
+
+Runner.test("every piece continues the road without a gap, one step at a time", function()
+	local stream, results = generateStream(SEED, PIECES)
+	for number = 1, stream.lastNumber do
+		Runner.expectEqual(stream.samples[number] ~= nil, true)
+		Runner.expectEqual(stream.samples[number].arcLength, number * STEP_STUDS)
+	end
+	for _, piece in results do
+		Runner.expectEqual(#piece.samples > 0, true)
+		Runner.expectEqual(piece.samples[1].arcLength, (piece.retractedAfterSampleNumber + 1) * STEP_STUDS)
+	end
+end)
+
+Runner.test("the finalized samples never go back and a piece never retracts below them", function()
+	local _, results = generateStream(SEED, PIECES)
+	local finalized = 0
+	for _, piece in results do
+		Runner.expectEqual(piece.finalizedSampleNumber >= finalized, true)
+		Runner.expectEqual(piece.retractedAfterSampleNumber >= finalized, true)
+		Runner.expectEqual(piece.finalizedSampleNumber <= piece.retractedAfterSampleNumber + #piece.samples, true)
+		finalized = piece.finalizedSampleNumber
+	end
+	Runner.expectEqual(finalized > 0, true)
+end)
+
+Runner.test("the finalized samples lag behind by at most the pieces that can still be taken back", function()
+	local stream, results = generateStream(SEED, PIECES)
+	local lastPiece = results[#results]
+	local lagStuds = (stream.lastNumber - lastPiece.finalizedSampleNumber) * STEP_STUDS
+	Runner.expectEqual(lagStuds > 0, true)
+	Runner.expectEqual(lagStuds <= WorldConfig.LIVE_BACKTRACK_MEMORY_STUDS, true)
+end)
+
+Runner.test("the statistics count the pieces, by kind, and the length generated", function()
+	local stream, _, sequencer = generateStream(SEED, PIECES)
+	local statistics = sequencer.getStatistics()
+	local byKind = 0
+	for _, count in statistics.pieceCountByKind do
+		byKind += count
+	end
+	Runner.expectEqual(statistics.pieceCount, byKind)
+	Runner.expectEqual(statistics.pieceCount, PIECES - statistics.retractedPieceCount)
+	Runner.expectEqual(statistics.arcLengthStuds, stream.lastNumber * STEP_STUDS)
+end)
+
+Runner.test("when no alternative fits, the last resort is used and counted", function()
+	local _, _, sequencer = generateStream(LAST_RESORT_SEED, PIECES)
+	Runner.expectEqual(sequencer.getStatistics().lastResortCount > 0, true)
+end)
+
+Runner.test("when even the last resort fails, the road takes back pieces and the samples are replaced", function()
+	local sequencer = RoadPieceSequencer.new(BACKTRACK_SEED)
+	local stream = createStream(sequencer)
+	local statistics = sequencer.getStatistics()
+	local retractions = 0
+	local finalized = 0
+	for _ = 1, BACKTRACK_PIECES do
+		local previousEnd = stream.lastNumber
+		local piece = sequencer.generateNextPiece()
+		if piece.retractedAfterSampleNumber < previousEnd then
+			retractions += 1
+			Runner.expectEqual(piece.retractedAfterSampleNumber >= finalized, true)
+		end
+		finalized = piece.finalizedSampleNumber
+		applyPiece(stream, piece)
+		Runner.expectEqual(stream.samples[stream.lastNumber].arcLength, stream.lastNumber * STEP_STUDS)
+	end
+	Runner.expectEqual(retractions > 0, true)
+	Runner.expectEqual(retractions, statistics.backtrackCount)
+	Runner.expectEqual(statistics.retractedPieceCount >= statistics.backtrackCount, true)
+	Runner.expectEqual(
+		statistics.retractedPieceCount <= statistics.backtrackCount * WorldConfig.ROAD_BACKTRACK_MAX_PIECES,
+		true
 	)
-end
+end)
 
-Runner.test("a piece never exceeds the curvature limit nor leaves the heading corridor", function()
-	for seed = 1, SEED_COUNT do
-		local random = SeededRandom.new(seed)
-		for _ = 1, PIECES_PER_SEED do
-			local headingDeviation = (random.nextNumber() * 2 - 1) * MAX_DEVIATION_RADIANS
-			local lateralOffset = (random.nextNumber() * 2 - 1) * WorldConfig.MAX_LATERAL_DRIFT_STUDS
-			local piece = chooseWithContext(random, headingDeviation, lateralOffset)
-			Runner.expectEqual(math.abs(piece.peakCurvature) <= MAX_CURVATURE + TOLERANCE, true)
-			Runner.expectEqual(getWorstDeviation(piece, headingDeviation) <= MAX_DEVIATION_RADIANS, true)
-			Runner.expectEqual(math.abs(piece.endSlopeRadians) <= math.rad(WorldConfig.MAX_SLOPE_DEGREES), true)
-		end
+Runner.test("a road with retractions is the same one however it is followed", function()
+	local first = generateStream(BACKTRACK_SEED, BACKTRACK_PIECES)
+	local second = generateStream(BACKTRACK_SEED, BACKTRACK_PIECES)
+	Runner.expectEqual(first.lastNumber, second.lastNumber)
+	for number = 0, first.lastNumber do
+		local a, b = first.samples[number], second.samples[number]
+		Runner.expectEqual(a.position, b.position)
+		Runner.expectEqual(a.heading, b.heading)
+		Runner.expectEqual(a.curvature, b.curvature)
+		Runner.expectEqual(a.slope, b.slope)
 	end
 end)
 
-Runner.test("a piece holds the corridor at the extremes of heading and drift", function()
-	for _, headingFraction in EXTREME_FRACTIONS do
-		for _, lateralFraction in EXTREME_FRACTIONS do
-			local random = SeededRandom.new(1)
-			for _ = 1, PIECES_PER_SEED do
-				local headingDeviation = headingFraction * MAX_DEVIATION_RADIANS
-				local lateralOffset = lateralFraction * WorldConfig.MAX_LATERAL_DRIFT_STUDS
-				local piece = chooseWithContext(random, headingDeviation, lateralOffset)
-				Runner.expectEqual(getWorstDeviation(piece, headingDeviation) <= MAX_DEVIATION_RADIANS, true)
-			end
-		end
+Runner.test("the road stays continuous in position even where pieces were taken back", function()
+	local stream = generateStream(BACKTRACK_SEED, BACKTRACK_PIECES)
+	for number = 1, stream.lastNumber do
+		local distance = vector.magnitude(stream.samples[number].position - stream.samples[number - 1].position)
+		Runner.expectEqual(
+			distance >= STEP_STUDS - LOOSE_STUDS and distance <= MAX_STEP_DISTANCE_STUDS + LOOSE_STUDS,
+			true
+		)
 	end
-end)
-
-Runner.test("beyond the forced drift the piece is a curve that turns toward the mean", function()
-	for _, side in { -1, 1 } do
-		for seed = 1, SEED_COUNT do
-			local random = SeededRandom.new(seed)
-			local piece = chooseWithContext(random, 0, side * (FORCED_DRIFT_STUDS + 1))
-			Runner.expectEqual(piece.lobeCount, 1)
-			Runner.expectEqual(piece.peakCurvature * side < 0, true)
-		end
-	end
-end)
-
-Runner.test("with the road at the drift limit and heading away, the piece turns back as sharp as allowed", function()
-	local random = SeededRandom.new(5)
-	local headingDeviation = MAX_DEVIATION_RADIANS * 0.9
-	local piece = chooseWithContext(random, headingDeviation, WorldConfig.MAX_LATERAL_DRIFT_STUDS - 10)
-	Runner.expectEqual(piece.lobeCount, 1)
-	Runner.expectEqual(piece.peakCurvature < 0, true)
-	Runner.expectEqual(getWorstDeviation(piece, headingDeviation) <= MAX_DEVIATION_RADIANS, true)
-end)
-
-Runner.test("near the mean drift the sense of the curve follows the heading error", function()
-	local rightTurns = 0
-	local totalTurns = 0
-	for seed = 1, SEED_COUNT do
-		local piece = chooseWithContext(SeededRandom.new(seed), -MAX_DEVIATION_RADIANS * 0.8, 0)
-		if piece.peakCurvature ~= 0 then
-			totalTurns += 1
-			rightTurns += if piece.peakCurvature > 0 then 1 else 0
-		end
-	end
-	Runner.expectEqual(rightTurns > totalTurns * 0.7, true)
-end)
-
-Runner.test("with a centered road both senses are drawn", function()
-	local rightTurns = 0
-	local leftTurns = 0
-	for seed = 1, SEED_COUNT do
-		local piece = chooseWithContext(SeededRandom.new(seed), 0, 0)
-		rightTurns += if piece.peakCurvature > 0 then 1 else 0
-		leftTurns += if piece.peakCurvature < 0 then 1 else 0
-	end
-	Runner.expectEqual(rightTurns > 0 and leftTurns > 0, true)
-end)
-
-Runner.test("all four kinds of piece show up over many draws", function()
-	local random = SeededRandom.new(77)
-	local seen = {}
-	for _ = 1, 400 do
-		seen[chooseWithContext(random, 0, 0).kind] = true
-	end
-	for _, kind in { "straight", "gentleCurve", "sharpCurve", "sCurve" } do
-		Runner.expectEqual(seen[kind], true)
-	end
-end)
-
-Runner.test("the same random state and context give the same piece", function()
-	local first = chooseWithContext(SeededRandom.new(9), 0.2, 100)
-	local second = chooseWithContext(SeededRandom.new(9), 0.2, 100)
-	Runner.expectEqual(first.kind, second.kind)
-	Runner.expectEqual(first.lobeSteps, second.lobeSteps)
-	Runner.expectEqual(first.peakCurvature, second.peakCurvature)
-	Runner.expectEqual(first.endSlopeRadians, second.endSlopeRadians)
-end)
-
-Runner.test("a straight piece has no curvature", function()
-	local random = SeededRandom.new(3)
-	local foundStraight = false
-	for _ = 1, 100 do
-		local piece = chooseWithContext(random, 0, 0)
-		if piece.kind == "straight" then
-			foundStraight = true
-			Runner.expectEqual(piece.peakCurvature, 0)
-		end
-	end
-	Runner.expectEqual(foundStraight, true)
 end)
 
 Runner.finish()
