@@ -35,7 +35,6 @@ end
 -- Densidad por defecto de Roblox: fija la masa total del auto (la del Body entero), que el lastre solo reparte.
 local DEFAULT_DENSITY = 0.7
 local BALLAST_NAME = "Ballast"
-local BALLAST_SIZE = Vector3.new(1, 1, 1)
 local MIN_BALLAST_MASS_FRACTION = 0.01
 local PHYSICAL_FRICTION = 0.3
 local PHYSICAL_ELASTICITY = 0.5
@@ -77,6 +76,8 @@ function VehicleModelBuilder.markMassless(root: Instance)
 	end
 end
 
+-- El lastre mide lo mismo que el Body: su inercia de giro es la de una caja, y el conjunto conserva la de la caja entera.
+-- Con una pieza chica la inercia baja a la mitad y el giro a baja velocidad se vuelve inestable (bug 2026-10-16).
 -- El Body tiene su masa en su centro, así que el lastre va a cmObjetivo · (masaBody + masaLastre) / masaLastre.
 local function createBallast(model: Model, body: Part, config: VehicleSettings)
 	local totalMass = volumeOf(BODY_SIZE) * DEFAULT_DENSITY
@@ -84,8 +85,8 @@ local function createBallast(model: Model, body: Part, config: VehicleSettings)
 		math.clamp(config.BALLAST_MASS_FRACTION, MIN_BALLAST_MASS_FRACTION, 1 - MIN_BALLAST_MASS_FRACTION)
 	local ballastMass = totalMass * ballastFraction
 	setDensity(body, (totalMass - ballastMass) / volumeOf(BODY_SIZE))
-	local ballast = createPart(BALLAST_NAME, BALLAST_SIZE, BODY_COLOR)
-	setDensity(ballast, ballastMass / volumeOf(BALLAST_SIZE))
+	local ballast = createPart(BALLAST_NAME, BODY_SIZE, BODY_COLOR)
+	setDensity(ballast, ballastMass / volumeOf(BODY_SIZE))
 	ballast.Transparency = 1
 	ballast.CanCollide = false
 	ballast.CanQuery = false
