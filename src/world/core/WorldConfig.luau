@@ -169,6 +169,9 @@ return table.freeze({
 	TERRAIN_SURFACE_OFFSET_STUDS = 2,
 	-- Cuánto Terrain sólido queda bajo la superficie más baja de cada chunk.
 	TERRAIN_DEPTH_STUDS = 12,
+	-- Espesor de la capa de superficie: el material de la superficie ocupa también los vóxeles de abajo hasta esta
+	-- profundidad. En pendiente el vóxel de arriba queda casi vacío en cada escalón y Roblox muestra el de abajo.
+	TERRAIN_TOP_LAYER_STUDS = 8,
 	-- Ancho en el que el terreno pasa de plano (al lado de la banquina) a las colinas completas.
 	TERRAIN_BLEND_WIDTH_STUDS = 32,
 	-- Colinas: dos octavas de math.noise relativas a la altura de la ruta. La amplitud y la rugosidad se multiplican por las de los biomas.
