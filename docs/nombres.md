@@ -52,3 +52,8 @@ Un concepto, un nombre. Se consulta antes de nombrar algo nuevo y se agrega acá
 | Ventana de terreno | `TerrainWindow` | Cuánto terreno se pide y se conserva alrededor del auto (corredor y ruta de atrás) y cuánta ruta recuerdan los bloques. |
 | Kickdown | `KICKDOWN_*`, `UPSHIFT_ACCEL_MARGIN`, `GEAR_HOLD_SECONDS`, `LOAD_PITCH_FILTER_RATE` | Con el acelerador a fondo (desde `KICKDOWN_THROTTLE`) y sin margen para acelerar con la carga, la caja baja directamente a la marcha más alta que todavía acelere `KICKDOWN_ACCEL_MARGIN` y quede por debajo de `KICKDOWN_MAX_RPM`, pasado el tiempo mínimo desde la última subida. A fondo solo sube si la de arriba sigue acelerando después del corte. |
 | Empuje relativo de una marcha | `gearForce` | Fracción del empuje de la primera marcha a pleno pedal que daría una marcha a una velocidad: curva de torque, relación y corte suave. |
+| Pieza | `PieceKind`, `PieceSpec` | Parte del auto con su propia ficha de daño: tipo, si es exterior (tiene caja de colisión) o interior, `K`, umbral, desgaste y a qué otras piezas protege. Las fichas viven en `src/vehicle/core/damage/DamageConfig.luau`. |
+| Daño | `damage` | De 0 a 100 por pieza. Crece con el golpe: `K · max(0, \|v\| − umbral)²`. A 100 la pieza se cae. |
+| Desgaste | `wear` | Baja la condición máxima de la pieza: suma `wearPerDamage` por cada punto de daño y nunca baja (la reparación queda para después del MVP). |
+| Golpe | `impactSpeed` | Velocidad relativa del choque en la normal, en studs/s; el signo no importa. |
+| Pieza caída | `isDetached` | Pieza con daño 100: ya no recibe daño ni protege, y lo que cubría queda expuesto. |
