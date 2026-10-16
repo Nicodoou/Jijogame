@@ -76,4 +76,10 @@ Runner.test("the configuration is read only", function()
 	end)
 end)
 
+Runner.test("the weight values start at the car of boxes", function()
+	Runner.expectEqual(VehicleConfig.FRONT_WEIGHT_FRACTION, 0.5)
+	Runner.expectEqual(VehicleConfig.CENTER_OF_MASS_HEIGHT_STUDS, 1)
+	Runner.expectEqual(VehicleConfig.BALLAST_MASS_FRACTION, 0.5)
+end)
+
 Runner.finish()

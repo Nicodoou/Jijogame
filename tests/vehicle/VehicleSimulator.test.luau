@@ -4,6 +4,7 @@ local Suspension = require("../../src/vehicle/core/Suspension")
 local VehicleConfig = require("../../src/vehicle/core/VehicleConfig")
 local VehicleSimulator = require("../../src/vehicle/core/VehicleSimulator")
 local VehicleTypes = require("../../src/vehicle/core/VehicleTypes")
+local WheelForces = require("../../src/vehicle/core/WheelForces")
 
 type ChassisSample = VehicleTypes.ChassisSample
 type VehicleControls = VehicleTypes.VehicleControls
@@ -18,6 +19,7 @@ local ZERO = vector.create(0, 0, 0)
 
 local function chassisWith(velocity: vector?, angularVelocity: vector?): ChassisSample
 	return {
+		origin = vector.create(0, 4, 0),
 		position = vector.create(0, 4, 0),
 		right = vector.create(1, 0, 0),
 		up = vector.create(0, 1, 0),
@@ -299,6 +301,63 @@ Runner.test("in reverse gear the steering is limited to the reverse maximum", fu
 	local _, left =
 		VehicleSimulator.step(state, controlsWith(-0.5, 0, 0), chassisWith(), restingContacts(), FRAME_SECONDS)
 	Runner.expectNear(left[1].steerAngleRadians, -limit / 2, 1e-9)
+end)
+
+-- Chasis con el centro de masa corrido del origen del marco, sin velocidad.
+local function shiftedChassis(centerOffset: vector): ChassisSample
+	local chassis = chassisWith()
+	chassis.position = chassis.origin + centerOffset
+	return chassis
+end
+
+Runner.test("a spin around the center of mass gives each wheel the velocity of its arm from the center", function()
+	local spin = vector.create(0.3, 0.7, -0.2)
+	local centerOffset = vector.create(0.1, -0.3, 0.15)
+	local chassis = shiftedChassis(centerOffset)
+	chassis.angularVelocity = spin
+	local _, velocities = WheelForces.describeMounts(chassis, VehicleConfig)
+	for index, wheel in VehicleConfig.WHEELS do
+		local mountInWorld = vector.create(wheel.offset.x, wheel.offset.y, wheel.offset.z)
+		local arm = mountInWorld - centerOffset
+		local expected = vector.cross(spin, arm)
+		Runner.expectNear(velocities[index].x, expected.x, 1e-6)
+		Runner.expectNear(velocities[index].y, expected.y, 1e-6)
+		Runner.expectNear(velocities[index].z, expected.z, 1e-6)
+	end
+end)
+
+Runner.test("with the center of mass in the middle the arms are the mount offsets", function()
+	local chassis = chassisWith()
+	local offsets = WheelForces.describeMounts(chassis, VehicleConfig)
+	Runner.expectNear(offsets[1].x, VehicleConfig.WHEELS[1].offset.x, 1e-9)
+	Runner.expectNear(offsets[3].y, VehicleConfig.WHEELS[3].offset.y, 1e-9)
+	Runner.expectNear(offsets[3].z, VehicleConfig.WHEELS[3].offset.z, 1e-9)
+end)
+
+Runner.test("a NaN origin gives the same result as the center of mass in the middle", function()
+	local chassis = chassisWith()
+	chassis.origin = vector.create(0 / 0, 0, 0)
+	chassis.angularVelocity = vector.create(0, 1, 0)
+	local _, velocities = WheelForces.describeMounts(chassis, VehicleConfig)
+	local clean = chassisWith()
+	clean.angularVelocity = vector.create(0, 1, 0)
+	local _, cleanVelocities = WheelForces.describeMounts(clean, VehicleConfig)
+	for index = 1, 4 do
+		Runner.expectEqual(velocities[index], cleanVelocities[index])
+	end
+end)
+
+Runner.test("with the center of mass shifted the static loads add up to the weight and the car stays level", function()
+	local chassis = shiftedChassis(vector.create(0, -0.3, -0.15))
+	local contacts = restingContacts()
+	local state = VehicleSimulator.newState()
+	local outputs = {}
+	for _ = 1, 3 do
+		state, outputs = VehicleSimulator.step(state, controlsWith(0, 0, 0), chassis, contacts, FRAME_SECONDS)
+	end
+	local front, rear = outputs[1].force.y + outputs[2].force.y, outputs[3].force.y + outputs[4].force.y
+	Runner.expectNear(front + rear, MASS * GRAVITY, 1e-3)
+	Runner.expectNear(front / (front + rear), (4 + 0.15) / 8, 1e-6)
 end)
 
 Runner.test("the spin of the wheel follows the speed of the car", function()
