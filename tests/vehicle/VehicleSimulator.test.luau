@@ -398,6 +398,47 @@ Runner.test("a valid step updates the gearbox memory", function()
 	Runner.expectEqual(nextState.secondsSinceUpshift > state.secondsSinceUpshift, true)
 end)
 
+Runner.test("the steering offset turns the front wheels by that angle", function()
+	local offset = table.clone(VehicleConfig)
+	offset.STEER_OFFSET_DEGREES = 3
+	local _, outputs = VehicleSimulator.step(
+		VehicleSimulator.newState(offset),
+		controlsWith(0, 0, 0),
+		chassisWith(),
+		restingContacts(),
+		FRAME_SECONDS,
+		offset
+	)
+	Runner.expectNear(outputs[1].steerAngleRadians, math.rad(3), 1e-9)
+	Runner.expectNear(outputs[2].steerAngleRadians, math.rad(3), 1e-9)
+	Runner.expectEqual(outputs[3].steerAngleRadians, 0)
+end)
+
+Runner.test("with the defaults the wheel grip multipliers and the steering offset change nothing", function()
+	Runner.expectEqual(VehicleConfig.STEER_OFFSET_DEGREES, 0)
+	for index = 1, 4 do
+		Runner.expectEqual(VehicleConfig.WHEEL_GRIP_MULTIPLIERS[index], 1)
+	end
+end)
+
+Runner.test("a wheel grip multiplier of zero removes the lateral force of that wheel only", function()
+	local slide = chassisWith(vector.create(20, 0, -40))
+	local noGrip = table.clone(VehicleConfig)
+	noGrip.WHEEL_GRIP_MULTIPLIERS = table.freeze({ 1, 1, 0, 1 })
+	local _, free = stepAtRest(controlsWith(0, 0, 0), slide)
+	local _, outputs = VehicleSimulator.step(
+		VehicleSimulator.newState(noGrip),
+		controlsWith(0, 0, 0),
+		slide,
+		restingContacts(),
+		FRAME_SECONDS,
+		noGrip
+	)
+	Runner.expectEqual(outputs[3].force.x, 0)
+	Runner.expectEqual(free[3].force.x < 0, true)
+	Runner.expectNear(outputs[1].force.x, free[1].force.x, 1e-6)
+end)
+
 Runner.test("a huge dt gives the same result as the maximum step", function()
 	local chassis = chassisWith(vector.create(0, 0, -30))
 	local _, hugeOutputs =
