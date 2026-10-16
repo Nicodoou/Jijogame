@@ -92,8 +92,6 @@ return table.freeze({
 	BRAKE_DECELERATION = 55,
 	BRAKE_FRONT_BIAS = 0.6,
 	HANDBRAKE_FORCE_PER_LOAD = 0.25,
-	-- Debajo de esta velocidad longitudinal el freno y la resistencia al rodar se apagan en forma gradual.
-	BRAKE_REGULARIZATION_SPEED = 1,
 
 	-- Dirección.
 	STEER_MAX_LOW_SPEED_DEGREES = 36,

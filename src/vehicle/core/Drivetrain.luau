@@ -136,8 +136,20 @@ function Drivetrain.split(force: number, config: VehicleSettings?): { number }
 	return shares
 end
 
--- Fuerza de frenado de una rueda. Va contra la velocidad longitudinal de esa rueda y se apaga por debajo de
--- BRAKE_REGULARIZATION_SPEED para no oscilar cerca de 0; nunca supera lo que frena la rueda en un paso. El freno de mano actúa solo atrás.
+-- Con el pedal frenan las cuatro ruedas; con solo el freno de mano, las dos traseras. El tope por paso se reparte entre ellas.
+local function brakingWheelCount(brakePedal: number, controls: VehicleControls, settings: VehicleSettings): number
+	if brakePedal > 0 or not controls.isHandbrakeOn then
+		return #settings.WHEELS
+	end
+	local rearCount = 0
+	for _, wheel in settings.WHEELS do
+		rearCount += if wheel.isFront then 0 else 1
+	end
+	return rearCount
+end
+
+-- Fuerza de frenado de una rueda. Va contra la velocidad longitudinal (prevista al final del cuadro) de esa rueda y nunca supera
+-- lo que hace falta para pararla en un paso: cerca de 0 es esa fuerza, no una rampa con la velocidad. El freno de mano actúa solo atrás.
 function Drivetrain.brakeForce(
 	state: VehicleState,
 	controls: VehicleControls,
@@ -155,9 +167,9 @@ function Drivetrain.brakeForce(
 	if controls.isHandbrakeOn and not isFront then
 		maxForce += settings.HANDBRAKE_FORCE_PER_LOAD * load
 	end
-	local direction = math.clamp(longitudinalSpeed / settings.BRAKE_REGULARIZATION_SPEED, -1, 1)
-	local limit = VehicleMath.opposingForceLimit(mass, #settings.WHEELS, longitudinalSpeed, dt)
-	return math.clamp(-direction * maxForce, -limit, limit)
+	local limit =
+		VehicleMath.opposingForceLimit(mass, brakingWheelCount(brakePedal, controls, settings), longitudinalSpeed, dt)
+	return -math.sign(longitudinalSpeed) * math.min(maxForce, limit)
 end
 
 return Drivetrain

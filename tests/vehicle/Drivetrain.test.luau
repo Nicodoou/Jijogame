@@ -284,37 +284,29 @@ Runner.test("the brake force splits between the axles with the front bias", func
 	Runner.expectNear(2 * (front + rear), -MASS * VehicleConfig.BRAKE_DECELERATION, 1e-6)
 end)
 
-Runner.test("the brake fades out below the regularization speed", function()
+Runner.test("near zero the brake is the force that stops the wheel in one step, not a ramp", function()
 	local state = stateIn(1)
-	local full = Drivetrain.brakeForce(
-		state,
-		controlsWith(0, 1),
-		MASS,
-		true,
-		VehicleConfig.BRAKE_REGULARIZATION_SPEED,
-		0,
-		NO_LIMIT_DT
+	local speed = 0.5
+	local dt = 1 / 30
+	local stopsInOneStep = MASS / 4 * speed / dt
+	local force = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, speed, 0, dt)
+	Runner.expectNear(
+		force,
+		-math.min(stopsInOneStep, MASS * VehicleConfig.BRAKE_DECELERATION * VehicleConfig.BRAKE_FRONT_BIAS / 2),
+		1e-6
 	)
-	local half = Drivetrain.brakeForce(
-		state,
-		controlsWith(0, 1),
-		MASS,
-		true,
-		VehicleConfig.BRAKE_REGULARIZATION_SPEED / 2,
-		0,
-		NO_LIMIT_DT
-	)
-	Runner.expectNear(half, full / 2, 1e-6)
-	local above = Drivetrain.brakeForce(
-		state,
-		controlsWith(0, 1),
-		MASS,
-		true,
-		VehicleConfig.BRAKE_REGULARIZATION_SPEED * 50,
-		0,
-		NO_LIMIT_DT
-	)
-	Runner.expectEqual(above, full)
+	local tiny = Drivetrain.brakeForce(state, controlsWith(0, 1), MASS, true, 1e-6, 0, dt)
+	Runner.expectEqual(math.abs(tiny) < 1, true)
+end)
+
+Runner.test("with only the handbrake the stop is shared by the two rear wheels", function()
+	local state = stateIn(1)
+	local speed = 0.2
+	local dt = 1 / 30
+	local rear = Drivetrain.brakeForce(state, controlsWith(0, 0, true), MASS, false, speed, 100000, dt)
+	Runner.expectNear(rear, -MASS / 2 * speed / dt, 1e-6)
+	local withPedal = Drivetrain.brakeForce(state, controlsWith(0, 1, true), MASS, false, speed, 100000, dt)
+	Runner.expectNear(withPedal, -MASS / 4 * speed / dt, 1e-6)
 end)
 
 Runner.test("the brake force is proportional to the pedal", function()

@@ -75,6 +75,19 @@ local function airborneWheel(context: StepContext, wheel: WheelState, steerAngle
 	return output, { slipRatio = 0, slipAngleRadians = 0, isSliding = false, surface = nil }
 end
 
+-- Velocidad de la rueda en sus ejes al final del cuadro por la gravedad. Las fuerzas de fricción se calculan con
+-- ella: así la fricción puede sostener el auto en una pendiente (quedarse quieto) sin invertir la velocidad.
+local function expectedSpeeds(
+	context: StepContext,
+	velocity: vector,
+	forwardAxis: vector,
+	sideAxis: vector
+): (number, number)
+	local gravityPush = vector.create(0, -context.gravity * context.stepSeconds, 0)
+	return vector.dot(velocity, forwardAxis) + vector.dot(gravityPush, forwardAxis),
+		vector.dot(velocity, sideAxis) + vector.dot(gravityPush, sideAxis)
+end
+
 -- Freno y resistencia al rodar de una rueda, con el tope por paso compartido: juntos no pueden frenar
 -- más de lo que la rueda lleva de velocidad.
 local function opposingLongitudinal(
@@ -97,9 +110,8 @@ local function opposingLongitudinal(
 		settings
 	)
 	local limit = VehicleMath.opposingForceLimit(context.mass, #settings.WHEELS, longitudinalSpeed, context.stepSeconds)
-	local rollingDirection = math.clamp(longitudinalSpeed / settings.BRAKE_REGULARIZATION_SPEED, -1, 1)
 	local rolling = math.min(wheel.rollingResistance * load, math.max(0, limit - math.abs(brake)))
-	return brake - rollingDirection * rolling
+	return brake - math.sign(longitudinalSpeed) * rolling
 end
 
 -- Agarre del eje: el trasero baja por su multiplicador y por el freno de mano.
@@ -135,8 +147,7 @@ local function groundedWheel(
 	local steerAngle = if isFront then context.steerAngle else 0
 	local forwardAxis, sideAxis = wheelAxes(context.chassis, context.contactUp, steerAngle)
 	local velocity = context.velocities[index]
-	local longitudinalSpeed = vector.dot(velocity, forwardAxis)
-	local lateralSpeed = vector.dot(velocity, sideAxis)
+	local longitudinalSpeed, lateralSpeed = expectedSpeeds(context, velocity, forwardAxis, sideAxis)
 	local slipAngle = Tire.slipAngle(lateralSpeed, longitudinalSpeed, settings)
 	local brakeAndRolling = opposingLongitudinal(context, wheel, isFront, longitudinalSpeed, load, driveState)
 	local grip = wheel.gripMultiplier * axleGripMultiplier(context, isFront)
@@ -154,7 +165,7 @@ local function groundedWheel(
 		isGrounded = true,
 		steerAngleRadians = steerAngle,
 		compressionStuds = wheel.compressionStuds,
-		spinRadiansPerSecond = longitudinalSpeed / settings.WHEEL_RADIUS_STUDS,
+		spinRadiansPerSecond = vector.dot(velocity, forwardAxis) / settings.WHEEL_RADIUS_STUDS,
 	}
 	return output, { slipRatio = slipRatio, slipAngleRadians = slipAngle, isSliding = isSliding, surface = nil }
 end
