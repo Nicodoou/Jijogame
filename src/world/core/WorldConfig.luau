@@ -160,7 +160,8 @@ return table.freeze({
 	TERRAIN_DEPTH_STUDS = 12,
 	-- Ancho en el que el terreno pasa de plano (al lado de la banquina) a las colinas completas.
 	TERRAIN_BLEND_WIDTH_STUDS = 32,
-	-- Pendiente máxima del terreno, medida en 150 semillas: dos pasadas a 60 studs y 37 de diferencia de altura (el peor caso) dan 61 grados.
+	-- Pendiente máxima que se busca en el terreno. Entre dos pasadas a 60 studs o más y a distinta altura la cumple casi siempre;
+	-- si dos pasadas quedan a 30 o 40 studs (LIVE_NEAR_CLEARANCE_STUDS) no hay lugar para la rampa y el talud sale más empinado.
 	TERRAIN_MAX_SLOPE_DEGREES = 62,
 	-- Colinas: dos octavas de math.noise relativas a la altura de la ruta. La amplitud y la rugosidad se multiplican por las de los biomas.
 	TERRAIN_HILL_AMPLITUDE_STUDS = 12,

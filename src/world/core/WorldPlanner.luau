@@ -1,17 +1,17 @@
 --!strict
 -- El mundo vivo alrededor del auto, sin tocar Roblox: sigue al auto sobre la ruta, genera ruta adelante y la libera
--- atrás, decide qué chunks de Terrain hacen falta (los que toca un corredor alrededor de la ruta viva), arma la cola
--- de trabajo y lleva el registro de lo escrito. Es una fuente de trabajo para WorkBudget: cada `runStep` hace una cosa
--- chica (un tramo de ruta, replanificar, una fila de un chunk, escribir un chunk). Lo que escribe en el Terrain sale por
--- el `ChunkSink` que le pasa el adaptador. Además provee los cuatro contratos del área.
+-- atrás, decide qué chunks de Terrain hacen falta (los que toca un corredor alrededor de la ruta viva) y arma la cola
+-- de trabajo. Es una fuente de trabajo para WorkBudget: cada `runStep` hace una cosa chica (un tramo de ruta, replanificar,
+-- una fila de un chunk, escribir un chunk). Lo que escribe en el Terrain sale por el `ChunkSink` que le pasa el
+-- adaptador. Además provee los cuatro contratos del área.
 
 local BiomeBlend = require("./BiomeBlend")
 local BiomeCatalog = require("./BiomeCatalog")
 local BiomeMap = require("./BiomeMap")
 local BiomeTypes = require("./BiomeTypes")
 local ChunkCorridor = require("./ChunkCorridor")
-local ChunkGrid = require("./ChunkGrid")
 local ChunkPlan = require("./ChunkPlan")
+local ChunkRegistry = require("./ChunkRegistry")
 local RoadPath = require("./RoadPath")
 local RoadPoint = require("../../shared/contracts/RoadPoint")
 local RoadWindow = require("./RoadWindow")
@@ -61,21 +61,17 @@ export type WorldPlanner = WorkBudget.WorkSource & {
 	isWorldReadyAt: WorldReady.IsWorldReadyAt,
 }
 
-local CHUNK_STUDS = WorldConfig.CHUNK_SIZE_STUDS
-local PLAN_REFRESH_STUDS = WorldConfig.TERRAIN_PLAN_REFRESH_STUDS
+local PLAN_REFRESH_SQUARED_STUDS = WorldConfig.TERRAIN_PLAN_REFRESH_STUDS ^ 2
 local FRONTIER_MARGIN_STUDS = WorldConfig.TERRAIN_FRONTIER_MARGIN_STUDS
 local READY_RADIUS_STUDS = WorldConfig.WORLD_READY_RADIUS_STUDS
 
 type PlannedWork = ChunkPlan.PlannedWork
-type WrittenChunk = ChunkPlan.WrittenChunk
 
 -- Lo que se está haciendo ahora con un chunk: armarlo (y escribirlo) o borrarlo.
 type CurrentWork = {
 	plan: PlannedWork,
 	isStarted: boolean,
 }
-
-type Box = { minX: number, minZ: number, maxX: number, maxZ: number }
 
 local WorldPlannerModule = {}
 
@@ -88,7 +84,7 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 	local picker = BiomeBlend.newPicker(seed, catalog)
 	local window = RoadWindow.new(path, WorldConfig.ROUTE_AHEAD_STUDS, TerrainWindow.BLOCK_MEMORY_STUDS)
 	local heightField = TerrainHeightField.new(seed, catalog, window.blocks)
-	local influenceStuds = heightField.getInfluenceStuds()
+	local registry = ChunkRegistry.new(window.blocks, heightField.getInfluenceStuds())
 	local createBuilder = dependencies.createBuilder or VoxelChunkBuilder.new
 	local builder = createBuilder({
 		heightField = heightField,
@@ -97,127 +93,82 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 		catalog = catalog,
 	})
 
-	local written: { [number]: WrittenChunk } = {}
-	local writtenCount = 0
 	local queue: { PlannedWork } = {}
 	local queueHead = 1
 	local current: CurrentWork? = nil
 	local isPlanDirty = true
 	local vehiclePosition = vector.zero
-	local vehicleX, vehicleZ = 0, 0
-	local lastPlanX, lastPlanZ = math.huge, math.huge
-	-- Zonas donde llegó ruta nueva desde el último plan: los chunks escritos que las toquen pueden haber quedado viejos.
-	local newRoadBoxes: { Box } = {}
-	local checkAllChunks = false
+	local lastPlanPosition = vector.create(math.huge, 0, math.huge)
 
 	window.extend()
 	local spawnPoint = SpawnPoint.fromPath(path)
 
-	local function recordNewRoad(segment: RoadPath.Segment)
-		local box: Box = { minX = math.huge, minZ = math.huge, maxX = -math.huge, maxZ = -math.huge }
-		for _, sample in segment.samples do
-			box.minX, box.maxX = math.min(box.minX, sample.position.x), math.max(box.maxX, sample.position.x)
-			box.minZ, box.maxZ = math.min(box.minZ, sample.position.z), math.max(box.maxZ, sample.position.z)
-		end
-		table.insert(newRoadBoxes, box)
-	end
-
-	local function getSignatureOfChunk(chunkX: number, chunkZ: number): number
-		local originX, originZ = ChunkGrid.getOriginStuds(chunkX), ChunkGrid.getOriginStuds(chunkZ)
-		return window.blocks.getSignature(
-			originX,
-			originZ,
-			originX + CHUNK_STUDS,
-			originZ + CHUNK_STUDS,
-			influenceStuds
-		)
-	end
-
-	local function isTouchedByNewRoad(chunkX: number, chunkZ: number): boolean
-		local originX, originZ = ChunkGrid.getOriginStuds(chunkX), ChunkGrid.getOriginStuds(chunkZ)
-		for _, box in newRoadBoxes do
-			local gapX = math.max(box.minX - (originX + CHUNK_STUDS), originX - box.maxX, 0)
-			local gapZ = math.max(box.minZ - (originZ + CHUNK_STUDS), originZ - box.maxZ, 0)
-			if gapX * gapX + gapZ * gapZ < influenceStuds * influenceStuds then
-				return true
-			end
-		end
-		return false
-	end
-
-	local function isStale(record: WrittenChunk): boolean
-		if not (checkAllChunks or isTouchedByNewRoad(record.chunkX, record.chunkZ)) then
-			return false
-		end
-		return getSignatureOfChunk(record.chunkX, record.chunkZ) ~= record.signature
-	end
-
 	local function replan()
 		isPlanDirty = false
-		lastPlanX, lastPlanZ = vehicleX, vehicleZ
+		lastPlanPosition = vehiclePosition
 		window.releaseOldSegments()
 		local arcLength = window.getVehicleArcLength()
-		local wantedFrom = arcLength - TerrainWindow.WANTED_BEHIND_STUDS
+		-- El borde de la ruta generada no se escribe: ahí todavía falta la ruta que entra en el alcance de la altura.
 		local lastWantedArc = window.getGeneratedEndArcLength() - FRONTIER_MARGIN_STUDS
-		local wanted = ChunkCorridor.collect(window, wantedFrom, lastWantedArc, TerrainWindow.WANTED_HALF_WIDTH_STUDS)
+		local wanted = ChunkCorridor.collect(
+			window,
+			arcLength - TerrainWindow.WANTED_BEHIND_STUDS,
+			lastWantedArc,
+			TerrainWindow.WANTED_HALF_WIDTH_STUDS
+		)
 		local kept = ChunkCorridor.collect(
 			window,
 			arcLength - TerrainWindow.KEPT_BEHIND_STUDS,
 			lastWantedArc,
 			TerrainWindow.KEPT_HALF_WIDTH_STUDS
 		)
-		local busy = current
-		if busy ~= nil and kept[busy.plan.key] == nil then
-			current = nil
-			busy = nil
+		local building = current
+		if building ~= nil and kept[building.plan.key] == nil then
+			current, building = nil, nil
 		end
 		queue = ChunkPlan.build(
 			wanted,
 			kept,
-			written,
-			if busy ~= nil then busy.plan.key else nil,
-			vehicleX,
-			vehicleZ,
-			isStale
+			registry.getAll(),
+			if building ~= nil then building.plan.key else nil,
+			vehiclePosition.x,
+			vehiclePosition.z,
+			registry.isStale
 		)
 		queueHead = 1
-		newRoadBoxes, checkAllChunks = {}, false
+		registry.clearNotes()
 	end
 
 	local function extendRoad()
-		recordNewRoad(window.extend())
+		registry.noteNewSegment(window.extend())
 		-- Con ruta nueva el auto puede haber quedado sobre ella: si no se lo vuelve a ubicar acá, la ruta de adelante
 		-- se calcula desde un arcLength viejo hasta la próxima llamada de updatePlan.
 		window.trackVehicle(vehiclePosition)
 		isPlanDirty = true
 	end
 
-	local function commitBuiltChunk(plan: PlannedWork)
+	local function commitBuiltChunk()
 		local voxels = builder.getResult()
 		sink.writeChunk(voxels)
-		if written[plan.key] == nil then
-			writtenCount += 1
-		end
-		written[plan.key] = {
-			chunkX = plan.chunkX,
-			chunkZ = plan.chunkZ,
-			minVoxelY = voxels.minVoxelY,
-			maxVoxelY = voxels.minVoxelY + voxels.sizeY - 1,
-			signature = voxels.signature,
-		}
 		-- Si llegó ruta nueva mientras se armaba, el chunk ya salió viejo: se revisa en el próximo plan.
-		if getSignatureOfChunk(plan.chunkX, plan.chunkZ) ~= voxels.signature then
-			checkAllChunks, isPlanDirty = true, true
+		if registry.record(voxels) then
+			registry.flagAllForCheck()
+			isPlanDirty = true
 		end
 	end
 
 	local function clearChunk(plan: PlannedWork)
-		local record = written[plan.key]
-		if record ~= nil then
-			sink.clearChunk(plan.chunkX, plan.chunkZ, { minVoxelY = record.minVoxelY, maxVoxelY = record.maxVoxelY })
-			written[plan.key] = nil
-			writtenCount -= 1
+		local chunk = registry.get(plan.key)
+		if chunk ~= nil then
+			sink.clearChunk(plan.chunkX, plan.chunkZ, { minVoxelY = chunk.minVoxelY, maxVoxelY = chunk.maxVoxelY })
+			registry.remove(plan.key)
 		end
+	end
+
+	local function startBuilding(plan: PlannedWork)
+		local chunk = registry.get(plan.key)
+		local cover = if chunk ~= nil then { minVoxelY = chunk.minVoxelY, maxVoxelY = chunk.maxVoxelY } else nil
+		builder.begin(plan.chunkX, plan.chunkZ, cover)
 	end
 
 	local function advanceCurrentWork(work: CurrentWork)
@@ -228,15 +179,13 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 			return
 		end
 		if not work.isStarted then
-			local record = written[plan.key]
-			local cover = if record ~= nil then { minVoxelY = record.minVoxelY, maxVoxelY = record.maxVoxelY } else nil
-			builder.begin(plan.chunkX, plan.chunkZ, cover)
+			startBuilding(plan)
 			work.isStarted = true
 		end
 		if builder.getRemainingSteps() > 0 then
 			builder.runStep()
 		else
-			commitBuiltChunk(plan)
+			commitBuiltChunk()
 			current = nil
 		end
 	end
@@ -252,9 +201,9 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 
 	local function updatePlan(position: vector)
 		vehiclePosition = position
-		vehicleX, vehicleZ = position.x, position.z
 		window.trackVehicle(position)
-		if (vehicleX - lastPlanX) ^ 2 + (vehicleZ - lastPlanZ) ^ 2 >= PLAN_REFRESH_STUDS ^ 2 then
+		local movedX, movedZ = position.x - lastPlanPosition.x, position.z - lastPlanPosition.z
+		if movedX * movedX + movedZ * movedZ >= PLAN_REFRESH_SQUARED_STUDS then
 			isPlanDirty = true
 		end
 	end
@@ -278,16 +227,7 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 	end
 
 	local function isWorldReadyAt(position: vector): boolean
-		for chunkX = ChunkGrid.getCoordinate(position.x - READY_RADIUS_STUDS), ChunkGrid.getCoordinate(position.x + READY_RADIUS_STUDS) do
-			for chunkZ = ChunkGrid.getCoordinate(position.z - READY_RADIUS_STUDS), ChunkGrid.getCoordinate(position.z + READY_RADIUS_STUDS) do
-				local isInRadius = ChunkGrid.getDistanceToChunk(chunkX, chunkZ, position.x, position.z)
-					<= READY_RADIUS_STUDS
-				if isInRadius and written[ChunkGrid.getKey(chunkX, chunkZ)] == nil then
-					return false
-				end
-			end
-		end
-		return true
+		return registry.isReadyAt(position, READY_RADIUS_STUDS)
 	end
 
 	local function getNearestRoadPoint(position: vector): RoadPoint.RoadPoint?
@@ -298,7 +238,7 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 		return { position = nearest.position, direction = nearest.direction, arcLength = nearest.arcLength }
 	end
 
-	local function getSpawnPointCopy(): RoadPoint.RoadPoint
+	local function getSpawnPoint(): RoadPoint.RoadPoint
 		return { position = spawnPoint.position, direction = spawnPoint.direction, arcLength = spawnPoint.arcLength }
 	end
 
@@ -306,7 +246,7 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 		return {
 			vehicleArcLength = window.getVehicleArcLength(),
 			generatedEndArcLength = window.getGeneratedEndArcLength(),
-			writtenChunkCount = writtenCount,
+			writtenChunkCount = registry.getCount(),
 			queuedWorkCount = #queue - queueHead + 1 + (if current ~= nil then 1 else 0),
 			isBuildingChunk = current ~= nil,
 		}
@@ -319,7 +259,7 @@ function WorldPlannerModule.new(dependencies: Dependencies): WorldPlanner
 		getStatus = getStatus,
 		getSurfaceAt = SurfaceClassifier.createGetSurfaceAt(window.query, picker, biomeMap),
 		getNearestRoadPoint = getNearestRoadPoint,
-		getSpawnPoint = getSpawnPointCopy,
+		getSpawnPoint = getSpawnPoint,
 		isWorldReadyAt = isWorldReadyAt,
 	}
 end

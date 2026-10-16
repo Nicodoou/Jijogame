@@ -332,4 +332,103 @@ Runner.test("on real routes the road is flat across and the terrain is continuou
 	Runner.expectEqual(columns, #REAL_SEEDS * 40)
 end)
 
+local PAIR_SEED = 40
+local PAIR_SEGMENTS = 100
+local PAIR_CELL_STUDS = 64
+local PAIR_MIN_ARC_GAP = 1200
+local PAIR_MAX_ARC_GAP = 3250
+local PAIR_MIN_DISTANCE = 55
+local PAIR_MAX_DISTANCE = 80
+local PAIR_MIN_RISE = 20
+local PAIR_WINDOW_STUDS = 300
+local PAIR_SCAN_SPACING = 0.5
+
+-- La primera pareja de muestras de dos pasadas distintas de la ruta (separadas por tramos de más de 1.200 studs de
+-- arcLength) que quedan a la distancia y con la diferencia de altura pedidas.
+local function findClosePair(segments: { RoadPath.Segment }): (RoadPath.RoadSample?, RoadPath.RoadSample?)
+	local samples: { RoadPath.RoadSample } = {}
+	local cells: { [number]: { number } } = {}
+	for _, segment in segments do
+		for offset, sample in segment.samples do
+			if offset > 1 or segment.index == 0 then
+				table.insert(samples, sample)
+				local key = math.floor(sample.position.x / PAIR_CELL_STUDS) * 100000
+					+ math.floor(sample.position.z / PAIR_CELL_STUDS)
+				cells[key] = cells[key] or {}
+				table.insert(cells[key], #samples)
+			end
+		end
+	end
+	for index = 1, #samples, 2 do
+		local sample = samples[index]
+		local cellX = math.floor(sample.position.x / PAIR_CELL_STUDS)
+		local cellZ = math.floor(sample.position.z / PAIR_CELL_STUDS)
+		for offsetX = -1, 1 do
+			for offsetZ = -1, 1 do
+				local cell: { number } = cells[(cellX + offsetX) * 100000 + cellZ + offsetZ] or {}
+				for _, otherIndex in cell do
+					local other = samples[otherIndex]
+					local arcGap = other.arcLength - sample.arcLength
+					local distance = vector.magnitude(
+						vector.create(other.position.x - sample.position.x, 0, other.position.z - sample.position.z)
+					)
+					local rise = math.abs(other.position.y - sample.position.y)
+					local isPair = arcGap > PAIR_MIN_ARC_GAP and arcGap <= PAIR_MAX_ARC_GAP
+					if
+						isPair
+						and distance >= PAIR_MIN_DISTANCE
+						and distance <= PAIR_MAX_DISTANCE
+						and rise >= PAIR_MIN_RISE
+					then
+						return sample, other
+					end
+				end
+			end
+		end
+	end
+	return nil
+end
+
+Runner.test(
+	"on a real route, two passes about 70 studs apart at different heights meet within the maximum slope",
+	function()
+		local segments = PathHelpers.generateSegments(RoadPath.new(PAIR_SEED), PAIR_SEGMENTS)
+		local lower, upper = findClosePair(segments)
+		Runner.expectEqual(lower ~= nil and upper ~= nil, true)
+		local first, second = lower :: RoadPath.RoadSample, upper :: RoadPath.RoadSample
+		local firstSegment =
+			math.max(0, math.floor((first.arcLength - PAIR_WINDOW_STUDS) / WorldConfig.SEGMENT_LENGTH_STUDS))
+		local lastSegment = math.min(
+			PAIR_SEGMENTS - 1,
+			math.ceil((second.arcLength + PAIR_WINDOW_STUDS) / WorldConfig.SEGMENT_LENGTH_STUDS)
+		)
+		local window: { RoadPath.Segment } = {}
+		for index = firstSegment, lastSegment do
+			table.insert(window, segments[index + 1])
+		end
+		local field = createField(PAIR_SEED, { window })
+		local fromX, fromZ, toX, toZ = first.position.x, first.position.z, second.position.x, second.position.z
+		field.setArea(
+			math.min(fromX, toX) - 8,
+			math.min(fromZ, toZ) - 8,
+			math.max(fromX, toX) + 8,
+			math.max(fromZ, toZ) + 8
+		)
+		local length = math.sqrt((toX - fromX) ^ 2 + (toZ - fromZ) ^ 2)
+		local steps = math.ceil(length / PAIR_SCAN_SPACING)
+		Runner.expectNear(sampleHeight(field, fromX, fromZ, nil), first.position.y, 0.01)
+		Runner.expectNear(sampleHeight(field, toX, toZ, nil), second.position.y, 0.01)
+		local previous = first.position.y
+		local steepest = 0
+		for step = 1, steps do
+			local fraction = step / steps
+			local height = sampleHeight(field, fromX + (toX - fromX) * fraction, fromZ + (toZ - fromZ) * fraction, nil)
+			steepest = math.max(steepest, math.abs(height - previous) / (length / steps))
+			previous = height
+		end
+		Runner.expectEqual(steepest <= MAX_SLOPE, true)
+		Runner.expectEqual(steepest > 0.3, true)
+	end
+)
+
 Runner.finish()
