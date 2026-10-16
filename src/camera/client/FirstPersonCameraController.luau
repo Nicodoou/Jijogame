@@ -2,46 +2,65 @@
 -- Posiciona la cámara de Roblox con lo que calcula el núcleo de la cámara. Hasta que haya auto, no la toca.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local CameraConfig = require(ReplicatedStorage.camera.core.CameraConfig)
 local FirstPersonCamera = require(ReplicatedStorage.camera.core.FirstPersonCamera)
 
 type CameraState = FirstPersonCamera.CameraState
 type LookRates = FirstPersonCamera.LookRates
 type VehicleView = FirstPersonCamera.VehicleView
 
-local ChaseCameraController = {}
-ChaseCameraController.__index = ChaseCameraController
+-- Si la cabeza se mueve más que esto entre dos cuadros, el auto reapareció: el estado viejo ya no sirve.
+local RESPAWN_JUMP_STUDS = 50
 
-export type ChaseCameraController = typeof(setmetatable(
+local FirstPersonCameraController = {}
+FirstPersonCameraController.__index = FirstPersonCameraController
+
+export type FirstPersonCameraController = typeof(setmetatable(
 	{} :: {
 		_camera: Camera,
 		_state: CameraState?,
+		_lastHeadPosition: vector?,
 	},
-	ChaseCameraController
+	FirstPersonCameraController
 ))
 
-function ChaseCameraController.new(camera: Camera): ChaseCameraController
-	return setmetatable({ _camera = camera, _state = nil }, ChaseCameraController)
+function FirstPersonCameraController.new(camera: Camera): FirstPersonCameraController
+	return setmetatable({ _camera = camera, _state = nil, _lastHeadPosition = nil }, FirstPersonCameraController)
 end
 
 local function toVector3(value: vector): Vector3
 	return Vector3.new(value.x, value.y, value.z)
 end
 
-function ChaseCameraController.step(
-	self: ChaseCameraController,
+local function hasRespawned(self: FirstPersonCameraController, vehicleView: VehicleView): boolean
+	local last = self._lastHeadPosition
+	return last ~= nil and vector.magnitude(vehicleView.headPosition - last) > RESPAWN_JUMP_STUDS
+end
+
+local function currentState(self: FirstPersonCameraController, vehicleView: VehicleView): CameraState
+	local state = self._state
+	if state == nil or hasRespawned(self, vehicleView) then
+		return FirstPersonCamera.newState()
+	end
+	return state
+end
+
+function FirstPersonCameraController.step(
+	self: FirstPersonCameraController,
 	vehicleView: VehicleView?,
 	look: LookRates,
 	isLookingBack: boolean,
 	dt: number
 )
 	if vehicleView == nil then
+		self._state, self._lastHeadPosition = nil, nil
 		return
 	end
-	local state, pose =
-		FirstPersonCamera.step(self._state or FirstPersonCamera.newState(), vehicleView, look, isLookingBack, dt)
-	self._state = state
+	local state, pose = FirstPersonCamera.step(currentState(self, vehicleView), vehicleView, look, isLookingBack, dt)
+	self._state, self._lastHeadPosition = state, vehicleView.headPosition
 	self._camera.CameraType = Enum.CameraType.Scriptable
+	self._camera.FieldOfView = CameraConfig.FIELD_OF_VIEW_DEGREES
 	self._camera.CFrame = CFrame.fromMatrix(toVector3(pose.position), toVector3(pose.right), toVector3(pose.up))
 end
 
-return ChaseCameraController
+return FirstPersonCameraController

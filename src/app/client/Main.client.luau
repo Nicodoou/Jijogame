@@ -7,7 +7,7 @@ local Workspace = game:GetService("Workspace")
 local InputSmoother = require(ReplicatedStorage.input.core.InputSmoother)
 local VehicleConfig = require(ReplicatedStorage.vehicle.core.VehicleConfig)
 local VehicleSimulator = require(ReplicatedStorage.vehicle.core.VehicleSimulator)
-local ChaseCameraController = require("../camera/ChaseCameraController")
+local FirstPersonCameraController = require("../camera/FirstPersonCameraController")
 local InputReader = require("../input/InputReader")
 local VehicleController = require("../vehicle/VehicleController")
 local RearAxleVisual = require("../vehicle/RearAxleVisual")
@@ -31,7 +31,7 @@ controller = VehicleController.new({
 	simulator = VehicleSimulator,
 	config = VehicleConfig,
 })
-local cameraController = ChaseCameraController.new(Workspace.CurrentCamera)
+local cameraController = FirstPersonCameraController.new(Workspace.CurrentCamera)
 local rearAxleVisual = RearAxleVisual.new(Players.LocalPlayer.UserId)
 local inputState = InputSmoother.newState()
 
@@ -46,11 +46,14 @@ RunService.PreSimulation:Connect(function(dt)
 	controller:step(inputState, dt)
 end)
 
+-- La mirada se suaviza en PreRender con el dt del cuadro: el mouse entrega píxeles por cuadro de render,
+-- y en PreSimulation (varias veces por cuadro) se confundirían los dt.
 RunService.PreRender:Connect(function(dt)
+	local look = InputSmoother.step(InputSmoother.newState(), inputReader:read(), dt)
 	cameraController:step(
 		controller:getVehicleView(),
-		{ yawRate = inputState.lookYawRate, pitchRate = inputState.lookPitchRate },
-		inputState.isLookingBack,
+		{ yawRate = look.lookYawRate, pitchRate = look.lookPitchRate },
+		look.isLookingBack,
 		dt
 	)
 	rearAxleVisual:step()
