@@ -67,6 +67,10 @@ end
 
 -- Corre en PreRender.
 function RearAxleVisual.step(self: RearAxleVisual)
+	-- Si el auto se destruyó (reaparecer, reset), el rig apunta a partes viejas: se descarta y se busca el nuevo.
+	if self._rig ~= nil and self._rig.body.Parent == nil then
+		self._rig = nil
+	end
 	self._rig = self._rig or findRig(self._userId)
 	local rig = self._rig
 	if rig == nil then
