@@ -27,6 +27,9 @@ export type ToyWorldOptions = {
 	initialYawDegrees: number?,
 	-- Apoya el auto alineado con el plano (su "arriba" es la normal) en vez de derecho.
 	isAlignedToSlope: boolean?,
+	-- Centro de masa respecto del origen del marco de las ruedas, en coordenadas locales (z positivo es atrás).
+	centerOfMassOffset: vector?,
+	yawInertiaFraction: number?,
 }
 
 export type ToyWorld = {
@@ -44,6 +47,8 @@ export type ToyWorld = {
 	mass: number,
 	gravity: number,
 	settings: VehicleSettings,
+	centerOfMassOffset: vector,
+	yawInertiaFraction: number,
 }
 
 local ToyWorld = {}
@@ -94,11 +99,17 @@ local function alignToPlane(world: ToyWorld, normal: vector, height: number)
 	world.forward = vector.normalize(flat)
 	world.up = normal
 	world.right = vector.cross(world.forward, normal)
-	world.position = normal * height
+	world.position = normal * height + mountWorldOffset(world, world.centerOfMassOffset)
+end
+
+-- `position` es el centro de masa; el origen del marco de las ruedas queda desplazado de él.
+local function frameOrigin(world: ToyWorld): vector
+	return world.position - mountWorldOffset(world, world.centerOfMassOffset)
 end
 
 local function sampleChassis(world: ToyWorld): ChassisSample
 	return {
+		origin = frameOrigin(world),
 		position = world.position,
 		right = world.right,
 		up = world.up,
@@ -117,7 +128,7 @@ local function castWheels(world: ToyWorld, normal: vector, surfaceAt: (vector) -
 	local alignment = vector.dot(world.up, normal)
 	local contacts: { WheelContact? } = {}
 	for index, wheel in settings.WHEELS do
-		local mount = world.position + mountWorldOffset(world, wheel.offset)
+		local mount = frameOrigin(world) + mountWorldOffset(world, wheel.offset)
 		local distance = vector.dot(mount, normal) / alignment
 		if alignment > MIN_SLOPE_ALIGNMENT and distance <= reach and distance >= -RAY_START_ABOVE_MOUNT then
 			local point = mount - world.up * distance
@@ -130,7 +141,7 @@ end
 local function inertiaTimes(world: ToyWorld, value: vector, inverse: boolean): vector
 	local mass = world.mass
 	local pitch = mass * (BOX_HEIGHT * BOX_HEIGHT + BOX_LENGTH * BOX_LENGTH) / 12
-	local yaw = mass * (BOX_WIDTH * BOX_WIDTH + BOX_LENGTH * BOX_LENGTH) / 12
+	local yaw = world.yawInertiaFraction * mass * (BOX_WIDTH * BOX_WIDTH + BOX_LENGTH * BOX_LENGTH) / 12
 	local roll = mass * (BOX_WIDTH * BOX_WIDTH + BOX_HEIGHT * BOX_HEIGHT) / 12
 	local factorRight = if inverse then 1 / pitch else pitch
 	local factorUp = if inverse then 1 / yaw else yaw
@@ -154,7 +165,10 @@ local function integrate(world: ToyWorld, outputs: { WheelOutput }, substepSecon
 	for index, wheel in world.settings.WHEELS do
 		local wheelForce = outputs[index].force
 		force += wheelForce
-		torque += vector.cross(mountWorldOffset(world, wheel.offset), wheelForce)
+		torque += vector.cross(
+			mountWorldOffset(world, wheel.offset) - mountWorldOffset(world, world.centerOfMassOffset),
+			wheelForce
+		)
 	end
 	local angularMomentum = inertiaTimes(world, world.angularVelocity, false)
 	local gyroscopic = vector.cross(world.angularVelocity, angularMomentum)
@@ -234,7 +248,10 @@ function ToyWorld.new(options: ToyWorldOptions?): Runner
 		mass = resolved.mass or DEFAULT_MASS,
 		gravity = gravity,
 		settings = settings,
+		centerOfMassOffset = resolved.centerOfMassOffset or vector.create(0, 0, 0),
+		yawInertiaFraction = resolved.yawInertiaFraction or 1,
 	}
+	world.position = base + mountWorldOffset(world, world.centerOfMassOffset)
 	if resolved.isAlignedToSlope then
 		alignToPlane(world, normal, height)
 	end
