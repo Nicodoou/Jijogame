@@ -82,27 +82,31 @@ La regla original (bajar si la de abajo empuja un 10% más y queda 300 RPM antes
 5. **`SHIFT_TORQUE_FRACTION` sigue en 0.**
 6. **A fondo, la bajada por `DOWNSHIFT_RPM` ya no actúa** (la decide el kickdown). Se agregó al ver que, aun con la regla nueva, después de subir de 1ra a 2da en 15° la regla vieja bajaba de nuevo apenas terminaba el cambio (3000 RPM) y repetía el ciclo cada ~1 s.
 
-## Segunda corrección: la caja decide por la carga estimada
+## Segunda corrección: la caja decide por la carga
 
-Con la regla de arriba (tiempo mínimo en marcha, aceleración filtrada, una marcha por vez) 10° y 15° dejan de cazar, pero en 20° el kickdown baja una marcha por segundo (4ta a 60 studs/s → 3ra → 2da → 1ra en 2,1 s, ya retrocediendo a −8 studs/s). Regla que la reemplaza (decidida por el orquestador):
+Con la regla de arriba (tiempo mínimo en marcha, aceleración filtrada, una marcha por vez) 10° y 15° dejan de cazar, pero en 20° el kickdown baja una marcha por segundo (4ta a 60 studs/s → 3ra → 2da → 1ra en 2,1 s, ya retrocediendo a −8 studs/s). Estimar la carga desde la aceleración filtrada (`R = empuje − aceleración`) no alcanzó: el filtro va atrasado mientras el auto acelera hacia el corte, la carga se subestima y la caja sube a una marcha que después no puede con la cuesta (ciclos de 5 s: en 20°, 1ra ↔ 2da con mínimas de 1,5 y −0,4 studs/s; en 15°, 2da ↔ 3ra con mínima de 30,1 studs/s). La regla final (decidida por el orquestador) usa una carga exacta:
 
-- **Carga estimada** por unidad de masa, cada paso a fondo: `R = empuje de la marcha actual − aceleración filtrada` (gravedad de la pendiente, resistencia al rodar, etc.). El empuje por unidad de masa es `FIRST_GEAR_PEAK_ACCELERATION · gearForce · pedal`.
-- **Bajar:** con la aceleración filtrada ≤ `KICKDOWN_MIN_ACCELERATION` y pasado `GEAR_HOLD_SECONDS` **desde la última subida** (una bajada no espera a otra), baja directamente a la marcha más alta que cumpla `empuje(marcha) − R ≥ KICKDOWN_ACCEL_MARGIN` (5 studs/s²) y RPM ≤ `KICKDOWN_MAX_RPM`. Puede saltar varias marchas. Si ninguna cumple, a la más baja con RPM dentro del límite. `KICKDOWN_FORCE_MARGIN` ya no existe.
+- **Carga por unidad de masa**, a lo largo del auto: `R = gravedad · (forward.y filtrado + resistencia al rodar media)`, con `forward.y > 0` cuesta arriba y la gravedad de `ChassisSample.gravity`. Es determinista y sin atraso. Se filtra **solo** `forward.y` (`LOAD_PITCH_FILTER_RATE` = 8) para que el cabeceo de la suspensión no la mueva; si no es finito, cuenta como plano.
+- **Empuje por unidad de masa** de una marcha: `FIRST_GEAR_PEAK_ACCELERATION · gearForce · pedal`.
+- **Bajar** (acelerador ≥ `KICKDOWN_THROTTLE`): si `empuje(actual) − R < KICKDOWN_ACCEL_MARGIN` (5 studs/s²) y pasó `GEAR_HOLD_SECONDS` (1 s) **desde la última subida**, baja directamente a la marcha más alta con `empuje − R ≥ KICKDOWN_ACCEL_MARGIN` y RPM ≤ `KICKDOWN_MAX_RPM` (4800). Puede saltar varias marchas; una bajada no espera a otra. Si ninguna cumple, a la más baja con RPM dentro del límite.
 - **Subir a fondo** (por `UPSHIFT_RPM` o en el corte suave): solo si la marcha de arriba, a la velocidad que va a tener después del corte (`v − R · SHIFT_DURATION_SECONDS`, sin empuje durante el cambio), da `empuje − R ≥ UPSHIFT_ACCEL_MARGIN` (2 studs/s²).
-- La memoria de la caja guarda el tiempo desde la última subida (`secondsSinceUpshift`).
+- **A fondo la bajada vieja por `DOWNSHIFT_RPM` no actúa.** `SHIFT_TORQUE_FRACTION` sigue en 0.
+- Se sacaron `KICKDOWN_FORCE_MARGIN`, `KICKDOWN_RPM_MARGIN`, `KICKDOWN_MIN_ACCELERATION` y `KICKDOWN_ACCEL_FILTER_RATE`, y la aceleración filtrada de `VehicleState`. La memoria de la caja es el tiempo desde la última subida (`secondsSinceUpshift`) y la inclinación filtrada (`filteredForwardY`).
 
-Mediciones con esta regla (`ToyWorld`, pedal a fondo, 20 s; "final / mín" = velocidad al final y mínima de los últimos 3 s):
+Mediciones (`ToyWorld`, pedal a fondo, 20 s; "final / mín" es la velocidad al final y la mínima de los últimos 3 s; 30 y 60 FPS dan lo mismo):
 
-| Caso | 30 FPS | 60 FPS |
-| --- | --- | --- |
-| 10°, 5ta a 80 | final 106,9 | final 106,9 |
-| 15°, 5ta a 80 | final 48,5, mín 30,1 (ciclo 2da↔3ra: 3>2 a 44, 2>3 a 59, cada ~5 s) | final 43,4, mín 30,1 |
-| 20°, 4ta a 60 | final 22,8, mín 1,5 (ciclo 1ra↔2da: 1>2 a 40, 2>1 a 12, cada ~5,4 s) | final 8,4, mín −0,4 |
-| 15°, radio 0,81 | final 0,5, mín −3,5 | final 1,5, mín −4,0 |
-| 20°, radio 0,81 | final −11,6, mín −23,0 | final 19,4, mín −2,3 |
-| 10°, radio 0,81 | final 72,0 | final 72,0 |
+| Caso | Resultado |
+| --- | --- |
+| 10°, 5ta a 80, radio 1,2 | 1 cambio (5>4), final 106,9 |
+| 15°, 5ta a 80, radio 1,2 | 5>4 a los 0,0 s, 4>3 a 62 studs/s, 3>2 a 44 (7,9 s): final 61,7, mín 61,7, sin ciclos |
+| 20°, 4ta a 60, radio 1,2 | 4>3>2>1 en 0,6 s (a 60, 41 y 23 studs/s): final 40,8, mín 40,8, sin ciclos |
+| 15°, 5ta a 80, radio 0,81 | primer kickdown a los 1,27 s a 55 studs/s (pierde 25 studs/s antes de bajar), después 5>4>3>2>1 en 0,8 s: final 41,6, mín 41,6 |
+| 20°, 4ta a 60, radio 0,81 | 4>3>2>1 en 0,5 s: final 27,0 (30 FPS) / 27,5 (60 FPS) |
+| 10°, 5ta a 80, radio 0,81 | 1 cambio a los 6,8 s, final 72,0 |
 
-Las bajadas ahora son rápidas (4ta a 3ra a 2da a 1ra en 0,6 s a 20°), pero la caja sigue subiendo en el límite de RPM: el filtro de aceleración va atrasado cuando el auto acelera hacia el corte, la carga se subestima y la subida parece segura. La propiedad 5 (que mide `REAR_BIAS`) se corre con el kickdown apagado.
+Con radio 0,81 el primer kickdown llega tarde (la quinta a 80 studs/s ya está a 4.770 RPM y la regla espera a que el auto no tenga margen); por eso la propiedad 18 con ese radio verifica que suba a la velocidad exigida y no la regla de los 15 studs/s.
+
+**Retroceso sin límite:** en una pendiente de 20° con un auto detenido o retrocediendo (`ToyWorld` sin resistencia aerodinámica ni freno motor) la velocidad hacia atrás no tiene tope (llegó a −1.100 studs/s en una medición con la caja anterior). Falta la resistencia aerodinámica y el freno motor: WP aparte, no se arregla acá.
 
 ## Fuera de alcance
 - Mapas de cambio que dependan del acelerador para subir antes con el pedal suave.
