@@ -15,5 +15,11 @@ return table.freeze({
 	GAMEPAD_STEER_EXPONENT = 1.5,
 	GAMEPAD_PEDAL_EXPONENT = 1.0,
 
+	-- Mirar alrededor. El mouse llega como píxeles por frame; el stick, como velocidad de giro.
+	MOUSE_LOOK_RADIANS_PER_PIXEL = 0.003,
+	GAMEPAD_LOOK_RADIANS_PER_SECOND = 2.5,
+	GAMEPAD_LOOK_DEADZONE = 0.15,
+	GAMEPAD_LOOK_EXPONENT = 1.5,
+
 	MAX_STEP_SECONDS = 0.1,
 })

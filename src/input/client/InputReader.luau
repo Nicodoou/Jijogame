@@ -85,6 +85,10 @@ function InputReader.read(_self: InputReader): RawInput
 		gamepadSteer = gamepad.steer,
 		gamepadThrottle = gamepad.throttle,
 		gamepadBrake = gamepad.brake,
+		lookDeltaX = 0,
+		lookDeltaY = 0,
+		gamepadLookX = 0,
+		gamepadLookY = 0,
 	}
 end
 

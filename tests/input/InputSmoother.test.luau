@@ -20,6 +20,10 @@ local function idleInput(): RawInput
 		gamepadSteer = 0,
 		gamepadThrottle = 0,
 		gamepadBrake = 0,
+		lookDeltaX = 0,
+		lookDeltaY = 0,
+		gamepadLookX = 0,
+		gamepadLookY = 0,
 	}
 end
 
@@ -261,6 +265,59 @@ Runner.test("the same inputs always give the same result", function()
 	local second = runFor(InputSmoother.newState(), raw, 0.37)
 	Runner.expectEqual(first.steer, second.steer)
 	Runner.expectEqual(first.throttle, second.throttle)
+end)
+
+Runner.test("a new state does not turn the head", function()
+	local state = InputSmoother.newState()
+	Runner.expectEqual(state.lookYawRate, 0)
+	Runner.expectEqual(state.lookPitchRate, 0)
+end)
+
+Runner.test("mouse movement becomes a turn rate in radians per second", function()
+	local raw = idleInput()
+	raw.lookDeltaX = 20
+	raw.lookDeltaY = 10
+	local result = InputSmoother.step(InputSmoother.newState(), raw, FRAME_SECONDS)
+	Runner.expectNear(result.lookYawRate, 20 * InputConfig.MOUSE_LOOK_RADIANS_PER_PIXEL / FRAME_SECONDS, TOLERANCE)
+	Runner.expectNear(result.lookPitchRate, -10 * InputConfig.MOUSE_LOOK_RADIANS_PER_PIXEL / FRAME_SECONDS, TOLERANCE)
+end)
+
+Runner.test("the same mouse movement over a longer frame turns slower", function()
+	local raw = idleInput()
+	raw.lookDeltaX = 20
+	local short = InputSmoother.step(InputSmoother.newState(), raw, 0.01)
+	local long = InputSmoother.step(InputSmoother.newState(), raw, 0.02)
+	Runner.expectNear(short.lookYawRate, long.lookYawRate * 2, TOLERANCE)
+end)
+
+Runner.test("the right stick cuts at its deadzone and reaches the full rate", function()
+	local raw = idleInput()
+	raw.gamepadLookX = InputConfig.GAMEPAD_LOOK_DEADZONE
+	Runner.expectEqual(InputSmoother.step(InputSmoother.newState(), raw, FRAME_SECONDS).lookYawRate, 0)
+	raw.gamepadLookX = 1
+	raw.gamepadLookY = -1
+	local result = InputSmoother.step(InputSmoother.newState(), raw, FRAME_SECONDS)
+	Runner.expectNear(result.lookYawRate, InputConfig.GAMEPAD_LOOK_RADIANS_PER_SECOND, TOLERANCE)
+	Runner.expectNear(result.lookPitchRate, -InputConfig.GAMEPAD_LOOK_RADIANS_PER_SECOND, TOLERANCE)
+end)
+
+Runner.test("broken look values give no turn instead of NaN", function()
+	local raw = idleInput()
+	raw.lookDeltaX = 0 / 0
+	raw.lookDeltaY = math.huge
+	raw.gamepadLookX = 0 / 0
+	raw.gamepadLookY = -math.huge
+	local result = InputSmoother.step(InputSmoother.newState(), raw, FRAME_SECONDS)
+	Runner.expectEqual(result.lookYawRate, 0)
+	Runner.expectEqual(result.lookPitchRate, -InputConfig.GAMEPAD_LOOK_RADIANS_PER_SECOND)
+end)
+
+Runner.test("an invalid dt keeps the look rates", function()
+	local raw = idleInput()
+	raw.lookDeltaX = 20
+	local state = InputSmoother.step(InputSmoother.newState(), raw, FRAME_SECONDS)
+	Runner.expectEqual(InputSmoother.step(state, raw, 0 / 0).lookYawRate, state.lookYawRate)
+	Runner.expectEqual(InputSmoother.step(state, raw, -1).lookYawRate, state.lookYawRate)
 end)
 
 Runner.finish()
