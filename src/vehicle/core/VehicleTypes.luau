@@ -85,4 +85,22 @@ export type VehicleFeedback = {
 	wheels: { WheelFeedback },
 }
 
+-- Lo que `VehicleSimulator` calcula una vez por paso y las fuerzas de las ruedas leen.
+export type StepContext = {
+	settings: VehicleSettings,
+	controls: VehicleControls,
+	chassis: ChassisSample,
+	mass: number,
+	gravity: number,
+	forwardSpeed: number,
+	driftAngle: number,
+	steerAngle: number,
+	contactUp: vector,
+	offsets: { vector },
+	loadShares: { number },
+	velocities: { vector },
+	stepSeconds: number,
+	rearGripFactor: number,
+}
+
 return {}
