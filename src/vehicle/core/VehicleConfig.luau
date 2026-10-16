@@ -127,4 +127,10 @@ return table.freeze({
 	CONTACT_PLANE_DEGENERATE_THRESHOLD = 1e-4,
 
 	MAX_STEP_SECONDS = 1 / 15,
+
+	-- Daño (WP-15): `DamageEffects` los cambia; con los valores por defecto no tienen ningún efecto.
+	-- Multiplicador del agarre de cada rueda, en el orden FL, FR, RL, RR.
+	WHEEL_GRIP_MULTIPLIERS = table.freeze({ 1, 1, 1, 1 }),
+	-- Desvío fijo de la dirección, en grados (positivo a la derecha).
+	STEER_OFFSET_DEGREES = 0,
 })
