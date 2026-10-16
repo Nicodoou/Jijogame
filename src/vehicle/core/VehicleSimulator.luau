@@ -50,14 +50,18 @@ local function buildContext(
 	contacts: { WheelContact? },
 	settings: VehicleSettings,
 	stepSeconds: number,
-	rearGripFactor: number
+	rearGripFactor: number,
+	gear: number
 ): WheelForces.StepContext
 	local forwardSpeed = vector.dot(chassis.linearVelocity, chassis.forward)
 	local driftAngle = Tire.slipAngle(vector.dot(chassis.linearVelocity, chassis.right), forwardSpeed, settings)
 	local speed = vector.magnitude(chassis.linearVelocity)
-	local maxSteer = Steering.maxAngleWhileDrifting(speed, driftAngle, settings)
-	local requestedSteer = Steering.angle(controls.steer, speed, settings)
-		+ Assists.counterSteer(driftAngle, forwardSpeed, settings)
+	local isReversing = gear < 0
+	local maxSteer = if isReversing
+		then Steering.reverseMaxAngle(settings)
+		else Steering.maxAngleWhileDrifting(speed, driftAngle, settings)
+	local baseSteer = if isReversing then controls.steer * maxSteer else Steering.angle(controls.steer, speed, settings)
+	local requestedSteer = baseSteer + Assists.counterSteer(driftAngle, forwardSpeed, settings)
 	local offsets, velocities = WheelForces.describeMounts(chassis, settings)
 	return {
 		settings = settings,
@@ -139,7 +143,7 @@ function VehicleSimulator.step(
 	local rearGripFactor = if isUsable
 		then SurfaceGrip.nextRearGripFactor(state.rearGripFactor, safeControls.isHandbrakeOn, stepSeconds, settings)
 		else state.rearGripFactor
-	local context = buildContext(safeControls, chassis, contacts, settings, stepSeconds, rearGripFactor)
+	local context = buildContext(safeControls, chassis, contacts, settings, stepSeconds, rearGripFactor, state.gear)
 	if not isUsable then
 		return StepOutputs.idleStep(state, context)
 	end

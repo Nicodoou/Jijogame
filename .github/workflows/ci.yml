@@ -28,7 +28,12 @@ jobs:
           echo "${HOME}/.rokit/bin" >> "${GITHUB_PATH}"
 
       - name: Confiar en las herramientas de rokit.toml e instalarlas
+        # Rokit consulta la API de GitHub para bajar cada herramienta. Sin token, el runner usa el límite anónimo,
+        # que se comparte entre proyectos y a veces da 403 (pasó en el PR #52). Con el token de la corrida no.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
+          rokit authenticate github --token "${GITHUB_TOKEN}"
           sed -n 's/^[^=]*= *"\([^@]*\)@.*/\1/p' rokit.toml | xargs -n 1 rokit trust
           rokit install
 

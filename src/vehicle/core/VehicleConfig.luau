@@ -17,7 +17,7 @@ return table.freeze({
 	-- Suspensión.
 	-- Como máximo 4 Hz (#32).
 	SUSPENSION_FREQUENCY_HZ = 2.5,
-	SUSPENSION_DAMPING_RATIO = 0.6,
+	SUSPENSION_DAMPING_RATIO = 0.8,
 	SUSPENSION_REST_LENGTH_STUDS = 2.5,
 	SUSPENSION_MAX_COMPRESSION_STUDS = 2,
 	-- Tope de la fuerza por rueda, en múltiplos de su carga estática.
@@ -29,17 +29,19 @@ return table.freeze({
 	COMPRESSION_SPEED_FILTER_RATE = 30,
 
 	-- Neumático.
-	TIRE_FRICTION = 1.0,
+	TIRE_FRICTION = 0.7,
 	-- Fuerza lateral por unidad de carga y por radián.
 	TIRE_CORNERING_STIFFNESS_PER_RADIAN = 8,
 	-- 1 = sin caída de la fuerza lateral después del pico.
-	TIRE_SLIDE_FRICTION_RATIO = 0.75,
+	TIRE_SLIDE_FRICTION_RATIO = 0.9,
 	LOW_SPEED_REGULARIZATION_STUDS_PER_SECOND = 3,
 	-- Agarre por eje: multiplica el agarre disponible (tope lateral y círculo) de cada rueda.
 	FRONT_GRIP_MULTIPLIER = 1.0,
 	REAR_GRIP_MULTIPLIER = 0.9,
 	-- Con el freno de mano apretado el agarre trasero baja a esta fracción; al soltarlo vuelve a 1 con esta tasa.
-	HANDBRAKE_REAR_GRIP_MULTIPLIER = 0.5,
+	HANDBRAKE_REAR_GRIP_MULTIPLIER = 0.85,
+	-- Con el freno de mano apretado el factor baja hacia el multiplicador con esta tasa (por segundo).
+	HANDBRAKE_GRIP_DROP_RATE = 8,
 	HANDBRAKE_GRIP_RECOVERY_RATE = 3,
 
 	-- Superficie.
@@ -58,11 +60,15 @@ return table.freeze({
 	}),
 	IDLE_RPM = 1000,
 	REDLINE_RPM = 7000,
-	FIRST_GEAR_PEAK_ACCELERATION = 180,
+	-- Entre REDLINE_RPM − este valor y REDLINE_RPM la fuerza del motor baja linealmente hasta 0.
+	SOFT_LIMITER_RPM = 400,
+	FIRST_GEAR_PEAK_ACCELERATION = 120,
 
 	-- Caja.
 	GEAR_RATIOS = table.freeze({ 3.5, 2.3, 1.65, 1.25, 1.0 }),
-	REVERSE_RATIO = 3.5,
+	REVERSE_RATIO = 5,
+	-- En reversa el empuje del motor se multiplica por esta fracción.
+	REVERSE_DRIVE_FRACTION = 0.4,
 	FINAL_DRIVE = 5.9,
 	UPSHIFT_RPM = 6200,
 	DOWNSHIFT_RPM = 3000,
@@ -71,23 +77,25 @@ return table.freeze({
 	REVERSE_ENGAGE_SPEED = 1,
 
 	-- Tracción: fracción de la fuerza que va al eje trasero.
-	REAR_BIAS = 1.0,
+	REAR_BIAS = 0.5,
 
 	-- Frenos.
 	-- El neumático la recorta.
-	BRAKE_DECELERATION = 75,
+	BRAKE_DECELERATION = 55,
 	BRAKE_FRONT_BIAS = 0.6,
 	HANDBRAKE_FORCE_PER_LOAD = 0.25,
 	-- Debajo de esta velocidad longitudinal el freno y la resistencia al rodar se apagan en forma gradual.
 	BRAKE_REGULARIZATION_SPEED = 1,
 
 	-- Dirección.
-	STEER_MAX_LOW_SPEED_DEGREES = 32,
-	STEER_MAX_HIGH_SPEED_DEGREES = 18,
+	STEER_MAX_LOW_SPEED_DEGREES = 36,
+	STEER_MAX_HIGH_SPEED_DEGREES = 24,
 	-- Al derrapar, la dirección permite este margen sobre el ángulo de deriva (hasta el máximo de baja velocidad).
-	DRIFT_STEER_MARGIN_DEGREES = 5,
-	STEER_LOW_SPEED = 20,
-	STEER_HIGH_SPEED = 120,
+	DRIFT_STEER_MARGIN_DEGREES = 10,
+	STEER_LOW_SPEED = 55,
+	STEER_HIGH_SPEED = 80,
+	-- Ángulo máximo de dirección en marcha atrás.
+	STEER_MAX_REVERSE_DEGREES = 15,
 
 	-- Asistencias (COUNTER_STEER_STRENGTH en 0 apaga el contravolante).
 	COUNTER_STEER_STRENGTH = 0,

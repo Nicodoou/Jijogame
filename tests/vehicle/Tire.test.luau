@@ -64,10 +64,10 @@ Runner.test("with a drop the force falls linearly to the slide ratio at twice th
 	Runner.expectNear(Tire.lateralForce(-PEAK_ANGLE * 10, LOAD, GRIP, settings), PEAK_FORCE * 0.5, 1e-6)
 end)
 
-Runner.test("the default configuration drops the force to 75% of the peak after twice the peak angle", function()
-	Runner.expectEqual(VehicleConfig.TIRE_SLIDE_FRICTION_RATIO, 0.75)
-	Runner.expectNear(Tire.lateralForce(PEAK_ANGLE * 2, LOAD, GRIP), -PEAK_FORCE * 0.75, 1e-6)
-	Runner.expectNear(Tire.lateralForce(PEAK_ANGLE * 50, LOAD, GRIP), -PEAK_FORCE * 0.75, 1e-6)
+Runner.test("the default configuration drops the force to 90% of the peak after twice the peak angle", function()
+	Runner.expectEqual(VehicleConfig.TIRE_SLIDE_FRICTION_RATIO, 0.9)
+	Runner.expectNear(Tire.lateralForce(PEAK_ANGLE * 2, LOAD, GRIP), -PEAK_FORCE * 0.9, 1e-6)
+	Runner.expectNear(Tire.lateralForce(PEAK_ANGLE * 50, LOAD, GRIP), -PEAK_FORCE * 0.9, 1e-6)
 end)
 
 Runner.test("less grip lowers the limit and the angle of the peak", function()
