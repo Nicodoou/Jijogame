@@ -2,6 +2,7 @@
 local Runner = require("../Runner")
 local Suspension = require("../../src/vehicle/core/Suspension")
 local VehicleConfig = require("../../src/vehicle/core/VehicleConfig")
+local Steering = require("../../src/vehicle/core/Steering")
 local VehicleSimulator = require("../../src/vehicle/core/VehicleSimulator")
 local VehicleTypes = require("../../src/vehicle/core/VehicleTypes")
 local WheelForces = require("../../src/vehicle/core/WheelForces")
@@ -16,6 +17,8 @@ local GRAVITY = 196.2
 local FRAME_SECONDS = 1 / 30
 local REACH = VehicleConfig.SUSPENSION_REST_LENGTH_STUDS + VehicleConfig.WHEEL_RADIUS_STUDS
 local ZERO = vector.create(0, 0, 0)
+-- Velocidad lateral con la que el agarre trasero, y no el tope por paso, limita la fuerza lateral.
+local SLIDE_SIDE_SPEED = 20
 
 local function chassisWith(velocity: vector?, angularVelocity: vector?): ChassisSample
 	return {
@@ -102,7 +105,7 @@ Runner.test("only the front wheels turn with the steering", function()
 	Runner.expectNear(left[1].steerAngleRadians, -maxAngle, 1e-9)
 end)
 
-Runner.test("the throttle pushes the car along its front, which is -z, evenly between the axles", function()
+Runner.test("the throttle pushes the car along its front, which is -z, and splits by the rear bias", function()
 	local _, outputs = stepAtRest(controlsWith(0, 1, 0), chassisWith())
 	local total = ZERO
 	for _, output in outputs do
@@ -112,7 +115,8 @@ Runner.test("the throttle pushes the car along its front, which is -z, evenly be
 	Runner.expectNear(total.x, 0, 1e-3)
 	local rearPush = outputs[3].force.z + outputs[4].force.z
 	local frontPush = outputs[1].force.z + outputs[2].force.z
-	Runner.expectNear(rearPush, frontPush, 1e-3)
+	Runner.expectNear(rearPush / total.z, VehicleConfig.REAR_BIAS, 1e-6)
+	Runner.expectNear(frontPush / total.z, 1 - VehicleConfig.REAR_BIAS, 1e-6)
 end)
 
 Runner.test("a wheel that does not touch the ground gives no force", function()
@@ -229,13 +233,13 @@ Runner.test("with the assist on, the counter steer turns the wheels toward the d
 	Runner.expectEqual(outputs[1].steerAngleRadians > 0, true)
 end)
 
-Runner.test("the assist is off in the default configuration", function()
+Runner.test("the assist is on in the default configuration", function()
 	local _, outputs = stepAtRest(controlsWith(0, 0, 0), chassisWith(vector.create(15, 0, -40)))
-	Runner.expectEqual(outputs[1].steerAngleRadians, 0)
+	Runner.expectEqual(outputs[1].steerAngleRadians > 0, true)
 end)
 
 Runner.test("the handbrake lowers the rear grip factor and the rear wheels lose lateral force", function()
-	local sliding = chassisWith(vector.create(4, 0, -40))
+	local sliding = chassisWith(vector.create(SLIDE_SIDE_SPEED, 0, -40))
 	local freeState, freeOutputs = stepAtRest(controlsWith(0, 0, 0), sliding)
 	local heldState, heldOutputs = stepAtRest(controlsWith(0, 0, 0, true), sliding)
 	Runner.expectEqual(freeState.rearGripFactor, 1)
@@ -272,21 +276,11 @@ Runner.test("the rear axle has less grip than the front axle in a slide", functi
 	Runner.expectEqual(math.abs(outputs[3].force.x) < math.abs(outputs[1].force.x), true)
 end)
 
-Runner.test("the total steering never goes over the maximum for that speed", function()
+Runner.test("the total steering never goes over the limit allowed for that speed and drift", function()
 	local velocity = vector.create(60, 0, -40)
 	local _, outputs = stepAtRest(controlsWith(1, 0, 0), chassisWith(velocity))
-	local speed = vector.magnitude(velocity)
-	local limit = math.rad(VehicleConfig.STEER_MAX_LOW_SPEED_DEGREES)
-		+ (
-				math.rad(VehicleConfig.STEER_MAX_HIGH_SPEED_DEGREES)
-				- math.rad(VehicleConfig.STEER_MAX_LOW_SPEED_DEGREES)
-			)
-			* math.clamp(
-				(speed - VehicleConfig.STEER_LOW_SPEED)
-					/ (VehicleConfig.STEER_HIGH_SPEED - VehicleConfig.STEER_LOW_SPEED),
-				0,
-				1
-			)
+	local driftAngle = math.atan2(velocity.x, math.abs(velocity.z))
+	local limit = Steering.maxAngleWhileDrifting(vector.magnitude(velocity), driftAngle)
 	Runner.expectNear(outputs[1].steerAngleRadians, limit, 1e-9)
 end)
 
@@ -383,6 +377,25 @@ Runner.test("an unusable dt leaves the state as it was and gives zero forces", f
 		Runner.expectEqual(feedback.gear, 3)
 		Runner.expectNear(feedback.speedStudsPerSecond, 50, 1e-9)
 	end
+end)
+
+Runner.test("an unusable dt keeps the gearbox memory used by the kickdown", function()
+	local state = VehicleSimulator.newState()
+	state.secondsSinceUpshift = 0.4
+	state.filteredForwardY = 0.2
+	for _, dt in { 0, -1, 0 / 0, math.huge } do
+		local nextState = VehicleSimulator.step(state, controlsWith(0, 1, 0), chassisWith(), restingContacts(), dt)
+		Runner.expectEqual(nextState.secondsSinceUpshift, 0.4)
+		Runner.expectEqual(nextState.filteredForwardY, 0.2)
+	end
+end)
+
+Runner.test("a valid step updates the gearbox memory", function()
+	local state = VehicleSimulator.newState()
+	local chassis = chassisWith(vector.create(0, 0, -20))
+	local nextState = VehicleSimulator.step(state, controlsWith(0, 0.2, 0), chassis, restingContacts(), FRAME_SECONDS)
+	Runner.expectEqual(nextState.filteredForwardY ~= nil, true)
+	Runner.expectEqual(nextState.secondsSinceUpshift > state.secondsSinceUpshift, true)
 end)
 
 Runner.test("a huge dt gives the same result as the maximum step", function()

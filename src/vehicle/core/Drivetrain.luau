@@ -1,5 +1,5 @@
 --!strict
--- Motor, caja automática, reparto de tracción y frenos (CP-4, CP-9 y T1). Sin inercia de rueda:
+-- Motor, reparto de tracción y frenos (CP-4, CP-9 y T1); la caja automática está en `Gearbox`. Sin inercia de rueda:
 -- la fuerza longitudinal sale del motor y del freno, y el círculo de fricción del neumático la recorta.
 local VehicleConfig = require("./VehicleConfig")
 local VehicleTypes = require("./VehicleTypes")
@@ -49,49 +49,30 @@ function Drivetrain.torqueFraction(rpm: number, config: VehicleSettings?): numbe
 	return last.fraction
 end
 
-function Drivetrain.engineRpm(forwardSpeed: number, gear: number, config: VehicleSettings?): number
+-- RPM que tendría el motor en esa marcha, sin recortar al ralentí ni al corte.
+function Drivetrain.rawRpm(forwardSpeed: number, gear: number, config: VehicleSettings?): number
 	local settings = config or VehicleConfig
 	local wheelRevolutionsPerSecond = math.abs(forwardSpeed) / settings.WHEEL_RADIUS_STUDS / (2 * math.pi)
-	local rpm = wheelRevolutionsPerSecond * SECONDS_PER_MINUTE * ratioOf(gear, settings) * settings.FINAL_DRIVE
-	return math.min(math.max(rpm, settings.IDLE_RPM), settings.REDLINE_RPM)
+	return wheelRevolutionsPerSecond * SECONDS_PER_MINUTE * ratioOf(gear, settings) * settings.FINAL_DRIVE
 end
 
-local function wantsReverse(controls: VehicleControls, forwardSpeed: number, settings: VehicleSettings): boolean
-	return controls.brake > 0 and controls.throttle == 0 and math.abs(forwardSpeed) < settings.REVERSE_ENGAGE_SPEED
-end
-
-local function wantsForward(controls: VehicleControls, forwardSpeed: number, settings: VehicleSettings): boolean
-	return controls.throttle > 0 and math.abs(forwardSpeed) < settings.REVERSE_ENGAGE_SPEED
-end
-
--- Devuelve la marcha y el tiempo que le queda al cambio. Un cambio nuevo solo puede empezar cuando terminó el anterior.
-function Drivetrain.nextGear(
-	state: VehicleState,
-	rpm: number,
-	forwardSpeed: number,
-	controls: VehicleControls,
-	dt: number,
-	config: VehicleSettings?
-): (number, number)
+function Drivetrain.engineRpm(forwardSpeed: number, gear: number, config: VehicleSettings?): number
 	local settings = config or VehicleConfig
-	local remaining = math.max(0, state.shiftRemainingSeconds - dt)
-	local gear = state.gear
-	if gear == REVERSE_GEAR then
-		return if wantsForward(controls, forwardSpeed, settings) then FIRST_GEAR else gear, remaining
-	end
-	if wantsReverse(controls, forwardSpeed, settings) then
-		return REVERSE_GEAR, remaining
-	end
-	if remaining > 0 then
-		return gear, remaining
-	end
-	if rpm >= settings.UPSHIFT_RPM and gear < #settings.GEAR_RATIOS then
-		return gear + 1, settings.SHIFT_DURATION_SECONDS
-	end
-	if rpm <= settings.DOWNSHIFT_RPM and gear > FIRST_GEAR then
-		return gear - 1, settings.SHIFT_DURATION_SECONDS
-	end
-	return gear, remaining
+	return math.min(math.max(Drivetrain.rawRpm(forwardSpeed, gear, settings), settings.IDLE_RPM), settings.REDLINE_RPM)
+end
+
+-- Fracción del empuje de la primera marcha a pleno pedal que da una marcha con esas RPM: la curva de torque, la
+-- relación y el corte suave. Es la única fórmula del empuje por marcha: la usan `driveForce` y el kickdown.
+local function thrustFraction(rpm: number, gear: number, settings: VehicleSettings): number
+	local limiterFactor = math.clamp((settings.REDLINE_RPM - rpm) / settings.SOFT_LIMITER_RPM, 0, 1)
+	local gearMultiplier = ratioOf(gear, settings) / settings.GEAR_RATIOS[FIRST_GEAR]
+	return Drivetrain.torqueFraction(rpm, settings) * gearMultiplier * limiterFactor
+end
+
+-- Empuje relativo que daría esa marcha a esa velocidad (0 si las RPM llegan al corte).
+function Drivetrain.gearForce(gear: number, forwardSpeed: number, config: VehicleSettings?): number
+	local settings = config or VehicleConfig
+	return thrustFraction(Drivetrain.engineRpm(forwardSpeed, gear, settings), gear, settings)
 end
 
 -- Fuerza de empuje total sobre el eje del frente del auto: positiva adelante, negativa en reversa.
@@ -103,18 +84,11 @@ function Drivetrain.driveForce(
 	config: VehicleSettings?
 ): number
 	local settings = config or VehicleConfig
-	local limiterFactor = math.clamp((settings.REDLINE_RPM - rpm) / settings.SOFT_LIMITER_RPM, 0, 1)
-	if limiterFactor == 0 then
-		return 0
-	end
 	local drivePedal = resolvePedals(state.gear, controls)
-	local gearMultiplier = ratioOf(state.gear, settings) / settings.GEAR_RATIOS[FIRST_GEAR]
 	local magnitude = mass
 		* settings.FIRST_GEAR_PEAK_ACCELERATION
-		* Drivetrain.torqueFraction(rpm, config)
-		* gearMultiplier
+		* thrustFraction(rpm, state.gear, settings)
 		* drivePedal
-		* limiterFactor
 	if state.shiftRemainingSeconds > 0 then
 		magnitude *= settings.SHIFT_TORQUE_FRACTION
 	end
