@@ -11,6 +11,8 @@ local FRONT_Z = VehicleConfig.WHEELS[1].offset.z
 local REAR_Z = VehicleConfig.WHEELS[3].offset.z
 local RIGHT_X = VehicleConfig.WHEELS[2].offset.x
 local LEFT_X = VehicleConfig.WHEELS[1].offset.x
+-- Con ejes asimétricos (el 147), el punto medio entre los ejes no es z = 0.
+local MIDDLE_Z = (FRONT_Z + REAR_Z) / 2
 
 -- El centro de masa queda a `localOffset` del origen (x derecha, y arriba, z positivo atrás) con el chasis derecho.
 local function chassisWithCenter(localOffset: vector): ChassisSample
@@ -33,7 +35,7 @@ local function total(shares: { number }): number
 end
 
 Runner.test("with the center of mass in the middle every wheel carries a quarter", function()
-	local shares = WeightDistribution.wheelShares(chassisWithCenter(vector.create(0, 0, 0)))
+	local shares = WeightDistribution.wheelShares(chassisWithCenter(vector.create(0, 0, MIDDLE_Z)))
 	for _, share in shares do
 		Runner.expectNear(share, 0.25, TOLERANCE)
 	end
@@ -93,12 +95,14 @@ end)
 
 Runner.test("an origin that is not finite falls back to the center of mass", function()
 	local nan = 0 / 0
+	-- Sin origen válido el centro de masa pasa a ser el origen del marco: z = 0, que ya no es el punto medio de los ejes.
+	local expected = WeightDistribution.wheelShares(chassisWithCenter(vector.create(0, 0, 0)))
 	for _, badOrigin in { vector.create(nan, 0, 0), vector.create(0, math.huge, 0), vector.create(0, 0, -math.huge) } do
 		local chassis = chassisWithCenter(vector.create(0, 0, -0.5))
 		chassis.origin = badOrigin
 		Runner.expectEqual(WeightDistribution.frameOrigin(chassis), chassis.position)
-		for _, share in WeightDistribution.wheelShares(chassis) do
-			Runner.expectNear(share, 0.25, TOLERANCE)
+		for index, share in WeightDistribution.wheelShares(chassis) do
+			Runner.expectNear(share, expected[index], TOLERANCE)
 		end
 	end
 end)

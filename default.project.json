@@ -12,6 +12,9 @@
         "core": {
           "$path": "src/vehicle/core"
         },
+        "models": {
+          "$path": "assets/vehicles"
+        },
         "shared": {
           "$path": "src/vehicle/shared"
         }
