@@ -118,7 +118,7 @@ local function advanceDrivetrain(
 	local gear, shiftRemaining =
 		Drivetrain.nextGear(state, rpmBefore, context.forwardSpeed, context.controls, dt, settings)
 	local rpm = Drivetrain.engineRpm(context.forwardSpeed, gear, settings)
-	local secondsInGear, previousSpeed, acceleration =
+	local secondsSinceUpshift, previousSpeed, acceleration =
 		Drivetrain.nextMemory(state, gear, context.forwardSpeed, dt, settings)
 	local driveState: VehicleState = {
 		wheels = state.wheels,
@@ -126,7 +126,7 @@ local function advanceDrivetrain(
 		shiftRemainingSeconds = shiftRemaining,
 		engineRpm = rpm,
 		rearGripFactor = state.rearGripFactor,
-		secondsInGear = secondsInGear,
+		secondsSinceUpshift = secondsSinceUpshift,
 		previousForwardSpeed = previousSpeed,
 		filteredAcceleration = acceleration,
 	}
@@ -146,7 +146,7 @@ function VehicleSimulator.newState(config: VehicleSettings?): VehicleState
 		shiftRemainingSeconds = 0,
 		engineRpm = settings.IDLE_RPM,
 		rearGripFactor = 1,
-		secondsInGear = settings.GEAR_HOLD_SECONDS,
+		secondsSinceUpshift = settings.GEAR_HOLD_SECONDS,
 		previousForwardSpeed = nil,
 		filteredAcceleration = 0,
 	}

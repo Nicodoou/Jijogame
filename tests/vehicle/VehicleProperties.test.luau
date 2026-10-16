@@ -40,6 +40,8 @@ local CORNER_THROTTLE = 0.2
 local EXIT_SECONDS = 2
 local MIN_REAR_BIAS_DRIFT_GAIN_DEGREES = 10
 local WHEEL_COUNT = 4
+-- Un acelerador que nunca se alcanza apaga el kickdown.
+local KICKDOWN_OFF_THROTTLE = 2
 local CLIMB_SECONDS = 20
 local CLIMB_STABLE_SECONDS = 3
 local CLIMB_MAX_SPEED_LOSS = 15
@@ -478,6 +480,9 @@ Runner.test(
 local function maxDriftOnExit(rearBias: number, surface: SurfaceKind, steer: number, speed: number): (number, number)
 	local settings = table.clone(VehicleConfig)
 	settings.REAR_BIAS = rearBias
+	-- La propiedad mide el reparto de tracción, no la caja: sin kickdown la marcha no cambia en la maniobra
+	-- (cada cambio corta el torque 0,25 s y tapa la diferencia entre `REAR_BIAS`).
+	settings.KICKDOWN_THROTTLE = KICKDOWN_OFF_THROTTLE
 	local runner = ToyWorld.new({
 		config = settings,
 		initialForwardSpeed = speed,
@@ -647,7 +652,13 @@ local CLIMBS = {
 local function checkClimb(settings: VehicleSettings?, frameSeconds: number?)
 	for _, case in CLIMBS do
 		local withKickdown = climb(case.slope, case.gear, case.speed, settings, frameSeconds)
-		local without = climb(case.slope, case.gear, case.speed, settingsWith({ KICKDOWN_THROTTLE = 2 }), frameSeconds)
+		local without = climb(
+			case.slope,
+			case.gear,
+			case.speed,
+			settingsWith({ KICKDOWN_THROTTLE = KICKDOWN_OFF_THROTTLE }),
+			frameSeconds
+		)
 		Runner.expectEqual(withKickdown.firstDownshiftSeconds >= 0, true)
 		Runner.expectEqual(case.speed - withKickdown.speedAtFirstDownshift < CLIMB_MAX_SPEED_LOSS, true)
 		Runner.expectEqual(withKickdown.minSpeedOfLastSeconds >= case.minSpeed, true)

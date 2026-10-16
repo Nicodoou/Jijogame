@@ -19,7 +19,7 @@ local function stateIn(gear: number, shiftRemaining: number?): VehicleState
 		shiftRemainingSeconds = shiftRemaining or 0,
 		engineRpm = VehicleConfig.IDLE_RPM,
 		rearGripFactor = 1,
-		secondsInGear = VehicleConfig.GEAR_HOLD_SECONDS,
+		secondsSinceUpshift = VehicleConfig.GEAR_HOLD_SECONDS,
 		previousForwardSpeed = nil,
 		filteredAcceleration = 0,
 	}
@@ -364,7 +364,11 @@ end)
 Runner.test("at full throttle in second gear close to the limiter it shifts up", function()
 	local speed = speedForRpm(VehicleConfig.REDLINE_RPM - VehicleConfig.SOFT_LIMITER_RPM + 50, 2)
 	local rpm = Drivetrain.engineRpm(speed, 2)
-	local gear = Drivetrain.nextGear(stateIn(2), rpm, speed, controlsWith(1, 0), FRAME_SECONDS)
+	-- Una carga chica (el auto acelera casi todo lo que empuja): la marcha de arriba sigue acelerando tras el corte.
+	local state = stateIn(2)
+	state.previousForwardSpeed = speed - 0.1
+	state.filteredAcceleration = VehicleConfig.FIRST_GEAR_PEAK_ACCELERATION * Drivetrain.gearForce(2, speed) - 5
+	local gear = Drivetrain.nextGear(state, rpm, speed, controlsWith(1, 0), FRAME_SECONDS)
 	Runner.expectEqual(gear, 3)
 end)
 
@@ -420,9 +424,9 @@ Runner.test("it never kicks down to a gear above the kickdown rpm limit", functi
 	Runner.expectEqual(allowed, 3)
 end)
 
-local function stateWithMemory(gear: number, secondsInGear: number, acceleration: number, previousSpeed: number?)
+local function stateWithMemory(gear: number, secondsSinceUpshift: number, acceleration: number, previousSpeed: number?)
 	local state = stateIn(gear)
-	state.secondsInGear = secondsInGear
+	state.secondsSinceUpshift = secondsSinceUpshift
 	state.filteredAcceleration = acceleration
 	state.previousForwardSpeed = previousSpeed
 	return state
@@ -447,6 +451,34 @@ Runner.test("no kickdown while the car is gaining speed", function()
 	Runner.expectEqual((Drivetrain.nextGear(losing, rpm, KICKDOWN_SPEED, controlsWith(1, 0), FRAME_SECONDS)), 4)
 end)
 
+Runner.test("the kickdown can jump several gears at once when the car is losing speed", function()
+	local state = stateWithMemory(5, 5, -20, 55 + 20 / 30)
+	local gear = Drivetrain.nextGear(state, Drivetrain.engineRpm(55, 5), 55, controlsWith(1, 0), FRAME_SECONDS)
+	Runner.expectEqual(gear, 3)
+end)
+
+Runner.test("a kickdown does not wait for the hold time after another kickdown, only after an upshift", function()
+	local afterDownshift = stateWithMemory(4, 5, -10, 40 + 10 / 30)
+	Runner.expectEqual(
+		(Drivetrain.nextGear(afterDownshift, Drivetrain.engineRpm(40, 4), 40, controlsWith(1, 0), FRAME_SECONDS)),
+		3
+	)
+	local afterUpshift = stateWithMemory(4, 0.2, -10, 40 + 10 / 30)
+	Runner.expectEqual(
+		(Drivetrain.nextGear(afterUpshift, Drivetrain.engineRpm(40, 4), 40, controlsWith(1, 0), FRAME_SECONDS)),
+		4
+	)
+end)
+
+Runner.test("at full throttle it does not upshift when the gear above could not climb after the shift", function()
+	local speed = speedForRpm(VehicleConfig.UPSHIFT_RPM + 100, 1)
+	local state = stateIn(1)
+	state.previousForwardSpeed = speed
+	state.filteredAcceleration = 0
+	local gear = Drivetrain.nextGear(state, Drivetrain.engineRpm(speed, 1), speed, controlsWith(1, 0), FRAME_SECONDS)
+	Runner.expectEqual(gear, 1)
+end)
+
 Runner.test("the acceleration is filtered toward the measured one", function()
 	local state = stateWithMemory(5, 5, 0, 50)
 	local filtered = Drivetrain.filteredAcceleration(state, 51, FRAME_SECONDS)
@@ -455,12 +487,12 @@ Runner.test("the acceleration is filtered toward the measured one", function()
 	Runner.expectEqual(Drivetrain.filteredAcceleration(stateWithMemory(5, 5, 7, nil), 51, FRAME_SECONDS), 7)
 end)
 
-Runner.test("the gearbox memory restarts the time in gear on a shift and keeps the speed", function()
+Runner.test("the gearbox memory restarts the time since the last upshift and keeps the speed", function()
 	local state = stateWithMemory(3, 2, 0, 40)
 	local sameGear, previous = Drivetrain.nextMemory(state, 3, 41, FRAME_SECONDS)
 	Runner.expectNear(sameGear, 2 + FRAME_SECONDS, 1e-12)
 	Runner.expectEqual(previous, 41)
-	Runner.expectEqual((Drivetrain.nextMemory(state, 2, 41, FRAME_SECONDS)), 0)
+	Runner.expectNear((Drivetrain.nextMemory(state, 2, 41, FRAME_SECONDS)), 2 + FRAME_SECONDS, 1e-12)
 	Runner.expectEqual((Drivetrain.nextMemory(state, 4, 41, FRAME_SECONDS)), 0)
 end)
 
@@ -471,20 +503,6 @@ Runner.test("at full throttle the old downshift rpm no longer applies (the kickd
 	local gaining = stateWithMemory(2, 5, 5, speed - 0.2)
 	Runner.expectEqual((Drivetrain.nextGear(gaining, rpm, speed, controlsWith(1, 0), FRAME_SECONDS)), 2)
 	Runner.expectEqual((Drivetrain.nextGear(gaining, rpm, speed, controlsWith(0.5, 0), FRAME_SECONDS)), 1)
-end)
-
-Runner.test("the kickdown needs the gear below to push more by the margin", function()
-	local settings = table.clone(VehicleConfig)
-	settings.KICKDOWN_FORCE_MARGIN = 100
-	local gear = Drivetrain.nextGear(
-		stateIn(5),
-		Drivetrain.engineRpm(KICKDOWN_SPEED, 5),
-		KICKDOWN_SPEED,
-		controlsWith(1, 0),
-		FRAME_SECONDS,
-		settings
-	)
-	Runner.expectEqual(gear, 5)
 end)
 
 Runner.test("no kickdown during a shift, in first gear or while reversing", function()

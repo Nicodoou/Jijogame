@@ -98,7 +98,7 @@ function Drivetrain.filteredAcceleration(
 	return state.filteredAcceleration + ((forwardSpeed - previous) / dt - state.filteredAcceleration) * alpha
 end
 
--- Memoria de la caja tras un paso: tiempo en la marcha, velocidad de este paso y aceleración filtrada.
+-- Memoria de la caja tras un paso: tiempo desde la última subida, velocidad de este paso y aceleración filtrada.
 function Drivetrain.nextMemory(
 	state: VehicleState,
 	newGear: number,
@@ -106,44 +106,70 @@ function Drivetrain.nextMemory(
 	dt: number,
 	config: VehicleSettings?
 ): (number, number, number)
-	local secondsInGear = if newGear ~= state.gear then 0 else state.secondsInGear + dt
-	return secondsInGear, forwardSpeed, Drivetrain.filteredAcceleration(state, forwardSpeed, dt, config)
+	local secondsSinceUpshift = if newGear > state.gear then 0 else state.secondsSinceUpshift + dt
+	return secondsSinceUpshift, forwardSpeed, Drivetrain.filteredAcceleration(state, forwardSpeed, dt, config)
 end
 
--- Kickdown: con el acelerador a fondo, sin ganar velocidad y pasado el tiempo mínimo en la marcha, baja a la más
--- alta de las de abajo que empuje bastante más que la actual (histéresis) y cuyas RPM queden lejos del corte.
+-- Aceleración (studs/s²) que daría esa marcha a esa velocidad con ese pedal.
+local function thrustAcceleration(gear: number, forwardSpeed: number, pedal: number, settings: VehicleSettings): number
+	return settings.FIRST_GEAR_PEAK_ACCELERATION * Drivetrain.gearForce(gear, forwardSpeed, settings) * pedal
+end
+
+-- Carga estimada por unidad de masa: lo que empuja la marcha actual menos lo que realmente acelera. Es la gravedad de
+-- la pendiente, la resistencia al rodar y todo lo que se oponga.
+local function estimatedLoad(
+	state: VehicleState,
+	forwardSpeed: number,
+	pedal: number,
+	acceleration: number,
+	settings: VehicleSettings
+): number
+	return thrustAcceleration(state.gear, forwardSpeed, pedal, settings) - acceleration
+end
+
+-- Kickdown: a fondo, sin ganar velocidad y pasado el tiempo mínimo desde la última subida, baja directamente a la
+-- marcha más alta que, con la carga estimada, todavía acelere `KICKDOWN_ACCEL_MARGIN` y tenga RPM ≤ `KICKDOWN_MAX_RPM`.
+-- Si ninguna cumple, a la más baja que respete las RPM. Puede saltar varias marchas; las bajadas no esperan a otra bajada.
 -- Devuelve la marcha de destino, o nil si no hay kickdown.
-local function kickdownTarget(state: VehicleState, forwardSpeed: number, dt: number, settings: VehicleSettings): number?
-	if state.gear <= FIRST_GEAR or state.secondsInGear + dt < settings.GEAR_HOLD_SECONDS then
+local function kickdownTarget(
+	state: VehicleState,
+	forwardSpeed: number,
+	pedal: number,
+	acceleration: number,
+	dt: number,
+	settings: VehicleSettings
+): number?
+	if state.gear <= FIRST_GEAR or state.secondsSinceUpshift + dt < settings.GEAR_HOLD_SECONDS then
 		return nil
 	end
-	if Drivetrain.filteredAcceleration(state, forwardSpeed, dt, settings) > settings.KICKDOWN_MIN_ACCELERATION then
+	if acceleration > settings.KICKDOWN_MIN_ACCELERATION then
 		return nil
 	end
-	local currentForce = Drivetrain.gearForce(state.gear, forwardSpeed, settings)
+	local load = estimatedLoad(state, forwardSpeed, pedal, acceleration, settings)
+	local lowestWithinLimit = nil
 	for below = state.gear - 1, FIRST_GEAR, -1 do
-		local isFarFromLimiter = unclampedRpm(forwardSpeed, below, settings) <= settings.KICKDOWN_MAX_RPM
-		local isStronger = Drivetrain.gearForce(below, forwardSpeed, settings)
-			> currentForce * (1 + settings.KICKDOWN_FORCE_MARGIN)
-		if isFarFromLimiter and isStronger then
-			return below
+		if unclampedRpm(forwardSpeed, below, settings) <= settings.KICKDOWN_MAX_RPM then
+			if thrustAcceleration(below, forwardSpeed, pedal, settings) - load >= settings.KICKDOWN_ACCEL_MARGIN then
+				return below
+			end
+			lowestWithinLimit = below
 		end
 	end
-	return nil
+	return lowestWithinLimit
 end
 
--- Con el acelerador a fondo no sube mientras la marcha de arriba empuje menos que la actual, salvo que la actual
--- ya esté en el corte suave. Así no sube para volver a bajar.
+-- A fondo sube (por RPM o en el corte suave) solo si la marcha de arriba, a la velocidad que va a tener después del
+-- corte (no hay empuje durante el cambio), todavía acelera `UPSHIFT_ACCEL_MARGIN` con la carga estimada.
 local function shouldUpshiftAtFullThrottle(
-	gear: number,
+	state: VehicleState,
 	forwardSpeed: number,
-	rpm: number,
+	pedal: number,
+	acceleration: number,
 	settings: VehicleSettings
 ): boolean
-	if rpm >= settings.REDLINE_RPM - settings.SOFT_LIMITER_RPM then
-		return true
-	end
-	return Drivetrain.gearForce(gear + 1, forwardSpeed, settings) >= Drivetrain.gearForce(gear, forwardSpeed, settings)
+	local load = estimatedLoad(state, forwardSpeed, pedal, acceleration, settings)
+	local speedAfterShift = forwardSpeed - load * settings.SHIFT_DURATION_SECONDS
+	return thrustAcceleration(state.gear + 1, speedAfterShift, pedal, settings) - load >= settings.UPSHIFT_ACCEL_MARGIN
 end
 
 -- Devuelve la marcha y el tiempo que le queda al cambio. Un cambio nuevo solo puede empezar cuando terminó el anterior.
@@ -168,12 +194,18 @@ function Drivetrain.nextGear(
 		return gear, remaining
 	end
 	local isKickdownPedal = controls.throttle >= settings.KICKDOWN_THROTTLE
-	local kickdownGear = if isKickdownPedal then kickdownTarget(state, forwardSpeed, dt, settings) else nil
+	local acceleration = Drivetrain.filteredAcceleration(state, forwardSpeed, dt, settings)
+	local kickdownGear = nil
+	if isKickdownPedal then
+		kickdownGear = kickdownTarget(state, forwardSpeed, controls.throttle, acceleration, dt, settings)
+	end
 	if kickdownGear ~= nil then
 		return kickdownGear, settings.SHIFT_DURATION_SECONDS
 	end
 	if rpm >= settings.UPSHIFT_RPM and gear < #settings.GEAR_RATIOS then
-		if not isKickdownPedal or shouldUpshiftAtFullThrottle(gear, forwardSpeed, rpm, settings) then
+		local mayUpshift = not isKickdownPedal
+			or shouldUpshiftAtFullThrottle(state, forwardSpeed, controls.throttle, acceleration, settings)
+		if mayUpshift then
 			return gear + 1, settings.SHIFT_DURATION_SECONDS
 		end
 	end
