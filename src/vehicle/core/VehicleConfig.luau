@@ -7,12 +7,12 @@
 return table.freeze({
 	-- Orden fijo: FL, FR, RL, RR.
 	WHEELS = table.freeze({
-		table.freeze({ name = "FL", offset = vector.create(-2.5, -1, -4), isFront = true, isLeft = true }),
-		table.freeze({ name = "FR", offset = vector.create(2.5, -1, -4), isFront = true, isLeft = false }),
-		table.freeze({ name = "RL", offset = vector.create(-2.5, -1, 4), isFront = false, isLeft = true }),
-		table.freeze({ name = "RR", offset = vector.create(2.5, -1, 4), isFront = false, isLeft = false }),
+		table.freeze({ name = "FL", offset = vector.create(-2.34, -1, -2.88), isFront = true, isLeft = true }),
+		table.freeze({ name = "FR", offset = vector.create(2.34, -1, -2.88), isFront = true, isLeft = false }),
+		table.freeze({ name = "RL", offset = vector.create(-2.34, -1, 3.06), isFront = false, isLeft = true }),
+		table.freeze({ name = "RR", offset = vector.create(2.34, -1, 3.06), isFront = false, isLeft = false }),
 	}),
-	WHEEL_RADIUS_STUDS = 1.2,
+	WHEEL_RADIUS_STUDS = 0.81,
 
 	-- Peso: solo los lee el adaptador para armar el lastre (CP-6); el núcleo saca el reparto del centro de masa real.
 	-- Fracción del peso sobre el eje delantero.
@@ -77,7 +77,7 @@ return table.freeze({
 	REVERSE_RATIO = 5,
 	-- En reversa el empuje del motor se multiplica por esta fracción.
 	REVERSE_DRIVE_FRACTION = 0.4,
-	FINAL_DRIVE = 5.9,
+	FINAL_DRIVE = 4.0,
 	UPSHIFT_RPM = 6200,
 	DOWNSHIFT_RPM = 3000,
 	-- Kickdown: con el acelerador a fondo y sin margen para acelerar con la carga, la caja baja a una marcha que empuje más.
