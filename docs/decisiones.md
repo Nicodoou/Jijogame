@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-16 — Terreno: camino de ripio claro con banquina de tierra
+**Decidió:** Beni
+**Issue:** #73 (WP-11)
+**Decisión:** la superficie del camino se escribe con `Limestone` (ripio claro) y la de la banquina con `Ground`. El resto del terreno no cambia. `GetSurfaceAt` sigue clasificando con los datos de la ruta, así que el agarre no cambia.
+**Por qué:** al probar el WP-6, el camino casi no se distinguía: la ruta y la banquina eran `Ground`, y el `Grass` de Roblox se dibuja como tierra en las pendientes empinadas que rodean la ruta.
+**Descartado:** asfalto (`Asphalt`), que ya es rally de asfalto; aclarar el color global de `Ground` con `SetMaterialColor`, que cambia toda la tierra del mapa y contrasta menos.
+
 ## 2026-10-16 — Ruta: regla de altura entre pasadas, generación por pasos y lomas sin repetición
 **Decidió:** Beni
 **Issue:** #57 y #10 (WP-9; PR de `b/58-wp-9-ruta-impl`)
