@@ -84,7 +84,7 @@ Todo el cálculo vive en `src/world/core/` (Luau puro, probado en el CLI) y lo c
 
 **Quién lo usa (cambios sobre el WP-6, sin cambiar su API):**
 - `TerrainHeightField`: la amplitud y la rugosidad de las colinas salen de `BiomeBlend.blendNumber`. La ruta y la banquina siguen planas (R1).
-- `VoxelChunkBuilder`: el material de cada columna sale de `BiomeBlend.pickMaterial`. En la ruta y la banquina, del bioma (hoy `Ground`).
+- `VoxelChunkBuilder`: el material de cada columna sale de `BiomeBlend.pickMaterial`. En la ruta y la banquina, fijo: `Limestone` en el camino y `Ground` en la banquina (WP-11).
 - `SurfaceClassifier`: fuera de la ruta, la superficie la da `BiomeBlend.pickOffroadSurface` (bosque: `Grass` y manchones de `Mud`). **El contrato #17 no cambia en el MVP.**
 - WP del decorado: densidades y listas de objetos por peso de bioma.
 

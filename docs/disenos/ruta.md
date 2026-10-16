@@ -206,7 +206,7 @@ Todo el núcleo va junto en `core/`, para que entre en la medición de `src/*/co
 | Módulo | Responsabilidad | No hace |
 | --- | --- | --- |
 | `TerrainHeightField` | Altura del suelo en (x, z): la de la ruta cerca del eje, mezclada con colinas de `math.noise` a medida que se aleja (RC-6, el terreno sigue a la ruta). | No escribe vóxeles. |
-| `VoxelChunkBuilder` | Para un chunk (por ejemplo, 128×128 studs), arma las tablas de material y de ocupación con `TerrainHeightField` y `SurfaceClassifier`. Los materiales van como claves propias (`"Ground"`, `"Grass"`, `"Mud"`), no como `Enum`. Reutiliza tablas para no presionar al recolector de basura. | No llama a la API de Roblox. |
+| `VoxelChunkBuilder` | Para un chunk (por ejemplo, 128×128 studs), arma las tablas de material y de ocupación con `TerrainHeightField` y `SurfaceClassifier`. Los materiales van como claves propias (`"Limestone"` en el camino, `"Ground"` en la banquina, `"Grass"`, `"Mud"`), no como `Enum`. Reutiliza tablas para no presionar al recolector de basura. | No llama a la API de Roblox. |
 | `ChunkPlanner` | Con la posición del auto y `RoadPath`, decide qué chunks hay que generar adelante (RC-2) y cuáles liberar atrás (RC-3), con histéresis. Arma una cola de trabajo ordenada por prioridad. | No mide tiempo ni escribe. |
 | `WorkBudget` | Avanza la cola por pasos hasta agotar un presupuesto de milisegundos por frame. Recibe la función de reloj inyectada, así que en las pruebas se usa un reloj falso. | No usa `task` ni `os.clock` directo. |
 
