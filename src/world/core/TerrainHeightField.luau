@@ -43,11 +43,12 @@ local BLEND_STUDS = WorldConfig.TERRAIN_BLEND_WIDTH_STUDS
 local DISTANCE_LIMIT_STUDS = SHOULDER_EDGE_STUDS + REACH_STUDS
 local DISTANCE_LIMIT_SQUARED = DISTANCE_LIMIT_STUDS * DISTANCE_LIMIT_STUDS
 local NO_ROAD_STUDS = math.huge
--- Un bloque fuera de la banquina nunca cuenta como ruta, aunque la mezcla con la cuerda lo acerque.
 local MIN_BEYOND_SHOULDER_STUDS = 0.001
 -- Desde esta distancia al eje (y hasta SMOOTH_SPAN_STUDS más) el bloque se mide contra su cuerda en vez de su arco.
 local SMOOTH_START_STUDS = SHOULDER_EDGE_STUDS + WorldConfig.TERRAIN_CHORD_SMOOTH_START_STUDS
 local SMOOTH_SPAN_STUDS = WorldConfig.TERRAIN_CHORD_SMOOTH_SPAN_STUDS
+-- Un bloque cuya caja queda más lejos que esto del eje se mide solo contra su cuerda.
+local CHORD_ONLY_DISTANCE_SQUARED = (SMOOTH_START_STUDS + SMOOTH_SPAN_STUDS) ^ 2
 
 local function getAmplitudeScale(definition: BiomeDefinition): number
 	return definition.terrain.hillAmplitudeScale
@@ -88,24 +89,40 @@ function TerrainHeightFieldModule.new(
 		return DISTANCE_LIMIT_STUDS
 	end
 
-	-- El punto más cercano de cada bloque que está al alcance de la columna. Cerca de la ruta es el del arco; lejos, el
-	-- de la cuerda, que no tiene empates entre los extremos del bloque (ver RoadBlockNearest.findAlongChord).
+	-- Cerca de la ruta la distancia y la altura de un bloque son las de su arco; lejos, las de su cuerda, que no tiene
+	-- empates entre los extremos del bloque (ver RoadBlockNearest.findAlongChord). En el medio se mezclan.
+	local function measureBlock(
+		block: RoadBlocks.RoadBlock,
+		x: number,
+		z: number,
+		boxDistanceSquared: number
+	): (number, number)
+		if boxDistanceSquared >= CHORD_ONLY_DISTANCE_SQUARED then
+			return RoadBlockNearest.findAlongChord(block, x, z)
+		end
+		local arcDistance, arcHeight = RoadBlockNearest.find(block, x, z)
+		-- Un bloque fuera de la banquina nunca cuenta como ruta, aunque la mezcla con la cuerda lo acerque.
+		local minDistance = if arcDistance > SHOULDER_EDGE_STUDS
+			then SHOULDER_EDGE_STUDS + MIN_BEYOND_SHOULDER_STUDS
+			else 0
+		local chordShare = smoothStep(math.clamp((arcDistance - SMOOTH_START_STUDS) / SMOOTH_SPAN_STUDS, 0, 1))
+		if chordShare > 0 then
+			local chordDistance, chordHeight = RoadBlockNearest.findAlongChord(block, x, z)
+			arcDistance += chordShare * (chordDistance - arcDistance)
+			arcHeight += chordShare * (chordHeight - arcHeight)
+		end
+		return math.max(arcDistance, minDistance), arcHeight
+	end
+
+	-- El punto más cercano de cada bloque que está al alcance de la columna.
 	local function measureBlocks(x: number, z: number)
 		for slot, block in areaBlocks do
 			local gapX = math.max(block.minX - x, x - block.maxX, 0)
 			local gapZ = math.max(block.minZ - z, z - block.maxZ, 0)
-			if gapX * gapX + gapZ * gapZ < DISTANCE_LIMIT_SQUARED then
-				local arcDistance, arcHeight = RoadBlockNearest.find(block, x, z)
-				local minDistance = if arcDistance > SHOULDER_EDGE_STUDS
-					then SHOULDER_EDGE_STUDS + MIN_BEYOND_SHOULDER_STUDS
-					else 0
-				local chordShare = smoothStep(math.clamp((arcDistance - SMOOTH_START_STUDS) / SMOOTH_SPAN_STUDS, 0, 1))
-				if chordShare > 0 then
-					local chordDistance, chordHeight = RoadBlockNearest.findAlongChord(block, x, z)
-					arcDistance += chordShare * (chordDistance - arcDistance)
-					arcHeight += chordShare * (chordHeight - arcHeight)
-				end
-				distances[slot], heights[slot] = math.max(arcDistance, minDistance), arcHeight
+			local boxDistanceSquared = gapX * gapX + gapZ * gapZ
+			if boxDistanceSquared < DISTANCE_LIMIT_SQUARED then
+				local distance, height = measureBlock(block, x, z, boxDistanceSquared)
+				distances[slot], heights[slot] = distance, height
 			else
 				distances[slot] = math.huge
 			end

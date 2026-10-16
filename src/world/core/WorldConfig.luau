@@ -190,10 +190,10 @@ return table.freeze({
 	-- Cada cuántos studs de ruta se toma un punto para trazar el corredor.
 	TERRAIN_CORRIDOR_SAMPLE_STUDS = 32,
 	-- Cuánto terreno se escribe por detrás del auto (la ruta viva llega más atrás: LIVE_LOOKBACK_STUDS), y su histéresis.
-	TERRAIN_BEHIND_STUDS = 1200,
+	TERRAIN_BEHIND_STUDS = 1000,
 	TERRAIN_BEHIND_KEEP_EXTRA_STUDS = 256,
 	-- No se escribe terreno en los últimos studs de ruta generada: ahí todavía falta la ruta que entra en el alcance de la altura.
-	TERRAIN_FRONTIER_MARGIN_STUDS = 512,
+	TERRAIN_FRONTIER_MARGIN_STUDS = 900,
 	-- Cuánto se mueve el auto antes de volver a planificar.
 	TERRAIN_PLAN_REFRESH_STUDS = 32,
 	TERRAIN_CHUNK_KEY_STRIDE = 1048576,
@@ -205,6 +205,8 @@ return table.freeze({
 	WORK_BUDGET_MS_PER_FRAME = 4,
 	-- En cada paso, la estimación del costo del paso más caro baja por este factor: un pico no frena el trabajo para siempre.
 	WORK_BUDGET_STEP_ESTIMATE_DECAY = 0.98,
+	-- Tope de pasos por llamada: si el reloj no avanza (o los pasos no cuestan nada) no se queda en el ciclo.
+	WORK_BUDGET_MAX_STEPS_PER_FRAME = 512,
 
 	-- Consultas de la ruta (RoadQuery).
 	ROAD_QUERY_GRID_CELL_STUDS = 64,
