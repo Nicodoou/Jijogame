@@ -263,7 +263,7 @@ Runner.test("split works at the two extremes of the rear bias", function()
 	Runner.expectEqual(front[3], 0)
 	Runner.expectEqual(rear[1], 0)
 	Runner.expectEqual(rear[4], 400)
-	Runner.expectEqual(Drivetrain.split(-600)[3] < 0, true)
+	Runner.expectEqual(Drivetrain.split(-600, rearOnly)[3] < 0, true)
 end)
 
 Runner.test("the brake request is a positive force with no direction", function()
