@@ -45,6 +45,9 @@
       },
       "vehicle": {
         "$path": "src/vehicle/server"
+      },
+      "world": {
+        "$path": "src/world/server"
       }
     },
     "StarterPlayer": {
@@ -62,6 +65,9 @@
         },
         "camera": {
           "$path": "src/camera/client"
+        },
+        "world": {
+          "$path": "src/world/client"
         }
       }
     },
