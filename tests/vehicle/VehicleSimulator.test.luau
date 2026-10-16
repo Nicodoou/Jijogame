@@ -17,6 +17,10 @@ local GRAVITY = 196.2
 local FRAME_SECONDS = 1 / 30
 local REACH = VehicleConfig.SUSPENSION_REST_LENGTH_STUDS + VehicleConfig.WHEEL_RADIUS_STUDS
 local ZERO = vector.create(0, 0, 0)
+-- Con ejes asimétricos (el 147), el punto medio entre los ejes no es z = 0.
+local FRONT_Z = VehicleConfig.WHEELS[1].offset.z
+local REAR_Z = VehicleConfig.WHEELS[3].offset.z
+local MIDDLE_Z = (FRONT_Z + REAR_Z) / 2
 -- Velocidad lateral con la que el agarre trasero, y no el tope por paso, limita la fuerza lateral.
 local SLIDE_SIDE_SPEED = 20
 
@@ -342,7 +346,7 @@ Runner.test("a NaN origin gives the same result as the center of mass in the mid
 end)
 
 Runner.test("with the center of mass shifted the static loads add up to the weight and the car stays level", function()
-	local chassis = shiftedChassis(vector.create(0, -0.3, -0.15))
+	local chassis = shiftedChassis(vector.create(0, -0.3, MIDDLE_Z - 0.15))
 	local contacts = restingContacts()
 	local state = VehicleSimulator.newState()
 	local outputs = {}
@@ -351,7 +355,7 @@ Runner.test("with the center of mass shifted the static loads add up to the weig
 	end
 	local front, rear = outputs[1].force.y + outputs[2].force.y, outputs[3].force.y + outputs[4].force.y
 	Runner.expectNear(front + rear, MASS * GRAVITY, 1e-3)
-	Runner.expectNear(front / (front + rear), (4 + 0.15) / 8, 1e-6)
+	Runner.expectNear(front / (front + rear), (REAR_Z - (MIDDLE_Z - 0.15)) / (REAR_Z - FRONT_Z), 1e-6)
 end)
 
 Runner.test("the spin of the wheel follows the speed of the car", function()
@@ -508,7 +512,7 @@ Runner.test("a wheel that was bottomed out and loses its ray stays on the ground
 end)
 
 Runner.test("the load of each wheel is the suspension force", function()
-	local _, outputs = stepAtRest(controlsWith(0, 0, 0), chassisWith())
+	local _, outputs = stepAtRest(controlsWith(0, 0, 0), shiftedChassis(vector.create(0, 0, MIDDLE_Z)))
 	local staticLoad = Suspension.staticLoad(MASS, GRAVITY, 4)
 	for _, output in outputs do
 		Runner.expectNear(output.force.y, staticLoad, 1e-3)

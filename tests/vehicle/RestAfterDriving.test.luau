@@ -15,9 +15,9 @@ local MEASURE_FROM_SECONDS = 90
 local INITIAL_YAW_RATE_RADIANS = 0.0015
 local MAX_REST_SPEED = 0.05
 local MAX_REST_YAW_DEGREES = 0.5
--- Con la mitad de la inercia el lazo explicito de las fuerzas del neumatico es inestable por debajo de ~32 studs/s
--- (60 FPS) y ~70 studs/s (30 FPS). La fraccion minima estable medida es ~0,71 en ambos casos.
-local HALF_YAW_INERTIA = 0.5
+-- Con poca inercia el lazo explicito de las fuerzas del neumatico es inestable a baja velocidad. Fraccion minima estable
+-- medida: ~0,71 con las ruedas del auto de cajas y ~0,33 con la geometria del 147 (60, 30, 25 y 20 FPS).
+local LOW_YAW_INERTIA = 0.25
 
 local function controlsWith(throttle: number): VehicleControls
 	return { steer = 0, throttle = throttle, brake = 0, isHandbrakeOn = false }
@@ -47,11 +47,14 @@ Runner.test("with the full box yaw inertia the car ends at rest after driving an
 	end
 end)
 
-Runner.test("known limit: with half the yaw inertia the car does not come to rest (it keeps shaking)", function()
-	for _, frameSeconds in { 1 / 60, 1 / 30 } do
-		local speed, yawDegrees = driveAndRelease(frameSeconds, HALF_YAW_INERTIA)
-		Runner.expectEqual(speed > MAX_REST_SPEED and yawDegrees > MAX_REST_YAW_DEGREES, true)
+Runner.test(
+	"known limit: with a quarter of the yaw inertia the car does not come to rest (it keeps shaking)",
+	function()
+		for _, frameSeconds in { 1 / 60, 1 / 30 } do
+			local speed, yawDegrees = driveAndRelease(frameSeconds, LOW_YAW_INERTIA)
+			Runner.expectEqual(speed > MAX_REST_SPEED and yawDegrees > MAX_REST_YAW_DEGREES, true)
+		end
 	end
-end)
+)
 
 Runner.finish()
