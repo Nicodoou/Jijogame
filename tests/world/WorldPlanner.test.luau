@@ -26,6 +26,13 @@ local MAX_STEPS = 200000
 local SEED = 5
 -- Dentro de la ruta generada por delante del auto (ROUTE_AHEAD_STUDS): un salto más lejos no encuentra ruta.
 local JUMP_ARC = 1800
+local LAG_MOVE_STUDS = 80
+local LAG_STEPS_PER_MOVE = 20
+-- Adonde vuelve el auto al final, a menos de lo que recuerdan los bloques de ruta (TerrainWindow.BLOCK_MEMORY_STUDS).
+local LAG_BACK_TO_X = 2000
+-- Los chunks más atrás cambian de firma cuando los bloques viejos de la ruta se olvidan, sin que llegue ruta nueva: no es
+-- lo que se mide acá.
+local LAG_FIRST_COMPARED_CHUNK_X = 12
 
 -- Un sumidero falso: anota qué chunks quedan escritos y cuántas veces se escribió cada uno sin borrarlo antes.
 type FakeSink = {
@@ -678,5 +685,60 @@ Runner.test("a segment that takes several steps is generated across that many un
 	Runner.expectEqual(planner.isWorldReadyAt(pointOnStraight(16)), true)
 	expectWantedAndKept(planner, fake)
 end)
+
+-- Maneja el auto por la ruta del estadio dándole al planificador solo `stepsPerMove` pasos por cada avance, como pasa
+-- en Studio con cuadros caros: el trabajo queda atrasado y se replanifica antes de vaciar la cola.
+local function driveStadiumLagging(stepsPerMove: number?): (WorldPlanner.WorldPlanner, FakeSink)
+	local fake = createFakeSink()
+	local planner = WorldPlanner.new({
+		seed = SEED,
+		sink = fake.sink,
+		path = createStadiumRoute(),
+		createBuilder = FastChunkBuilder.create,
+	})
+	for arcLength = 16, OUTBOUND_STEPS * 2 + 400, LAG_MOVE_STUDS do
+		planner.updatePlan(vector.create(math.min(arcLength, OUTBOUND_STEPS * 2), ROAD_HEIGHT, 0))
+		if stepsPerMove == nil then
+			runUntilIdle(planner)
+		else
+			for _ = 1, stepsPerMove do
+				if planner.hasWork() then
+					planner.runStep()
+				end
+			end
+		end
+	end
+	runUntilIdle(planner)
+	-- Un reinicio del auto un poco más atrás: los chunks que quedaron fuera de lo que se quería vuelven a ser querido.
+	planner.updatePlan(vector.create(LAG_BACK_TO_X, ROAD_HEIGHT, 0))
+	runUntilIdle(planner)
+	return planner, fake
+end
+
+Runner.test(
+	"a chunk that went stale while the work was lagging behind the car ends up with the same road as without lag",
+	function()
+		local _, lagging = driveStadiumLagging(LAG_STEPS_PER_MOVE)
+		local _, reference = driveStadiumLagging(nil)
+		local compared, rewritten = 0, 0
+		for key, last in lagging.lastOf do
+			local expected = reference.lastOf[key]
+			if
+				lagging.active[key]
+				and reference.active[key]
+				and expected ~= nil
+				and last.chunkX >= LAG_FIRST_COMPARED_CHUNK_X
+			then
+				compared += 1
+				Runner.expectEqual(last.signature, expected.signature)
+				if (lagging.writeCounts[key] or 0) > 1 then
+					rewritten += 1
+				end
+			end
+		end
+		Runner.expectEqual(compared > 10, true)
+		Runner.expectEqual(rewritten > 0, true)
+	end
+)
 
 Runner.finish()

@@ -115,12 +115,60 @@ Runner.test("a chunk is stale only if new road arrived near it and its signature
 	local touched = registry.get(ChunkGrid.getKey(1, 0)) :: ChunkPlan.WrittenChunk
 	Runner.expectEqual(registry.isStale(touched), true)
 	registry.clearNotes()
+	-- Lo descubierto viejo sigue viejo aunque se olviden las notas: el plan puede descartar su cola antes de reescribirlo.
+	Runner.expectEqual(registry.isStale(touched), true)
+	-- Reescrito con la ruta de ahora, deja de estar viejo.
+	registry.record(createVoxels(1, 0, signatureOfChunk(blocks, 1, 0)))
+	touched = registry.get(ChunkGrid.getKey(1, 0)) :: ChunkPlan.WrittenChunk
+	Runner.expectEqual(registry.isStale(touched), false)
+	registry.record(createVoxels(1, 0, signatureOfChunk(blocks, 1, 0) + 1))
+	touched = registry.get(ChunkGrid.getKey(1, 0)) :: ChunkPlan.WrittenChunk
 	Runner.expectEqual(registry.isStale(touched), false)
 	registry.flagForCheck(ChunkGrid.getKey(1, 0))
 	Runner.expectEqual(registry.isStale(touched), true)
 	Runner.expectEqual(registry.isStale(near), false)
 	registry.clearNotes()
+	Runner.expectEqual(registry.isStale(touched), true)
+	-- Si se borra el chunk, no queda nada de lo que se sabía de él.
+	registry.remove(ChunkGrid.getKey(1, 0))
+	registry.record(createVoxels(1, 0, signatureOfChunk(blocks, 1, 0)))
+	touched = registry.get(ChunkGrid.getKey(1, 0)) :: ChunkPlan.WrittenChunk
 	Runner.expectEqual(registry.isStale(touched), false)
+end)
+
+Runner.test("clearing the notes remembers the chunks that went stale even if no plan asked about them", function()
+	local blocks = createBlocksWithSegments(1)
+	local registry = ChunkRegistry.new(blocks, INFLUENCE_STUDS)
+	registry.record(createVoxels(1, 0, signatureOfChunk(blocks, 1, 0)))
+	registry.record(createVoxels(8, 0, signatureOfChunk(blocks, 8, 0)))
+	local newSegment = createSegment(1, SyntheticRoad.STEPS_PER_SEGMENT * WorldConfig.INTEGRATION_STEP_STUDS)
+	blocks.addSegment(newSegment)
+	registry.noteNewSegment(newSegment)
+	-- Ningún plan preguntó por el chunk (por ejemplo, está atrás del auto): igual tiene que saber que quedó viejo cuando el
+	-- auto vuelva y lo quiera de nuevo.
+	registry.clearNotes()
+	Runner.expectEqual(registry.isStale(registry.get(ChunkGrid.getKey(1, 0)) :: ChunkPlan.WrittenChunk), true)
+	Runner.expectEqual(registry.isStale(registry.get(ChunkGrid.getKey(8, 0)) :: ChunkPlan.WrittenChunk), false)
+end)
+
+Runner.test("a stale chunk is not ready until it is rewritten, even if it is written", function()
+	local blocks = createBlocksWithSegments(1)
+	local registry = ChunkRegistry.new(blocks, INFLUENCE_STUDS)
+	local position = vector.create(CHUNK / 2, 0, CHUNK / 2)
+	registry.record(createVoxels(0, 0, signatureOfChunk(blocks, 0, 0)))
+	Runner.expectEqual(registry.isReadyAt(position, READY_RADIUS / 2), true)
+	local newSegment = createSegment(1, SyntheticRoad.STEPS_PER_SEGMENT * WorldConfig.INTEGRATION_STEP_STUDS)
+	blocks.addSegment(newSegment)
+	registry.noteNewSegment(newSegment)
+	registry.flagForCheck(ChunkGrid.getKey(0, 0))
+	-- Todavía no se miró su firma: el registro no sabe que quedó viejo, y la ruta nueva no cambió su zona.
+	Runner.expectEqual(registry.isReadyAt(position, READY_RADIUS / 2), true)
+	registry.record(createVoxels(0, 0, signatureOfChunk(blocks, 0, 0) + 1))
+	registry.flagForCheck(ChunkGrid.getKey(0, 0))
+	Runner.expectEqual(registry.isStale(registry.get(ChunkGrid.getKey(0, 0)) :: ChunkPlan.WrittenChunk), true)
+	Runner.expectEqual(registry.isReadyAt(position, READY_RADIUS / 2), false)
+	registry.record(createVoxels(0, 0, signatureOfChunk(blocks, 0, 0)))
+	Runner.expectEqual(registry.isReadyAt(position, READY_RADIUS / 2), true)
 end)
 
 Runner.test("a position is ready only when every chunk within the radius is recorded", function()
