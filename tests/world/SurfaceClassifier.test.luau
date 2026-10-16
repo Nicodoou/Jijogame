@@ -1,4 +1,7 @@
 --!strict
+local BiomeBlend = require("../../src/world/core/BiomeBlend")
+local BiomeCatalog = require("../../src/world/core/BiomeCatalog")
+local BiomeMap = require("../../src/world/core/BiomeMap")
 local PathHelpers = require("./PathHelpers")
 local RoadPath = require("../../src/world/core/RoadPath")
 local RoadQuery = require("../../src/world/core/RoadQuery")
@@ -23,8 +26,13 @@ local function createWorld(classifierSeed: number)
 	local path = RoadPath.new(PATH_SEED)
 	PathHelpers.generateSegments(path, GENERATED_SEGMENTS)
 	path.releaseSegmentsBefore(FIRST_LOADED_SEGMENT)
-	local getSurfaceAt = SurfaceClassifier.createGetSurfaceAt(RoadQuery.new(path), classifierSeed)
-	return path, getSurfaceAt
+	local query = RoadQuery.new(path)
+	local picker = BiomeBlend.newPicker(classifierSeed, BiomeCatalog.all)
+	local biomeMap = BiomeMap.new(classifierSeed, BiomeCatalog.all)
+	local function createClassifier()
+		return SurfaceClassifier.createGetSurfaceAt(query, picker, biomeMap)
+	end
+	return path, createClassifier(), createClassifier
 end
 
 -- Un punto del eje (a mitad de arista) y la dirección hacia la derecha, para medir distancias exactas al eje.
@@ -162,5 +170,28 @@ Runner.test("seeds zero, negative and fractional build a classifier", function()
 		Runner.expectEqual(getSurfaceAt(middle), "Road")
 	end
 end)
+
+Runner.test(
+	"walking along the road and jumping around gives the same answers as a fresh classifier each time",
+	function()
+		local path, walkingSurface = createWorld(2)
+		local _, freshSurface = createWorld(2)
+		local positions: { vector } = {}
+		for sampleIndex = 1, 120, 3 do
+			local middle, right = getAxisPoint(path, 3, sampleIndex)
+			for _, lateral in { 0, ROAD_HALF_WIDTH + 1, FAR_LATERAL_STUDS, -FAR_LATERAL_STUDS } do
+				table.insert(positions, middle + right * lateral)
+			end
+		end
+		-- Saltos a otros tramos y fuera de la ruta cargada: el resultado anterior ya no sirve de cursor.
+		table.insert(positions, (getAxisPoint(path, 4, 20)))
+		table.insert(positions, vector.create(1e6, 0, 1e6))
+		table.insert(positions, (getAxisPoint(path, 2, 100)))
+		for _, position in positions do
+			Runner.expectEqual(walkingSurface(position), freshSurface(position))
+			Runner.expectEqual(walkingSurface(position), freshSurface(position))
+		end
+	end
+)
 
 Runner.finish()

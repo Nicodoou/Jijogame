@@ -12,6 +12,20 @@ Nada que esté en este registro se reabre sin un issue nuevo que explique por qu
 **CP-9 para este auto:** se cumple como "el freno de mano ayuda a iniciar y sostener el derrape"; el derrape lo inicia la dirección. Nico lo decidió después de manejarlo ("como lo dejé yo, dejémoslo, se puede derrapar bien"). Si más adelante hay autos con tracción trasera, se vuelve a medir.
 **Descartado:** mantener AWD 50/50.
 
+## 2026-10-16 — Cómo se presentan los WPs y los PRs a las personas
+**Decidió:** Nico (aplica a los dos agentes; la aprueba también Beni)
+**Issue:** pedido de Nico en la sesión con el Agente A
+**Decisión:** todo WP y todo PR de código que se pida aprobar se presenta en el chat con la estructura de `docs/reglas-de-trabajo.md`, "Presentar un WP o un PR a la persona": qué hace, módulos, patrones y por qué, alternativas, riesgos, opinión del orquestador sobre el código, qué prueban las pruebas y decisiones cerradas con opciones y recomendación.
+**Por qué:** las presentaciones eran vagas y la persona aprobaba sin control real sobre el diseño ni el código.
+**Descartado:** dejarlo a criterio de cada agente.
+
+## 2026-10-16 — Terreno: camino de ripio claro con banquina de tierra
+**Decidió:** Beni
+**Issue:** #73 (WP-11)
+**Decisión:** la superficie del camino se escribe con `Limestone` (ripio claro) y la de la banquina con `Ground`. El resto del terreno no cambia. `GetSurfaceAt` sigue clasificando con los datos de la ruta, así que el agarre no cambia.
+**Por qué:** al probar el WP-6, el camino casi no se distinguía: la ruta y la banquina eran `Ground`, y el `Grass` de Roblox se dibuja como tierra en las pendientes empinadas que rodean la ruta.
+**Descartado:** asfalto (`Asphalt`), que ya es rally de asfalto; aclarar el color global de `Ground` con `SetMaterialColor`, que cambia toda la tierra del mapa y contrasta menos.
+
 ## 2026-10-16 — Ruta: regla de altura entre pasadas, generación por pasos y lomas sin repetición
 **Decidió:** Beni
 **Issue:** #57 y #10 (WP-9; PR de `b/58-wp-9-ruta-impl`)

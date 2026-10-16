@@ -64,10 +64,9 @@ Rojo sincroniza el repo con Studio: lo que escribís en `src/` aparece en el jue
 | `src/shared/` | `ReplicatedStorage.shared` |
 | `src/<área>/core/` | `ReplicatedStorage.<área>.core`, para `vehicle`, `input`, `camera` y `world` |
 | `src/vehicle/shared/` | `ReplicatedStorage.vehicle.shared` |
-| `src/app/shared/` | `ReplicatedStorage.app` |
-| `src/vehicle/server/` | `ServerScriptService.vehicle` |
+| `src/vehicle/server/`, `src/world/server/` | `ServerScriptService.vehicle` y `world` |
 | `src/app/server/` | `ServerScriptService.app` |
-| `src/vehicle/client/`, `src/input/client/`, `src/camera/client/`, `src/app/client/` | `StarterPlayer.StarterPlayerScripts.vehicle`, `input`, `camera` y `app` |
+| `src/vehicle/client/`, `src/input/client/`, `src/camera/client/`, `src/world/client/`, `src/app/client/` | `StarterPlayer.StarterPlayerScripts.vehicle`, `input`, `camera`, `world` y `app` |
 
 1. Instalá el plugin de Rojo una sola vez: `rojo plugin install`. Reiniciá Studio.
 2. En Studio, abrí un lugar vacío (por ejemplo, un Baseplate).
@@ -241,7 +240,7 @@ scripts/coverage.sh      # cobertura de src/*/core/**; falla por debajo de 87%
 Para manejar el auto de cajas en un Baseplate (WP-4), con los adaptadores y los stubs del arranque:
 
 1. **Abrí un Baseplate de pruebas, nunca otro juego.** El auto y los scripts se sincronizan desde el repo; no pruebes dentro de un juego real.
-2. Desde la carpeta del repo, `rojo serve` y, en Studio, **Plugins → Rojo → Connect** (sección 4). Tienen que aparecer `ServerScriptService.app`, `ServerScriptService.vehicle`, `StarterPlayer.StarterPlayerScripts.app` (con `Main`), `vehicle`, `input` y `camera`, y `ReplicatedStorage.app`. Si quedaron scripts viejos de un experimento (por ejemplo `exp`), borralos: Rojo no los saca.
+2. Desde la carpeta del repo, `rojo serve` y, en Studio, **Plugins → Rojo → Connect** (sección 4). Tienen que aparecer `ServerScriptService.app`, `ServerScriptService.vehicle`, `ServerScriptService.world`, y `StarterPlayer.StarterPlayerScripts.app` (con `Main`), `vehicle`, `input`, `camera` y `world`. Si quedaron scripts viejos de un experimento (por ejemplo `exp`), borralos: Rojo no los saca.
 3. **Play.** Play toma una copia de los scripts al arrancar: si editás, pará y volvé a arrancar. El auto aparece anclado en `(0, 1, 60)`, se suelta solo y no hay personaje: la cámara es del auto.
 
 | Acción | Teclado | Gamepad |

@@ -68,6 +68,8 @@ Se deciden junto con la malla de la ruta (#9), porque el terreno es lo que pisa 
 
 El cliente escribe el suelo con `WriteVoxels`, por pedazos y con un presupuesto por frame. La ruta queda plana dentro del mismo Terrain, con material `Ground`. El pasto es `Grass` y el barro `Mud`.
 
+> **Actualización 2026-10-16 (WP-11, #73):** el camino pasa a `Limestone` (ripio claro) y la banquina queda en `Ground`, para que la ruta se distinga del terreno. Es solo visual: la superficie del contrato sale de los datos de la ruta, no del material.
+
 - **Bueno:**
   - medido rápido (unos 3 ms por pedazo de 128×128 en PC) y plano;
   - la colisión viene incluida, sin `CreateMeshPartAsync`;
