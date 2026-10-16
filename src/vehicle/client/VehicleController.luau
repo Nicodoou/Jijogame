@@ -132,6 +132,11 @@ function VehicleController.getVehicleView(self: VehicleController): VehicleView?
 	}
 end
 
+function VehicleController.getModel(self: VehicleController): Model?
+	local session = self._session
+	return if session ~= nil then session.rig.model else nil
+end
+
 function VehicleController.getFeedback(self: VehicleController): VehicleFeedback?
 	return self._feedback
 end
