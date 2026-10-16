@@ -91,7 +91,7 @@ return table.freeze({
 	-- El neumático la recorta.
 	BRAKE_DECELERATION = 55,
 	BRAKE_FRONT_BIAS = 0.6,
-	HANDBRAKE_FORCE_PER_LOAD = 0.25,
+	HANDBRAKE_FORCE_PER_LOAD = 0.4,
 
 	-- Dirección.
 	STEER_MAX_LOW_SPEED_DEGREES = 36,

@@ -308,8 +308,9 @@ Nico aprobó estos valores ("era muy patinoso, ahora está bien"; ver `docs/deci
 | `REAR_BIAS` | 0,5 | **0** (tracción delantera) |
 | `STEER_MAX_HIGH_SPEED_DEGREES` | 24 | **18** |
 | `COUNTER_STEER_STRENGTH` | 0 | **1** |
+| `HANDBRAKE_FORCE_PER_LOAD` | 0,25 | **0,4** |
 
-La propiedad 4 (freno de mano) queda descripta en el informe de esta tarea: con estos valores la maniobra sin freno de mano también pasa de 15° a 60 FPS y la prueba de contraste está pendiente de decisión.
+**Las propiedades del manejo usan el centro de masa configurado:** el `ToyWorld` arma por defecto el centro de masa con la misma fórmula del lastre a partir de `FRONT_WEIGHT_FRACTION` y `CENTER_OF_MASS_HEIGHT_STUDS` (`ToyWorld.configuredCenterOfMass`). Las pruebas que necesitan el centro de masa centrado pasan `centerOfMassOffset = vector.create(0, 0, 0)`. Hasta este cambio corrían con el centro de masa centrado.
 
 ## Fuera de alcance
 - Todo lo que toca Roblox: adaptadores, `src/app/`, Rojo y las pruebas en Studio (son del WP-4).

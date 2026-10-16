@@ -7,7 +7,7 @@ Nada que esté en este registro se reabre sin un issue nuevo que explique por qu
 ## 2026-10-16 — Auto: tracción delantera, peso adelante y contravolante asistido
 **Decidió:** Nico (después de manejar sobre las calles del Agente B)
 **Issue:** #8 (cambia el valor de "Auto: vuelve a AWD 50/50 y freno de mano suave")
-**Decisión:** `REAR_BIAS` 0,5 → 0 (tracción delantera), `FRONT_WEIGHT_FRACTION` 0,5 → 0,7, `CENTER_OF_MASS_HEIGHT_STUDS` 1 → 0,6, `TIRE_FRICTION` 0,7 → 1, `REAR_GRIP_MULTIPLIER` 0,9 → 0,95, `STEER_MAX_HIGH_SPEED_DEGREES` 24 → 18 y `COUNTER_STEER_STRENGTH` 0 → 1 (contravolante asistido, con tope en `COUNTER_STEER_MAX_DEGREES`). El modelo físico y el resto de la decisión anterior no cambian.
+**Decisión:** `REAR_BIAS` 0,5 → 0 (tracción delantera), `FRONT_WEIGHT_FRACTION` 0,5 → 0,7, `CENTER_OF_MASS_HEIGHT_STUDS` 1 → 0,6, `TIRE_FRICTION` 0,7 → 1, `REAR_GRIP_MULTIPLIER` 0,9 → 0,95, `STEER_MAX_HIGH_SPEED_DEGREES` 24 → 18 `COUNTER_STEER_STRENGTH` 0 → 1 (contravolante asistido, con tope en `COUNTER_STEER_MAX_DEGREES`) y `HANDBRAKE_FORCE_PER_LOAD` 0,25 → 0,4 (freno de mano más fuerte, decidido por Nico en Studio). `HANDBRAKE_REAR_GRIP_MULTIPLIER` queda en 0,85. El modelo físico y el resto de la decisión anterior no cambian.
 **Por qué:** "era muy patinoso": con 50/50 y el agarre en 0,7, las calles reales se sentían resbalosas. Con más agarre, el peso adelante, el centro de masa más bajo, tracción delantera y el contravolante que ayuda a corregir, el auto se siente bien.
 **Descartado:** mantener AWD 50/50.
 
