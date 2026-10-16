@@ -44,6 +44,19 @@ La hizo el subagente `investigador` el 2026-10-16. **[V]** es verificado en la d
 
 Informe completo del investigador: comentario de este PR.
 
+## Resultados del experimento `exp/hitbox` (#82)
+
+Lo corrió el subagente `experimentador` el 2026-10-16, en el Baseplate de prueba, con un `Body` de prueba dueño del cliente. Los detalles están en la rama `exp/hitbox`, archivo `exp/hitbox/RESULTADOS.md`.
+
+| Pregunta | Resultado |
+| --- | --- |
+| **`BindToCollisionSummaries`** | **Funciona.**<ul><li>A 30, 60 y 120 studs/s contra una pared, la velocidad relativa normal da 30, 60 y 120 exactos.</li><li>Contra un poste de 0,5 detecta 8 de 8 golpes a 120 studs/s, y también a 200 y 300.</li><li>Solo llega en el cliente dueño de red. En el servidor no llega nada.</li><li>El signo depende del orden de las partes, así que se usa el valor absoluto.</li><li>`Area` no es confiable.</li><li>El piso genera un resumen por frame mientras está apoyado: se filtra con un umbral.</li></ul> |
+| **30 cajas `Massless` soldadas** | **No cambian nada:** la masa, el centro de masa y la inercia quedan iguales (±0,02%). Con masa sí cambian. Con un auto, el costo es imperceptible (~0,01 ms por caja en contacto continuo). |
+| **`MeshPart.TextureID` en juego** | **Se puede cambiar** desde un `Script` (replica) y desde un `LocalScript` (solo local), sin error. Que se vea en pantalla no se confirmó: se prueba en el WP de adaptadores. |
+| **Pieza que se cae** | **P1** (ocultar y clonar en el cliente) no cambia el dueño de red y no deja efectos persistentes. **P2** (romper la soldadura en el cliente) deja el servidor y el cliente inconsistentes, así que se descarta. El clon se crea **sin colisión durante 0,2 s** y separado del auto, para evitar el golpe que se midió en el frame del evento. |
+
+**Consecuencias:** se confirman D1, C1, P1 y A1. T1 queda condicionada a verlo en pantalla. El daño se calcula en el cliente: es el único lado que recibe los resúmenes.
+
 ## Las piezas
 
 **Exteriores**, con caja de colisión propia:
