@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-16 — Cómo se presentan los WPs y los PRs a las personas
+**Decidió:** Nico (aplica a los dos agentes; la aprueba también Beni)
+**Issue:** pedido de Nico en la sesión con el Agente A
+**Decisión:** todo WP y todo PR de código que se pida aprobar se presenta en el chat con la estructura de `docs/reglas-de-trabajo.md`, "Presentar un WP o un PR a la persona": qué hace, módulos, patrones y por qué, alternativas, riesgos, opinión del orquestador sobre el código, qué prueban las pruebas y decisiones cerradas con opciones y recomendación.
+**Por qué:** las presentaciones eran vagas y la persona aprobaba sin control real sobre el diseño ni el código.
+**Descartado:** dejarlo a criterio de cada agente.
+
 ## 2026-10-16 — Terreno: camino de ripio claro con banquina de tierra
 **Decidió:** Beni
 **Issue:** #73 (WP-11)
