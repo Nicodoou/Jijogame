@@ -31,6 +31,7 @@ local DRIFT_CHECK_SPEED = 120
 local HANDBRAKE_SECONDS = 0.3
 local HANDBRAKE_TURN_SECONDS = 2.5
 local HANDBRAKE_DRIFT_DEGREES = 15
+local HANDBRAKE_CHECK_SECONDS = 1.3
 local SPIN_DRIFT_DEGREES = 90
 local ACCELERATION_SECONDS = 3
 local REAR_BIAS_STEER = 0.7
@@ -295,55 +296,47 @@ Runner.test("3c. in a corner the wheels on the outside carry more load", functio
 	Runner.expectEqual(outsideOfLeftTurn > insideOfLeftTurn, true)
 end)
 
-local function maxDriftWithin(runner: ToyWorld.Runner, controls: VehicleControls, seconds: number): (number, number)
-	local maxDrift, timeOfTwenty = 0, -1
-	runner.run(seconds, constant(controls), function(world)
-		local drift = math.abs(math.deg(world.feedback.driftAngleRadians))
-		maxDrift = math.max(maxDrift, drift)
-		if drift > 20 and timeOfTwenty < 0 then
-			timeOfTwenty = world.timeSeconds
-		end
-	end)
-	return maxDrift, timeOfTwenty
-end
-
+-- Devuelve la deriva máxima, el momento en que cruza HANDBRAKE_DRIFT_DEGREES (-1 si nunca) y la deriva a 1,3 s.
 local function runHandbrakeTurn(frameSeconds: number, steer: number, isHandbrakeUsed: boolean): (number, number, number)
 	local runner = ToyWorld.new({ frameSeconds = frameSeconds, initialForwardSpeed = CRUISE_SPEED })
 	local controlsAt = function(world: ToyWorldInstance): VehicleControls
 		return controlsWith(steer, 0, 0, isHandbrakeUsed and world.timeSeconds < HANDBRAKE_SECONDS)
 	end
-	local maxDrift, timeOfThreshold, factorAfterRelease = 0, -1, 1
+	local maxDrift, timeOfThreshold, driftAtCheck = 0, -1, 0
+	local isCheckTaken = false
 	runner.run(HANDBRAKE_TURN_SECONDS, controlsAt, function(world)
 		local drift = math.abs(math.deg(world.feedback.driftAngleRadians))
 		maxDrift = math.max(maxDrift, drift)
 		if drift > HANDBRAKE_DRIFT_DEGREES and timeOfThreshold < 0 then
 			timeOfThreshold = world.timeSeconds
 		end
-		factorAfterRelease = world.vehicleState.rearGripFactor
+		if not isCheckTaken and world.timeSeconds >= HANDBRAKE_CHECK_SECONDS - 1e-6 then
+			driftAtCheck = drift
+			isCheckTaken = true
+		end
 	end)
-	return maxDrift, timeOfThreshold, factorAfterRelease
+	return maxDrift, timeOfThreshold, driftAtCheck
 end
 
+-- Con tracción delantera y 70% del peso adelante, la dirección a fondo ya inicia el derrape y el freno de mano ayuda
+-- (decisión de Nico del 2026-10-16, "Auto: tracción delantera, peso adelante y contravolante asistido": CP-9 se cumple
+-- como "el freno de mano ayuda a iniciar y sostener el derrape"). Por eso el criterio es relativo a la misma maniobra
+-- sin freno de mano. Si más adelante hay autos con tracción trasera, se vuelve a medir.
 Runner.test(
-	"4. a short handbrake at 60 studs per second with full steering breaks the tail loose without a spin",
+	"4. a short handbrake at 60 studs per second with full steering helps the drift: no later, no less, no spin",
 	function()
 		for _, frameSeconds in { 1 / 30, 1 / 60 } do
 			for _, steer in { 1, -1 } do
-				local maxDrift, timeOfThreshold = runHandbrakeTurn(frameSeconds, steer, true)
-				Runner.expectEqual(timeOfThreshold > 0 and timeOfThreshold < HANDBRAKE_TURN_SECONDS, true)
-				Runner.expectEqual(maxDrift < SPIN_DRIFT_DEGREES, true)
+				local maxWith, timeWith, driftWith = runHandbrakeTurn(frameSeconds, steer, true)
+				local _, timeWithout, driftWithout = runHandbrakeTurn(frameSeconds, steer, false)
+				Runner.expectEqual(timeWith > 0 and timeWith < HANDBRAKE_TURN_SECONDS, true)
+				Runner.expectEqual(timeWithout < 0 or timeWith <= timeWithout, true)
+				Runner.expectEqual(driftWith >= driftWithout, true)
+				Runner.expectEqual(maxWith < SPIN_DRIFT_DEGREES, true)
 			end
 		end
 	end
 )
-
-Runner.test("4. the same maneuver without the handbrake stays below the drift threshold at first", function()
-	for _, frameSeconds in { 1 / 30, 1 / 60 } do
-		local runner = ToyWorld.new({ frameSeconds = frameSeconds, initialForwardSpeed = CRUISE_SPEED })
-		local maxDrift = maxDriftWithin(runner, controlsWith(1, 0, 0, false), HANDBRAKE_SECONDS + 1)
-		Runner.expectEqual(maxDrift < HANDBRAKE_DRIFT_DEGREES, true)
-	end
-end)
 
 Runner.test("13. after releasing the handbrake the rear grip comes back above 95% in under 1.5 seconds", function()
 	local runner = ToyWorld.new({ initialForwardSpeed = CRUISE_SPEED })
