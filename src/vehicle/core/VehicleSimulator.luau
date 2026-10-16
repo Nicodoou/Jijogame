@@ -108,6 +108,15 @@ local function updateWheels(
 	return wheels, loads
 end
 
+-- Resistencia al rodar media de las ruedas, por unidad de carga.
+local function averageRollingResistance(wheels: { WheelState }): number
+	local total = 0
+	for _, wheel in wheels do
+		total += wheel.rollingResistance
+	end
+	return total / math.max(#wheels, 1)
+end
+
 local function advanceDrivetrain(
 	state: VehicleState,
 	context: WheelForces.StepContext,
@@ -115,11 +124,16 @@ local function advanceDrivetrain(
 ): (VehicleState, { number })
 	local settings = context.settings
 	local rpmBefore = Drivetrain.engineRpm(context.forwardSpeed, state.gear, settings)
+	local forwardY = context.chassis.forward.y
+	local load = Drivetrain.load(
+		Drivetrain.filteredSlope(state, forwardY, dt, settings),
+		context.gravity,
+		averageRollingResistance(state.wheels)
+	)
 	local gear, shiftRemaining =
-		Drivetrain.nextGear(state, rpmBefore, context.forwardSpeed, context.controls, dt, settings)
+		Drivetrain.nextGear(state, rpmBefore, context.forwardSpeed, context.controls, dt, settings, load)
 	local rpm = Drivetrain.engineRpm(context.forwardSpeed, gear, settings)
-	local secondsSinceUpshift, previousSpeed, acceleration =
-		Drivetrain.nextMemory(state, gear, context.forwardSpeed, dt, settings)
+	local secondsSinceUpshift, filteredForwardY = Drivetrain.nextMemory(state, gear, forwardY, dt, settings)
 	local driveState: VehicleState = {
 		wheels = state.wheels,
 		gear = gear,
@@ -127,8 +141,7 @@ local function advanceDrivetrain(
 		engineRpm = rpm,
 		rearGripFactor = state.rearGripFactor,
 		secondsSinceUpshift = secondsSinceUpshift,
-		previousForwardSpeed = previousSpeed,
-		filteredAcceleration = acceleration,
+		filteredForwardY = filteredForwardY,
 	}
 	local force = Drivetrain.driveForce(driveState, context.controls, rpm, context.mass, settings)
 	return driveState, Drivetrain.split(force, settings)
@@ -147,8 +160,7 @@ function VehicleSimulator.newState(config: VehicleSettings?): VehicleState
 		engineRpm = settings.IDLE_RPM,
 		rearGripFactor = 1,
 		secondsSinceUpshift = settings.GEAR_HOLD_SECONDS,
-		previousForwardSpeed = nil,
-		filteredAcceleration = 0,
+		filteredForwardY = nil,
 	}
 end
 

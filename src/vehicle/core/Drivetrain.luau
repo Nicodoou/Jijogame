@@ -82,32 +82,35 @@ local function wantsForward(controls: VehicleControls, forwardSpeed: number, set
 	return controls.throttle > 0 and math.abs(forwardSpeed) < settings.REVERSE_ENGAGE_SPEED
 end
 
--- Aceleración hacia adelante filtrada con `1 − exp(−k·dt)`. Sin velocidad anterior (primer paso) no hay aceleración.
-function Drivetrain.filteredAcceleration(
-	state: VehicleState,
-	forwardSpeed: number,
-	dt: number,
-	config: VehicleSettings?
-): number
+-- Inclinación del auto (componente vertical de su frente) filtrada con `1 − exp(−k·dt)`, para que el cabeceo de la
+-- suspensión no mueva la carga estimada. Sin valor anterior (primer paso) o si no es finita, vale la actual (o 0).
+function Drivetrain.filteredSlope(state: VehicleState, forwardY: number, dt: number, config: VehicleSettings?): number
 	local settings = config or VehicleConfig
-	local previous = state.previousForwardSpeed
+	local current = if forwardY == forwardY and math.abs(forwardY) ~= math.huge then forwardY else 0
+	local previous = state.filteredForwardY
 	if previous == nil then
-		return state.filteredAcceleration
+		return current
 	end
-	local alpha = 1 - math.exp(-settings.KICKDOWN_ACCEL_FILTER_RATE * dt)
-	return state.filteredAcceleration + ((forwardSpeed - previous) / dt - state.filteredAcceleration) * alpha
+	local alpha = 1 - math.exp(-settings.LOAD_PITCH_FILTER_RATE * dt)
+	return previous + (current - previous) * alpha
 end
 
--- Memoria de la caja tras un paso: tiempo desde la última subida, velocidad de este paso y aceleración filtrada.
+-- Carga por unidad de masa a lo largo del auto (studs/s²): la gravedad de la pendiente (`forwardY` > 0 es cuesta
+-- arriba) más la resistencia al rodar. Es exacta y sin atraso, al contrario de estimarla desde la aceleración.
+function Drivetrain.load(filteredForwardY: number, gravity: number, rollingResistance: number): number
+	return gravity * (filteredForwardY + rollingResistance)
+end
+
+-- Memoria de la caja tras un paso: tiempo desde la última subida e inclinación filtrada.
 function Drivetrain.nextMemory(
 	state: VehicleState,
 	newGear: number,
-	forwardSpeed: number,
+	forwardY: number,
 	dt: number,
 	config: VehicleSettings?
-): (number, number, number)
+): (number, number)
 	local secondsSinceUpshift = if newGear > state.gear then 0 else state.secondsSinceUpshift + dt
-	return secondsSinceUpshift, forwardSpeed, Drivetrain.filteredAcceleration(state, forwardSpeed, dt, config)
+	return secondsSinceUpshift, Drivetrain.filteredSlope(state, forwardY, dt, config)
 end
 
 -- Aceleración (studs/s²) que daría esa marcha a esa velocidad con ese pedal.
@@ -115,37 +118,24 @@ local function thrustAcceleration(gear: number, forwardSpeed: number, pedal: num
 	return settings.FIRST_GEAR_PEAK_ACCELERATION * Drivetrain.gearForce(gear, forwardSpeed, settings) * pedal
 end
 
--- Carga estimada por unidad de masa: lo que empuja la marcha actual menos lo que realmente acelera. Es la gravedad de
--- la pendiente, la resistencia al rodar y todo lo que se oponga.
-local function estimatedLoad(
-	state: VehicleState,
-	forwardSpeed: number,
-	pedal: number,
-	acceleration: number,
-	settings: VehicleSettings
-): number
-	return thrustAcceleration(state.gear, forwardSpeed, pedal, settings) - acceleration
-end
-
--- Kickdown: a fondo, sin ganar velocidad y pasado el tiempo mínimo desde la última subida, baja directamente a la
--- marcha más alta que, con la carga estimada, todavía acelere `KICKDOWN_ACCEL_MARGIN` y tenga RPM ≤ `KICKDOWN_MAX_RPM`.
--- Si ninguna cumple, a la más baja que respete las RPM. Puede saltar varias marchas; las bajadas no esperan a otra bajada.
--- Devuelve la marcha de destino, o nil si no hay kickdown.
+-- Kickdown: a fondo, con la marcha actual sin margen para acelerar con la carga y pasado el tiempo mínimo desde la
+-- última subida, baja directamente a la marcha más alta que todavía acelere `KICKDOWN_ACCEL_MARGIN` y tenga
+-- RPM ≤ `KICKDOWN_MAX_RPM`. Si ninguna cumple, a la más baja que respete las RPM. Puede saltar varias marchas; las
+-- bajadas no esperan a otra bajada. Devuelve la marcha de destino, o nil si no hay kickdown.
 local function kickdownTarget(
 	state: VehicleState,
 	forwardSpeed: number,
 	pedal: number,
-	acceleration: number,
+	load: number,
 	dt: number,
 	settings: VehicleSettings
 ): number?
 	if state.gear <= FIRST_GEAR or state.secondsSinceUpshift + dt < settings.GEAR_HOLD_SECONDS then
 		return nil
 	end
-	if acceleration > settings.KICKDOWN_MIN_ACCELERATION then
+	if thrustAcceleration(state.gear, forwardSpeed, pedal, settings) - load >= settings.KICKDOWN_ACCEL_MARGIN then
 		return nil
 	end
-	local load = estimatedLoad(state, forwardSpeed, pedal, acceleration, settings)
 	local lowestWithinLimit = nil
 	for below = state.gear - 1, FIRST_GEAR, -1 do
 		if unclampedRpm(forwardSpeed, below, settings) <= settings.KICKDOWN_MAX_RPM then
@@ -159,15 +149,14 @@ local function kickdownTarget(
 end
 
 -- A fondo sube (por RPM o en el corte suave) solo si la marcha de arriba, a la velocidad que va a tener después del
--- corte (no hay empuje durante el cambio), todavía acelera `UPSHIFT_ACCEL_MARGIN` con la carga estimada.
+-- corte (no hay empuje durante el cambio), todavía acelera `UPSHIFT_ACCEL_MARGIN` con la carga.
 local function shouldUpshiftAtFullThrottle(
 	state: VehicleState,
 	forwardSpeed: number,
 	pedal: number,
-	acceleration: number,
+	load: number,
 	settings: VehicleSettings
 ): boolean
-	local load = estimatedLoad(state, forwardSpeed, pedal, acceleration, settings)
 	local speedAfterShift = forwardSpeed - load * settings.SHIFT_DURATION_SECONDS
 	return thrustAcceleration(state.gear + 1, speedAfterShift, pedal, settings) - load >= settings.UPSHIFT_ACCEL_MARGIN
 end
@@ -179,7 +168,8 @@ function Drivetrain.nextGear(
 	forwardSpeed: number,
 	controls: VehicleControls,
 	dt: number,
-	config: VehicleSettings?
+	config: VehicleSettings?,
+	load: number?
 ): (number, number)
 	local settings = config or VehicleConfig
 	local remaining = math.max(0, state.shiftRemainingSeconds - dt)
@@ -194,17 +184,17 @@ function Drivetrain.nextGear(
 		return gear, remaining
 	end
 	local isKickdownPedal = controls.throttle >= settings.KICKDOWN_THROTTLE
-	local acceleration = Drivetrain.filteredAcceleration(state, forwardSpeed, dt, settings)
+	local gearLoad = load or 0
 	local kickdownGear = nil
 	if isKickdownPedal then
-		kickdownGear = kickdownTarget(state, forwardSpeed, controls.throttle, acceleration, dt, settings)
+		kickdownGear = kickdownTarget(state, forwardSpeed, controls.throttle, gearLoad, dt, settings)
 	end
 	if kickdownGear ~= nil then
 		return kickdownGear, settings.SHIFT_DURATION_SECONDS
 	end
 	if rpm >= settings.UPSHIFT_RPM and gear < #settings.GEAR_RATIOS then
 		local mayUpshift = not isKickdownPedal
-			or shouldUpshiftAtFullThrottle(state, forwardSpeed, controls.throttle, acceleration, settings)
+			or shouldUpshiftAtFullThrottle(state, forwardSpeed, controls.throttle, gearLoad, settings)
 		if mayUpshift then
 			return gear + 1, settings.SHIFT_DURATION_SECONDS
 		end

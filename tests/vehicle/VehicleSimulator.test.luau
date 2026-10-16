@@ -382,13 +382,11 @@ end)
 Runner.test("an unusable dt keeps the gearbox memory used by the kickdown", function()
 	local state = VehicleSimulator.newState()
 	state.secondsSinceUpshift = 0.4
-	state.previousForwardSpeed = 33
-	state.filteredAcceleration = -2
+	state.filteredForwardY = 0.2
 	for _, dt in { 0, -1, 0 / 0, math.huge } do
 		local nextState = VehicleSimulator.step(state, controlsWith(0, 1, 0), chassisWith(), restingContacts(), dt)
 		Runner.expectEqual(nextState.secondsSinceUpshift, 0.4)
-		Runner.expectEqual(nextState.previousForwardSpeed, 33)
-		Runner.expectEqual(nextState.filteredAcceleration, -2)
+		Runner.expectEqual(nextState.filteredForwardY, 0.2)
 	end
 end)
 
@@ -396,7 +394,7 @@ Runner.test("a valid step updates the gearbox memory", function()
 	local state = VehicleSimulator.newState()
 	local chassis = chassisWith(vector.create(0, 0, -20))
 	local nextState = VehicleSimulator.step(state, controlsWith(0, 0.2, 0), chassis, restingContacts(), FRAME_SECONDS)
-	Runner.expectNear(nextState.previousForwardSpeed :: number, 20, 1e-9)
+	Runner.expectEqual(nextState.filteredForwardY ~= nil, true)
 	Runner.expectEqual(nextState.secondsSinceUpshift > state.secondsSinceUpshift, true)
 end)
 
