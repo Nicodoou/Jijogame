@@ -287,6 +287,14 @@ Nico manejó un segundo experimento (rama `exp/ajustes-manejo`, que no se mergea
 - **Propiedad nueva 15 (reversa):** desde quieto, con el freno a fondo y la dirección a fondo durante 6 s, el auto entra en marcha −1, la velocidad no pasa de 32 studs/s, el ángulo de dirección no pasa de `STEER_MAX_REVERSE_DEGREES` y el `slipRatio` trasero queda ≤ 1 en la mayor parte del círculo.
 - **Propiedad nueva 16 (corte suave):** acelerando a fondo en cualquier marcha, cerca del corte la fuerza del motor baja de forma continua: entre dos pasos seguidos nunca cae de más del 20% del pico a 0.
 
+## Cambios después del bug `2026-10-16-deslizamiento-pendiente`
+
+Reemplazan lo anterior donde se contradigan (detalle en `docs/bugs/2026-10-16-deslizamiento-pendiente.md`):
+- **Zona de adherencia:** la fricción (lateral, freno, freno de mano y resistencia al rodar) usa la velocidad de la rueda **prevista al final del cuadro**: `v + (g · eje) · dt`. En un plano horizontal es la velocidad actual.
+- **Sin rampa de regularización:** el freno y la resistencia al rodar van contra `signo(v prevista)` y el tope por paso (`(masa / ruedas que frenan) · |v prevista| / dt`) es lo que los limita cerca de 0. `BRAKE_REGULARIZATION_SPEED` ya no existe. Con el pedal frenan las cuatro ruedas; con solo el freno de mano, las dos traseras.
+- **Nuevas pruebas:** `tests/vehicle/SlopeHold.test.luau` (de costado sin input y con freno de mano a 5°, 10° y 15°, y freno de mano de frente y de espaldas a 3° y 5°: velocidad < 0,05 studs/s).
+- **Pedido de cambio (no es parte del WP):** el freno de mano solo sostiene hasta unos 7°, sin input el auto rueda libre y el freno estando parado entra en reversa.
+
 ## Fuera de alcance
 - Todo lo que toca Roblox: adaptadores, `src/app/`, Rojo y las pruebas en Studio (son del WP-4).
 - El reset (RC-12) y el uso de los contratos #35 y #36 (WP-4).

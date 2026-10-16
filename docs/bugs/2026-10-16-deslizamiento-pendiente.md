@@ -2,7 +2,7 @@
 
 **Issue:** (sin número; lo reportó Nico)
 **Rama:** bug/2026-10-16-deslizamiento-pendiente
-**Estado:** replicado (hipótesis propuestas, sin aprobar)
+**Estado:** resuelto (H1 y H2, aprobadas como una sola; H3 es pedido de cambio)
 
 ## Por qué es un bug
 
@@ -75,7 +75,9 @@ Un hallazgo aparte, no relacionado: de costado, sin input, a 15 FPS (`dt` = 1/15
 
 ## Hipótesis
 
-### H1 — El tope por paso es la única fuerza que sostiene, y es proporcional a la velocidad: el equilibrio exige velocidad > 0
+### H1 + H2 (aprobadas como una sola: "la zona de adherencia") — la fricción usa la velocidad prevista al final del cuadro
+
+#### H1 — El tope por paso es la única fuerza que sostiene, y es proporcional a la velocidad: el equilibrio exige velocidad > 0
 - **Causa:** el tope por paso `(masa/4)·|v|/dt` (WP-3, "Tope por paso") es el máximo que cualquier fuerza que se opone al movimiento puede dar. Cerca de 0 es el que manda (el pedido lateral del neumático es unas 17 veces mayor que el tope, y el freno regularizado también). Como el tope es proporcional a la velocidad, a `v` = 0 vale 0. La gravedad suma `g · sen θ · dt` de velocidad por cuadro; el tope solo frena esa velocidad después de que ya apareció. El punto de equilibrio entre las dos es el que se ve: `v = g · sen θ · dt`.
 - **Predicción:**
   1. La velocidad de equilibrio tiene que ser `g · sen θ · dt` (proporcional a la pendiente y a la duración del cuadro), **sin importar** el valor del agarre lateral, la rigidez del neumático ni las regularizaciones. ✔ ya medido: ver la tabla, coincide a tres decimales a 30, 60 y 120 FPS.
@@ -85,18 +87,18 @@ Un hallazgo aparte, no relacionado: de costado, sin input, a 15 FPS (`dt` = 1/15
 - **Cambio propuesto (no tocado hasta que se apruebe):** calcular el tope (y el deslizamiento de las fuerzas que se oponen) con la **velocidad prevista al final del cuadro**, `v_prev = v + a_ext · dt`, donde `a_ext` es la aceleración de la rueda por las fuerzas que no son de fricción (gravedad proyectada sobre el eje de la rueda y el empuje del motor). Así la fuerza de fricción es la que frena justo `v_prev` y cancela la gravedad, y como depende de `v_prev` y no solo de `v`, sigue siendo "la que alcanza para parar, y no más" (no sobrepasa y no vuelve a oscilar). La fuerza sigue recortada por el círculo de fricción (`mu · carga`), así que se sostiene hasta `mu · cos θ ≥ sen θ` y no más allá.
   - **Cómo se evita volver a oscilar:** el tope por paso sigue siendo "a lo sumo lo que alcanza para parar la velocidad prevista". Una fuerza así no puede invertir `v_prev` en un cuadro, que es lo que el tope por paso garantiza hoy. La propiedad 1 (reposo plano) y la 9 (reversa a 60 FPS) siguen valiendo porque con `a_ext` = 0 (plano) la fórmula se reduce a la de hoy.
   - **Riesgo:** `a_ext` se calcula del chasis, no de cada rueda con su `ω × r`. Para el equilibrio en reposo alcanza; con el auto girando, el error de la predicción es del orden de `ω × r · dt`, que es chico, pero hay que medirlo con las propiedades 4, 9 y 14.
-- **Aprobada por:** (pendiente)
-- **Cambio probado:** —
-- **Resultado:** —
+- **Aprobada por:** Opus (junto con H2)
+- **Cambio probado:** ver "Causa y corrección".
+- **Resultado:** **confirmada** (ver abajo).
 
-### H2 — La regularización por velocidad no puede dar fuerza a v = 0, y el pedido de fuerza (no solo el tope) tiende a 0
+#### H2 — La regularización por velocidad no puede dar fuerza a v = 0, y el pedido de fuerza (no solo el tope) tiende a 0
 - **Causa:** aparte del tope, el *pedido* de cada fuerza también es función de `v`: el lateral del neumático es `C · carga · atan(v/3)`, el freno es `clamp(v/1) · fuerzaMáxima`, la resistencia al rodar es `clamp(v/1) · resistencia`. A `v` = 0 las tres piden 0. Si se levantara el tope sin tocar el pedido, la fuerza en reposo seguiría siendo 0 y el equilibrio se movería a la velocidad en la que el pedido iguala a la gravedad (0,03 studs/s lateral a 5°, ~0,6 studs/s el freno de mano).
 - **Predicción:** con el tope levantado (p. ej. solo para probar, con `dt` muy chico en el tope), el arrastre lateral a 5° baja de 0,570 a ≈ 0,033 studs/s (= `3 · tan θ / C`), y el del freno de mano a ≈ 0,6 studs/s, pero **sigue habiendo arrastre > 0** y el temblor de reposo (propiedad 1) vuelve. Es decir: arreglar solo el tope no alcanza; tiene que cambiar también el pedido.
 - **Evidencia:** la rigidez del neumático ×4 y la regularización 0,3 no mueven el arrastre (el tope manda ahora), pero esas dos entran en el pedido, así que van a mandar cuando el tope ya no sea el límite. Hoy el pedido lateral por rueda a v pequeña (130·m·v) es 17 veces mayor que el tope (7,5·m·v), por eso el tope manda.
 - **Cambio propuesto:** el mismo de H1 más pedir la fuerza que para `v_prev` (no la lineal en `v`): el pedido en la zona de adherencia (`|v_prev|` menor que un umbral, el equivalente de `LOW_SPEED_REGULARIZATION`) es "lo que hace falta para parar `v_prev` en un cuadro", y el círculo de fricción lo recorta a `mu · carga`. Fuera de la zona, el modelo de hoy (lineal con tope y caída) no cambia.
-- **Aprobada por:** (pendiente)
-- **Cambio probado:** —
-- **Resultado:** —
+- **Aprobada por:** Opus (junto con H1)
+- **Cambio probado:** el mismo que H1.
+- **Resultado:** **confirmada**: con solo cambiar el tope, el arrastre habría quedado en 0,12 studs/s en el freno de mano; hizo falta cambiar también el pedido.
 
 ### H3 — Parte de lo que ve Nico no es el modelo de fricción: es el diseño del freno de mano y del punto muerto
 - **Causa:** el freno de mano frena solo las ruedas traseras con `HANDBRAKE_FORCE_PER_LOAD` = 0,25, y sin input el auto no tiene nada que lo sostenga en ninguna dirección (no hay freno de estacionamiento, freno motor ni inercia de rueda). Aunque H1 y H2 se corrijan, el freno de mano de frente o de espaldas solo sostiene hasta `tan θ = 0,25/2` (~7°), y sin input el auto rueda libre en la dirección de la pendiente.
@@ -105,19 +107,42 @@ Un hallazgo aparte, no relacionado: de costado, sin input, a 15 FPS (`dt` = 1/15
   2. Después de H1 y H2, sin input y de frente a 5°, el auto sigue acelerando a ≈ 14 studs/s².
 - **Evidencia:** la tabla de observado.
 - **Cambio propuesto:** ninguno en el núcleo sin decisión: es de diseño (valor del freno de mano, un freno de estacionamiento automático al estar quieto sin input, o un freno motor). Lo lleva la persona.
-- **Aprobada por:** (pendiente; Opus lo lleva a Nico)
-- **Cambio probado:** —
-- **Resultado:** —
+- **Aprobada por:** no aplica: Opus se la lleva a Nico como **pedido de cambio** (freno de mano más fuerte, retención automática al estar quieto o freno motor).
+- **Cambio probado:** ninguno.
+- **Resultado:** no se toca. Quedan fuera de la prueba, documentados: freno de mano a más de ~7° (a 10° y 15° sostiene 82% y 54% de la fuerza que hace falta), sin input de frente o de espaldas (rueda libre) y freno a fondo estando parado (entra en reversa por diseño).
 
 ## Causa y corrección
-(Se completa después de la aprobación.)
+
+**Causa:** la fuerza de fricción se calculaba con la velocidad **actual** de la rueda, y las dos cosas que la limitaban (el tope por paso y las rampas de regularización) valen 0 a velocidad 0. En una pendiente la gravedad suma `g · sen θ · dt` de velocidad en cada cuadro, y la fricción solo reaccionaba después, así que el equilibrio quedaba en una velocidad distinta de 0 (`g · sen θ · dt`).
+
+**Corrección (un solo cambio conceptual):**
+1. `WheelForces.expectedSpeeds`: la velocidad de la rueda en sus dos ejes se corrige con la gravedad que va a recibir durante el cuadro (`v + (g · eje) · dt`). La fricción (deslizamiento lateral, tope lateral, freno, freno de mano y resistencia al rodar) se calcula con esa velocidad prevista. En un plano horizontal la corrección es 0 y todo queda como antes.
+2. `Drivetrain.brakeForce` y la resistencia al rodar: dentro de la zona de adherencia el pedido es la fuerza completa y el tope por paso (que para una velocidad prevista es "lo que hace falta para pararla") es lo que la limita; se sacó la rampa `clamp(v / BRAKE_REGULARIZATION_SPEED)` y con ella el valor `BRAKE_REGULARIZATION_SPEED` de `VehicleConfig`.
+3. El tope por paso del freno se reparte entre las ruedas que frenan (`brakingWheelCount`): con el pedal, las cuatro; con solo el freno de mano, las dos traseras.
+
+**Resultado de la predicción (ToyWorld, todo Road):**
+- De costado, a 5°, 10° y 15°, a 30 y a 60 FPS, a los 10 s: sin input 0,000004 a 0,000025 studs/s; con freno de mano 0,0008 a 0,0045 studs/s (< 0,05).
+- Freno de mano de frente y de espaldas, 3° a 7°, 10 s: 0,048 a 0,050 studs/s a 30 FPS y 0,024 a 0,025 a 60 FPS. A 5°: 0,0477 (de frente) y 0,04997 (de espaldas) a 30 FPS. **Pasa, pero con poco margen a 30 FPS** (a 6° y 7° de espaldas da 0,0501 y 0,0502). Causa del resto: la resistencia al rodar de las dos ruedas delanteras se suma a la de las traseras, que ya pararon `v_prev` por sí solas, y sobrepasa un poco. Queda anotado, no se tocó.
+- Fuerza de las ruedas en el plano / `m · g · sen θ`: de costado, sin input, 0,99999 a 1,00000 en 5°, 10° y 15°; con freno de mano de costado 1,00002, 1,00002 y 1,0074; de frente a 5° con freno de mano 1,0000. A 10° y 15° de frente, con freno de mano, 0,82 y 0,54 (el freno de mano no alcanza: H3).
+- Sin romper nada: pasan las 17 propiedades (reposo plano y perturbado, 4, 9 a 60 FPS, 14), `RestAfterDriving` a 60 y a 30 FPS y `check-all`.
+
+**Efecto sobre el #64 (inestabilidad a 20 y 15 FPS) y el caso de costado a 15 FPS** (solo medido, no se arregló; velocidad a los 8 s, studs/s, con el cambio contra antes):
+
+| FPS | Costado 5° | Costado 15° | Plano con 0,3 studs/s de empuje |
+| --- | --- | --- | --- |
+| 15 | 6,4 contra 39,3 | 264,9 contra 1409,7 | 6,7 contra 4,1 |
+| 20 | 2,15 contra 0,55 | 1,53 contra 4,65 | 1,79 contra 1,79 |
+| 24 | 0 contra 0,71 | 0 contra 2,12 | 0 contra 0 |
+| 30 | 0 contra 0,57 | 0 contra 1,69 | 0 contra 0 |
+
+A 24 FPS o más la pendiente queda quieta. A 20 y 15 FPS la inestabilidad sigue (el plano perturbado da lo mismo a 20 FPS y algo peor a 15): la zona de adherencia no la resuelve ni la empeora de forma clara.
 
 ## Regresión
-- [ ] Suite completa
-- [ ] Cobertura ≥ 87%
-- [ ] Pruebas manuales relacionadas
-- [ ] Rendimiento (si aplica)
-- [ ] Código de depuración borrado
+- [x] Suite completa (`check-all.sh` en verde)
+- [x] Cobertura ≥ 87% (99,8%)
+- [ ] Pruebas manuales relacionadas (de Studio: del WP-4; sin Studio en este bug)
+- [x] Rendimiento: el cambio agrega un producto escalar por eje y por rueda por cuadro; no se midió en Studio
+- [x] Código de depuración borrado (no se agregó)
 
 ## Qué aprendimos
 - El tope por paso resolvió la oscilación en reposo plano pero convirtió la fricción en una fuerza "viscosa" (proporcional a la velocidad): sirve para frenar un movimiento, no para mantener la quietud. Una fricción que sostenga necesita una fuerza que no dependa de la velocidad actual sino de la que va a haber al final del cuadro.
