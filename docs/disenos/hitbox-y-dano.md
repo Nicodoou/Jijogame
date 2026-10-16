@@ -2,7 +2,7 @@
 
 **Issue:** pedido de Nico (2026-10-16). Va al MVP.
 **Requerimientos:** CP-5 (choques con consecuencia pero sin frustración). Este diseño lo amplía con daño por pieza (cambio de alcance aprobado por Nico).
-**Estado:** propuesta, a decidir por Nico
+**Estado:** aprobado (Nico, 2026-10-16)
 
 ## Lo que pidió Nico
 
@@ -162,4 +162,7 @@ Sigue las capas de siempre: contratos, núcleo, adaptadores y arranque.
 
 ## Decisión
 
-_A completar por Nico._
+Decidió Nico el 2026-10-16: **las 7 recomendaciones** (D1, C1, P1, T1, A1, E1 y F1), y **la hitbox modular vuelve al MVP**.
+
+- La reparación queda para después del MVP.
+- Si el experimento `exp/hitbox` (#82) muestra que alguna opción no funciona, se vuelve a decidir con los números.
