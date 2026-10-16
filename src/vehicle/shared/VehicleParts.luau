@@ -5,6 +5,8 @@ local VehicleParts = {}
 VehicleParts.BODY_NAME = "Body"
 VehicleParts.OWNER_ATTRIBUTE = "OwnerUserId"
 VehicleParts.RELEASE_REMOTE_NAME = "VehicleReleaseRequest"
+VehicleParts.VISUAL_MODEL_NAME = "VisualModel"
+VehicleParts.REAR_AXLE_OFFSET_ATTRIBUTE = "RearAxleOffset"
 
 function VehicleParts.modelName(userId: number): string
 	return "Vehicle_" .. userId
