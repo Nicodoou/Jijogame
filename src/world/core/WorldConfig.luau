@@ -118,6 +118,37 @@ return table.freeze({
 	MUD_MIN_DISTANCE_FROM_SHOULDER_STUDS = 6,
 	MUD_NOISE_OFFSET_RANGE = 10000,
 
+	-- Clima (ClimateField): relieve, humedad y ruido de temperatura, cada uno con octavas de math.noise.
+	-- Si cambia algo de esta sección hay que volver a generar QuantileTables (tools/climate/GenerateQuantiles.luau).
+	CLIMATE_OCTAVES = 3,
+	CLIMATE_OCTAVE_AMPLITUDE_FACTOR = 0.5,
+	CLIMATE_OCTAVE_WAVELENGTH_FACTOR = 0.5,
+	-- Longitud de onda de la primera octava de cada mapa.
+	CLIMATE_RELIEF_WAVELENGTH_STUDS = 4000,
+	CLIMATE_HUMIDITY_WAVELENGTH_STUDS = 3500,
+	CLIMATE_TEMPERATURE_WAVELENGTH_STUDS = 5000,
+	-- El z de cada mapa no es entero: con z entero el ruido vale 0 en toda la grilla.
+	CLIMATE_RELIEF_NOISE_Z = 0.31,
+	CLIMATE_HUMIDITY_NOISE_Z = 0.57,
+	CLIMATE_TEMPERATURE_NOISE_Z = 0.83,
+	CLIMATE_NOISE_OFFSET_RANGE = 10000,
+	-- Temperatura = ruido de temperatura - factor * relieve (crudos): lo alto es más frío.
+	CLIMATE_TEMPERATURE_RELIEF_FACTOR = 0.5,
+	CLIMATE_GRID_STEP_STUDS = 16,
+	-- Diferencia máxima en u entre la grilla interpolada y el muestreo directo.
+	CLIMATE_GRID_MAX_ERROR = 0.002,
+
+	-- Pesos de bioma: w = max(0, 1 - d / R) ^ k, con d la distancia en u del clima a la caja de la ficha.
+	BIOME_TRANSITION_RADIUS = 0.15,
+	BIOME_TRANSITION_EXPONENT = 2,
+	-- Los pesos menores a este se descartan antes de normalizar.
+	BIOME_WEIGHT_CUTOFF = 0.05,
+	-- Tamaño de los manchones con los que se alternan los materiales entre biomas (de 12 a 24 studs).
+	BIOME_MATERIAL_PATCH_STUDS = 24,
+	BIOME_PATCH_NOISE_OFFSET_RANGE = 10000,
+	-- Fracción máxima de material puente, que se da con los dos biomas más pesados empatados.
+	BIOME_BRIDGE_MAX_SHARE = 0.5,
+
 	-- Consultas de la ruta (RoadQuery).
 	ROAD_QUERY_GRID_CELL_STUDS = 64,
 	ROAD_QUERY_GRID_KEY_STRIDE = 1048576,

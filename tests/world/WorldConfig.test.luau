@@ -89,4 +89,49 @@ Runner.test(
 	end
 )
 
+Runner.test("the biome transition settings make sense: positive radius and exponent, small cutoff", function()
+	Runner.expectEqual(WorldConfig.BIOME_TRANSITION_RADIUS > 0 and WorldConfig.BIOME_TRANSITION_RADIUS <= 1, true)
+	Runner.expectEqual(WorldConfig.BIOME_TRANSITION_EXPONENT >= 1, true)
+	Runner.expectEqual(WorldConfig.BIOME_WEIGHT_CUTOFF >= 0 and WorldConfig.BIOME_WEIGHT_CUTOFF < 1, true)
+	Runner.expectEqual(WorldConfig.BIOME_BRIDGE_MAX_SHARE >= 0 and WorldConfig.BIOME_BRIDGE_MAX_SHARE <= 1, true)
+end)
+
+Runner.test("the material patches are between 12 and 24 studs", function()
+	Runner.expectEqual(WorldConfig.BIOME_MATERIAL_PATCH_STUDS >= 12, true)
+	Runner.expectEqual(WorldConfig.BIOME_MATERIAL_PATCH_STUDS <= 24, true)
+end)
+
+Runner.test("the climate noise z values are not whole numbers and different from each other", function()
+	local zValues = {
+		WorldConfig.CLIMATE_RELIEF_NOISE_Z,
+		WorldConfig.CLIMATE_HUMIDITY_NOISE_Z,
+		WorldConfig.CLIMATE_TEMPERATURE_NOISE_Z,
+	}
+	for index, noiseZ in zValues do
+		Runner.expectEqual(noiseZ % 1 ~= 0, true)
+		for other = index + 1, #zValues do
+			Runner.expectEqual(noiseZ ~= zValues[other], true)
+		end
+	end
+end)
+
+Runner.test(
+	"the climate octaves shrink, the grid step is finer than the shortest wavelength and the error is small",
+	function()
+		Runner.expectEqual(WorldConfig.CLIMATE_OCTAVES >= 1, true)
+		Runner.expectEqual(
+			WorldConfig.CLIMATE_OCTAVE_AMPLITUDE_FACTOR > 0 and WorldConfig.CLIMATE_OCTAVE_AMPLITUDE_FACTOR < 1,
+			true
+		)
+		Runner.expectEqual(
+			WorldConfig.CLIMATE_OCTAVE_WAVELENGTH_FACTOR > 0 and WorldConfig.CLIMATE_OCTAVE_WAVELENGTH_FACTOR < 1,
+			true
+		)
+		local shortest = WorldConfig.CLIMATE_HUMIDITY_WAVELENGTH_STUDS
+			* WorldConfig.CLIMATE_OCTAVE_WAVELENGTH_FACTOR ^ (WorldConfig.CLIMATE_OCTAVES - 1)
+		Runner.expectEqual(WorldConfig.CLIMATE_GRID_STEP_STUDS < shortest, true)
+		Runner.expectEqual(WorldConfig.CLIMATE_GRID_MAX_ERROR > 0 and WorldConfig.CLIMATE_GRID_MAX_ERROR < 0.1, true)
+	end
+)
+
 Runner.finish()

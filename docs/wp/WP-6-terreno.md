@@ -5,8 +5,8 @@
 **Diseño:** `docs/disenos/ruta.md` ("Arquitectura" y la revisión versión 2) y `docs/disenos/terreno.md`
 **Responsable:** Agente B
 **Depende de:**
-- **WP-5** (ruta de rally) en `main`: el núcleo de la ruta que usa este WP.
-- **La implementación del WP-4** (A) en `main`: los archivos `src/app/` donde se cambian los stubs por el mundo real. Si todavía no está, el paso 10 de "Entregables" se hace en un PR aparte, cuando esté.
+- **WP-5** (ruta de rally, #53) y **WP-8** (biomas, #60): ya en `main`.
+- **La implementación del WP-4** (A): ya está en `main` (#52), así que el paso 10 entra en este WP.
 
 ## Subagente
 - **Núcleo:** `.claude/agents/programador-nucleo.md` (pasos 1 a 6).
@@ -28,6 +28,7 @@
   - "Ruta y terreno: piezas con curvatura, todo Terrain, generado en el cliente";
   - "Ruta de rally: trazado libre en un área acotada…";
   - "Ruta de rally con guía grande y tamaño de las pruebas largas";
+  - "Biomas: bosque en el MVP, infraestructura para N biomas" (`docs/disenos/biomas.md`, sección "Quién lo usa");
   - las de política de código.
 - **Supuestos vigentes (medidos en Studio):**
   - Escribir un chunk de 128×128 studs cuesta unos 3 ms en PC (armar las tablas más `WriteVoxels`).
@@ -37,6 +38,8 @@
   - El Terrain se escribe sin problema lejos del origen.
   - El contenido creado en el cliente no sale por streaming.
   - `GetSurfaceAt` sin cursor cuesta unos 73 µs en el CLI; con cursor, unas 5 veces menos.
+  - **Ruta (WP-5):** dos pasadas vivas pueden quedar a solo **60 studs** (30 en tramos cercanos) y a distinta altura. La ruta publicada va hasta **~13.000 studs** por detrás de la generada, por el buffer de retroceso.
+  - **Biomas (WP-8):** `BiomeBlend.pickMaterial` y `pickOffroadSurface` cuestan unos 5 µs por llamada porque rearman los offsets en cada una. Para 1.024 columnas por chunk hay que precalcularlos (ver el entregable 2).
 - **Acuerdos con A:**
   - mientras el auto no existe, `GetVehiclePosition` devuelve `GetSpawnPoint().position` (#36);
   - el auto aparece anclado y se suelta cuando `IsWorldReadyAt` da `true`;
@@ -58,15 +61,19 @@ Que en el cliente exista el mundo vivo alrededor del auto:
 1. **`TerrainHeightField`:** altura en (x, z) a partir del punto de ruta viva más cercano (con cursor).
    - Plana en todo el ancho de la ruta más la banquina, a la altura de la ruta.
    - A partir de ahí, mezcla suave (en `TERRAIN_BLEND_WIDTH_STUDS`) hacia colinas: ruido con semilla, relativo a la altura de la ruta, con `TERRAIN_HILL_*`. Así el terreno sigue a la ruta (RC-6).
+   - **La amplitud y la rugosidad de las colinas salen de los biomas:** `BiomeBlend.blendNumber` sobre los pesos de `BiomeWeights` (clima de `ClimateField`/`ClimateGrid`, interpolado por chunk). Con `forest` dan los valores de hoy.
+   - **Pasadas cercanas (60 studs) a distinta altura:** donde dos pasadas vivas no vecinas quedan cerca, la altura del terreno entre ellas se interpola por distancia a cada una (no "la más cercana gana"). Así no queda una pared vertical que el auto chocaría de frente (pedido de A en el #53). La pendiente del terreno entre pasadas queda acotada por `TERRAIN_MAX_SLOPE_DEGREES`, y la diferencia de altura entre pasadas nunca supera lo que permite su distancia. Lo verifica una prueba.
    - Continua: sin saltos entre columnas vecinas mayores que lo que da la pendiente máxima del terreno.
 2. **`VoxelChunkBuilder`:** para un chunk de `CHUNK_SIZE_STUDS` (128) arma las tablas de material y ocupación, **por filas**, así cada paso del presupuesto es chico.
    - El rango vertical se calcula por chunk.
    - La ocupación se calibra con `TERRAIN_SURFACE_OFFSET_STUDS`.
-   - El material de arriba sale de la superficie de la columna (`SurfaceClassifier`, con cursor): `Road` y `Shoulder` → `"Ground"`, `Grass` → `"Grass"`, `Mud` → `"Mud"`. Debajo, `"Ground"`.
+   - **El material de arriba:** en la ruta y la banquina, `"Ground"`. Fuera de la ruta sale de `BiomeBlend.pickMaterial`, salvo donde la superficie (`BiomeBlend.pickOffroadSurface`, con la distancia a la banquina) da `Mud`, que va `"Mud"`. Debajo, el material `deep` del bioma con más peso.
+   - **Costo:** se suma a `BiomeBlend` (en el núcleo de biomas, con sus pruebas) una variante con los offsets precalculados por semilla, por ejemplo `BiomeBlend.newPicker(seed, catalog)`, que da exactamente lo mismo que las funciones actuales. Lo prueba una prueba de igualdad. El chunk usa esa variante.
    - Las claves son propias (strings), nunca `Enum`. Las tablas se reutilizan entre chunks.
 3. **`WorldPlanner`** (une el `ChunkPlanner` y la generación de tramos de la arquitectura):
    - con la posición del auto obtiene su `arcLength` (con cursor);
-   - genera tramos de ruta hasta `ROUTE_AHEAD_STUDS` por delante, más el retraso del buffer del WP-5, y los libera más allá de `LIVE_LOOKBACK_STUDS` por detrás;
+   - genera tramos de ruta hasta `ROUTE_AHEAD_STUDS` por delante del auto **sobre la ruta publicada** (el buffer del WP-5 ya genera internamente hasta ~13.000 studs más adelante, y eso no cambia la cuenta), y los libera más allá de `LIVE_LOOKBACK_STUDS` por detrás;
+   - **`SurfaceClassifier` y `GetSurfaceAt`:** fuera de la ruta usan `BiomeBlend.pickOffroadSurface` con `forest`, que da lo mismo que hoy (probado en el WP-8). El contrato no cambia;
    - calcula los chunks queridos: los que tocan un corredor de `TERRAIN_CORRIDOR_HALF_WIDTH_STUDS` alrededor de la ruta viva;
    - arma la cola de trabajo, priorizada por cercanía al auto: escribir chunks queridos, borrar los que dejaron de serlo (con histéresis) y **reescribir** un chunk si la ruta vuelve por una zona vieja;
    - lleva el registro de chunks escritos, para `IsWorldReadyAt` (radio `WORLD_READY_RADIUS_STUDS` = 64).
