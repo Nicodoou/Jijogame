@@ -209,6 +209,17 @@ Pedido de Nico (2026-10-16): los WPs y los PRs se presentaban de forma muy vaga,
 
 Si algo de esto no aplica, se dice "no aplica" en vez de omitirlo.
 
+#### El plan y las preguntas abiertas
+
+Pedido de Nico (2026-10-16): además del control, falta comunicar lo que se tiene planeado más allá de lo escrito para el MVP, y las preguntas de investigación. Por eso existe **`docs/plan.md`**, con una sección por área y una común. Cada agente mantiene la suya.
+
+- **En curso:** qué se está haciendo ahora y en qué estado.
+- **Próximo:** los siguientes WPs o diseños, en orden, con una línea de por qué.
+- **Después del MVP:** ideas y pedidos registrados (con su issue), para que no se pierdan.
+- **Preguntas de investigación abiertas:** lo que todavía no se sabe y hace falta averiguar, con cómo se piensa averiguarlo (investigador, experimento o prueba de juego).
+
+Se actualiza al cerrar cada sesión, junto con la memoria y el diario, y se presenta a la persona al empezar una sesión nueva o cuando lo pida.
+
 ### Experimentos
 
 A veces investigar requiere probar código (por ejemplo, ver cómo se comporta la física de Roblox). Para eso existen las ramas `exp/<tema>`:
