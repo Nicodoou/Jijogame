@@ -29,6 +29,7 @@ controller = VehicleController.new({
 	getSurfaceAt = world.getSurfaceAt,
 	isWorldReadyAt = world.isWorldReadyAt,
 	getSpawnPoint = world.getSpawnPoint,
+	getNearestRoadPoint = world.getNearestRoadPoint,
 	simulator = VehicleSimulator,
 	config = VehicleConfig,
 })

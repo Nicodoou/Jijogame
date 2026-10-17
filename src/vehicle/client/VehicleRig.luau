@@ -7,6 +7,7 @@ local VectorConversion = require(ReplicatedStorage.vehicle.shared.VectorConversi
 local VehicleParts = require(ReplicatedStorage.vehicle.shared.VehicleParts)
 local VehicleTypes = require(ReplicatedStorage.vehicle.core.VehicleTypes)
 
+type ChassisSample = VehicleTypes.ChassisSample
 type VehicleSettings = VehicleTypes.VehicleSettings
 
 export type VehicleRig = {
@@ -46,6 +47,22 @@ function VehicleRig.find(userId: number, config: VehicleSettings): VehicleRig?
 		mounts[index], forces[index], motors[index] = VectorConversion.toVector3(wheel.offset), force, motor
 	end
 	return { model = model, body = body, mounts = mounts, forces = forces, motors = motors }
+end
+
+-- El estado del chasis en el mundo, en el formato del núcleo.
+function VehicleRig.readChassis(body: BasePart): ChassisSample
+	local cframe = body.CFrame
+	return {
+		origin = VectorConversion.toVector(body.Position),
+		position = VectorConversion.toVector(body.AssemblyCenterOfMass),
+		right = VectorConversion.toVector(cframe.RightVector),
+		up = VectorConversion.toVector(cframe.UpVector),
+		forward = VectorConversion.toVector(cframe.LookVector),
+		linearVelocity = VectorConversion.toVector(body.AssemblyLinearVelocity),
+		angularVelocity = VectorConversion.toVector(body.AssemblyAngularVelocity),
+		mass = body.AssemblyMass,
+		gravity = Workspace.Gravity,
+	}
 end
 
 return VehicleRig

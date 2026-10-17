@@ -1,7 +1,7 @@
 --!strict
 -- Un paso del auto: compone los otros módulos, sin física propia. Orden fijo:
 --   1. recortar dt y las entradas;
---   2. ángulo de deriva y dirección más contravolante;
+--   2. ángulo de deriva y dirección (con el límite según la curva y el contravolante);
 --   3. "arriba" del contacto (va antes de la suspensión porque la velocidad de compresión se proyecta sobre él);
 --   4. por rueda: superficie y agarre, y después suspensión y carga (la carga es la fuerza de la suspensión);
 --   5. caja y motor;
@@ -9,10 +9,10 @@
 --      resistencia al rodar), fuerza lateral y círculo de fricción;
 --   7. fuerza total = suspensión · arriba + longitudinal · frente + lateral · costado (en el aire, 0);
 --   8. feedback.
-local Assists = require("./Assists")
 local ContactPlane = require("./ContactPlane")
 local Drivetrain = require("./Drivetrain")
 local Gearbox = require("./Gearbox")
+local RoadSteerLimit = require("./RoadSteerLimit")
 local Steering = require("./Steering")
 local SurfaceGrip = require("./SurfaceGrip")
 local StepOutputs = require("./StepOutputs")
@@ -53,19 +53,11 @@ local function buildContext(
 	settings: VehicleSettings,
 	stepSeconds: number,
 	rearGripFactor: number,
-	gear: number
+	gear: number,
+	road: RoadSteerLimit.RoadAhead?
 ): WheelForces.StepContext
 	local forwardSpeed = vector.dot(chassis.linearVelocity, chassis.forward)
 	local driftAngle = Tire.slipAngle(vector.dot(chassis.linearVelocity, chassis.right), forwardSpeed, settings)
-	local speed = vector.magnitude(chassis.linearVelocity)
-	local isReversing = gear < 0
-	local maxSteer = if isReversing
-		then Steering.reverseMaxAngle(settings)
-		else Steering.maxAngleWhileDrifting(speed, driftAngle, settings)
-	local baseSteer = if isReversing then controls.steer * maxSteer else Steering.angle(controls.steer, speed, settings)
-	local requestedSteer = baseSteer
-		+ Assists.counterSteer(driftAngle, forwardSpeed, settings)
-		+ math.rad(settings.STEER_OFFSET_DEGREES)
 	local offsets, velocities = WheelForces.describeMounts(chassis, settings)
 	return {
 		settings = settings,
@@ -75,7 +67,7 @@ local function buildContext(
 		gravity = math.max(0, VehicleMath.finiteOr(chassis.gravity, 0)),
 		forwardSpeed = forwardSpeed,
 		driftAngle = driftAngle,
-		steerAngle = math.clamp(requestedSteer, -maxSteer, maxSteer),
+		steerAngle = Steering.requestedAngle(controls, chassis, forwardSpeed, driftAngle, gear, road, settings),
 		contactUp = ContactPlane.upDirection(ContactPlane.hitPoints(contacts, settings), chassis.up, settings),
 		offsets = offsets,
 		loadShares = WeightDistribution.wheelShares(chassis, settings),
@@ -173,7 +165,8 @@ function VehicleSimulator.step(
 	chassis: ChassisSample,
 	contacts: { WheelContact? },
 	dt: number,
-	config: VehicleSettings?
+	config: VehicleSettings?,
+	road: RoadSteerLimit.RoadAhead?
 ): (VehicleState, { WheelOutput }, VehicleFeedback)
 	local settings = config or VehicleConfig
 	local isUsable = VehicleMath.isUsableStep(dt)
@@ -182,7 +175,8 @@ function VehicleSimulator.step(
 	local rearGripFactor = if isUsable
 		then SurfaceGrip.nextRearGripFactor(state.rearGripFactor, safeControls.isHandbrakeOn, stepSeconds, settings)
 		else state.rearGripFactor
-	local context = buildContext(safeControls, chassis, contacts, settings, stepSeconds, rearGripFactor, state.gear)
+	local context =
+		buildContext(safeControls, chassis, contacts, settings, stepSeconds, rearGripFactor, state.gear, road)
 	if not isUsable then
 		return StepOutputs.idleStep(state, context)
 	end

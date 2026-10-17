@@ -29,7 +29,7 @@ VehicleSpawner.__index = VehicleSpawner
 export type VehicleSpawner = typeof(setmetatable(
 	{} :: {
 		_getSpawnPoint: RoadPoint.GetSpawnPoint,
-		_tuning: TuningOverrides.TuningOverrides,
+		_tuning: TuningOverrides.TuningOverrides<VehicleSettings>,
 		_vehicles: { [Player]: Vehicle },
 		_lastRequestSeconds: { [Player]: number },
 		_remote: RemoteEvent,

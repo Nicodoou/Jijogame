@@ -119,6 +119,24 @@ return table.freeze({
 	COUNTER_STEER_MAX_DEGREES = 15,
 	COUNTER_STEER_MIN_SPEED = 10,
 
+	-- Límite de dirección según la curva (experimento): recorta la dirección que pasa del ángulo que pide el tramo
+	-- más un margen. Con ROAD_STEER_LIMIT_ENABLED en false queda apagado.
+	ROAD_STEER_LIMIT_ENABLED = true,
+	-- Margen sobre el ángulo que pide la curva (en recta, el límite es solo este margen).
+	ROAD_STEER_MARGIN_DEGREES = 8,
+	-- Distancia hacia adelante, en studs, a la que se mide la curva.
+	ROAD_STEER_LOOKAHEAD = 15,
+	-- Por debajo de esta velocidad hacia adelante (studs/s) el límite no actúa.
+	ROAD_STEER_MIN_SPEED = 10,
+	-- Si el auto está más lejos que esto del eje del camino (studs), el límite no actúa.
+	ROAD_STEER_MAX_DISTANCE = 15,
+	-- Si el auto mira a más de este ángulo del camino, el límite no actúa.
+	ROAD_STEER_MAX_HEADING_DEGREES = 60,
+	-- Un punto del camino cuyo arcLength salta más de esto (studs) respecto del último aceptado se descarta (U cerradas).
+	ROAD_STEER_MAX_ARC_JUMP = 40,
+	-- Fuera del camino y apuntando afuera, doblar hacia él es libre solo si el auto está a más de esto del eje (studs).
+	ROAD_STEER_RETURN_DISTANCE = 3,
+
 	-- Feedback.
 	DRIFT_ANGLE_THRESHOLD_DEGREES = 10,
 	DRIFT_MIN_SPEED = 15,
