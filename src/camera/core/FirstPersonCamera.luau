@@ -4,6 +4,7 @@
 local CameraAim = require("./CameraAim")
 local CameraConfig = require("./CameraConfig")
 local CameraFrame = require("./CameraFrame")
+local CameraYawLag = require("./CameraYawLag")
 local HeadSpring = require("./HeadSpring")
 
 export type VehicleView = {
@@ -26,6 +27,7 @@ export type CameraState = {
 	lookYawRadians: number,
 	lookPitchRadians: number,
 	aimYaw: number,
+	yawLag: CameraYawLag.YawLag,
 	previousVelocity: vector?,
 	travelledStuds: number,
 	swayRight: HeadSpring.HeadSpring,
@@ -67,6 +69,7 @@ function FirstPersonCamera.newState(): CameraState
 		lookYawRadians = 0,
 		lookPitchRadians = 0,
 		aimYaw = 0,
+		yawLag = CameraYawLag.new(),
 		previousVelocity = nil,
 		travelledStuds = 0,
 		swayRight = HeadSpring.new(),
@@ -137,7 +140,10 @@ local function buildPose(state: CameraState, view: VehicleView, isLookingBack: b
 	local frame = CameraAim.levelFrame(chassis, config.HORIZON_LOCK)
 	local tilt = config.HEAD_TILT
 	frame = CameraFrame.pitch(CameraFrame.roll(frame, state.tiltRoll.offset * tilt), state.tiltPitch.offset * tilt)
-	frame = CameraFrame.yaw(frame, state.lookYawRadians + state.aimYaw + if isLookingBack then math.pi else 0)
+	frame = CameraFrame.yaw(
+		frame,
+		state.lookYawRadians + state.aimYaw + state.yawLag.offset + if isLookingBack then math.pi else 0
+	)
 	frame = CameraFrame.pitch(frame, state.lookPitchRadians)
 	local position = view.headPosition
 		+ view.right * (state.swayRight.offset * config.HEAD_SWAY)
@@ -162,6 +168,7 @@ function FirstPersonCamera.step(
 	local nextState = stepHead(stepLook(state, look, stepSeconds), view, stepSeconds)
 	local aimTarget = if isLookingBack then 0 else CameraAim.targetYaw(view, settings)
 	nextState.aimYaw = CameraAim.follow(state.aimYaw, aimTarget, stepSeconds, settings)
+	nextState.yawLag = CameraYawLag.step(state.yawLag, view.forward, stepSeconds, isLookingBack, settings)
 	return nextState, buildPose(nextState, view, isLookingBack, settings)
 end
 

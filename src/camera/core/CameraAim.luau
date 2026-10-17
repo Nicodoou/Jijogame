@@ -33,6 +33,12 @@ local function signedAngle(from: vector, to: vector): number
 	return math.atan2(vector.dot(to, right), vector.dot(to, from))
 end
 
+-- Yaw (rad, positivo a la derecha, 0 mirando a -z) de una dirección, o nil si es vertical o inválida.
+function CameraAim.yawOf(direction: vector): number?
+	local flat = flatten(direction)
+	return if flat ~= nil then math.atan2(flat.x, -flat.z) else nil
+end
+
 -- Con lock en 1 el marco queda a nivel y solo conserva el yaw del auto; con 0 queda igual. En el medio, mezcla.
 function CameraAim.levelFrame(frame: CameraFrame.Frame, lock: number): CameraFrame.Frame
 	if not (lock > 0) then
