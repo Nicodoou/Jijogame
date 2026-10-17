@@ -4,6 +4,13 @@ Registro de decisiones tomadas, la más nueva arriba. Formato en `docs/coordinac
 
 Nada que esté en este registro se reabre sin un issue nuevo que explique por qué.
 
+## 2026-10-16 — Ruta: camino de 20 studs de ancho (WP-16)
+**Decidió:** Beni (a pedido de Nico)
+**Issue:** #88 (WP-16)
+**Decisión:** `ROAD_WIDTH_STUDS` pasa de 16 a 20 studs; la banquina sigue en 4 por lado. `LIVE_NEAR_CLEARANCE_STUDS` pasa de 30 a 34, porque tiene que ser mayor que el ancho más las dos banquinas (28) y se mantiene el margen de 6 studs entre banquinas de pasadas cercanas. `LIVE_CLEARANCE_STUDS` (60) no cambia, y la regla de altura entre pasadas se ajusta sola porque usa el ancho y las banquinas de `WorldConfig`.
+**Por qué:** con 16 studs de camino y un auto de unos 6, quedaban unos 5 studs por lado y en las U, a velocidad, se sentía angosto. Con 20 quedan unos 7 por lado, sigue siendo un camino de rally de montaña y hay más margen para derrapar.
+**Descartado:** 24 studs (el ancho original, se pierde el aire de camino de montaña) y dejar los 16 actuales.
+
 ## 2026-10-16 — Terreno: camino de tierra oscura (material `Mud` marrón) y campo solo de pasto (revisión 2 del WP-11)
 **Decidió:** Beni
 **Issue:** #73 (WP-11, revisión 2; PR #75)
