@@ -3,7 +3,8 @@
 -- Los iniciales son los de la configuración G del prototipo (exp/ruta-guia) y se afinan jugando (WP-5).
 
 return table.freeze({
-	ROAD_WIDTH_STUDS = 16,
+	-- Ancho del camino (WP-16): 20 studs. El auto mide unos 6, así que quedan unos 7 por lado. La banquina suma 4 por lado.
+	ROAD_WIDTH_STUDS = 20,
 	SHOULDER_WIDTH_STUDS = 4,
 	-- Color del camino (material Mud del Terrain, que el adaptador pinta): un marrón oscuro de tierra de rally.
 	-- Se calibra a ojo en Studio.
@@ -59,7 +60,9 @@ return table.freeze({
 	-- Entre este largo (más que un círculo de radio mínimo, ~380) y LIVE_NEIGHBOR_ARC_STUDS la ruta no puede cruzarse: tiene
 	-- que quedar a LIVE_NEAR_CLEARANCE_STUDS (más que el ancho con las dos banquinas) o más de sí misma.
 	LIVE_NEAR_ARC_STUDS = 400,
-	LIVE_NEAR_CLEARANCE_STUDS = 30,
+	-- Tiene que ser mayor que ROAD_WIDTH_STUDS + 2 * SHOULDER_WIDTH_STUDS (hoy 20 + 8 = 28) y dejar entre banquinas el mismo
+	-- margen de 6 studs que antes (con 16 de ancho eran 30 contra 24).
+	LIVE_NEAR_CLEARANCE_STUDS = 34,
 	-- El WP del terreno tiene que liberar todo lo que quede más atrás.
 	LIVE_LOOKBACK_STUDS = 4000,
 	-- Regla de altura (WP-9): dos pasadas no vecinas a menos de este radio (en el plano) no pueden estar a más altura de la que el

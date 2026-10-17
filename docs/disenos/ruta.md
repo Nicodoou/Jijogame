@@ -7,7 +7,7 @@
 > **Revisión del 2026-10-15 (#37).** Después de probar la ruta en Studio, Beni decidió que sea más de rally:
 > - trazado libre en un área acotada cerca del origen;
 > - perfil de cerros para la altura (pendiente máxima de 12° a 15°, dentro de una franja);
-> - ruta de 16 studs de ancho.
+> - ruta de 16 studs de ancho (desde el 2026-10-16, 20: ver la nota del WP-16 más abajo).
 >
 > Esto reemplaza la opción "arrancar en −120.000 y avanzar hacia +x" de "Distancia al origen", y el corredor de rumbo de E1 deja de aplicar. Las piezas con curvatura definida (E1), la generación en el cliente (G1) y todo el Terrain (T1) siguen igual. La arquitectura se actualiza en un WP nuevo (rediseño del secuenciador y del perfil de alturas). Ver `docs/decisiones.md`.
 
@@ -305,7 +305,7 @@ El enfoque que eligió Beni, una guía grande con curvas locales, se probó en u
 
 | Valor | Antes | Ahora |
 | --- | --- | --- |
-| `ROAD_WIDTH_STUDS` | 24 | **16** |
+| `ROAD_WIDTH_STUDS` | 24 | **16** (20 desde el WP-16) |
 | `START_POSITION` | (−120.000, 50, 0) | **(0, 50, 0)** |
 | `START_HEADING_DEGREES` | — | **0** (+x) |
 | `AREA_RADIUS_STUDS` | — | **8.000** |
@@ -347,9 +347,11 @@ El enfoque que eligió Beni, una guía grande con curvas locales, se probó en u
 
 **Nota del WP-9 (2026-10-16): regla de altura, generación por pasos y lomas.** Cambios de la implementación que no cambian las capas ni los contratos:
 
-- **Regla de altura (`LiveRoadIndex` y `RoadPiecePreview`).** El anti-cruce deja pasadas a 30 studs de eje (banquinas a unos 6 studs) sin mirar la altura, y ahí el terreno no puede bajar. Ahora, además de la distancia, una muestra nueva se rechaza si a menos de `LIVE_HEIGHT_RULE_RADIUS_STUDS` hay una muestra viva no vecina con una diferencia de altura mayor que `tan(TERRAIN_MAX_SLOPE_DEGREES − LIVE_HEIGHT_RULE_MARGIN_DEGREES) · max(0, distancia − ancho − 2 banquinas)`. El índice guarda la altura de cada muestra y usa celdas de la tercera parte del radio, con las vecinas a tres celdas guardadas en una lista que se reutiliza mientras no cambie la celda de la consulta. El radio sale de la altura máxima que pueden sacarse dos pasadas (las lomas suman 175 studs como máximo) dividida por la pendiente de la regla.
+- **Regla de altura (`LiveRoadIndex` y `RoadPiecePreview`).** El anti-cruce deja pasadas a 30 studs de eje (34 desde el WP-16; banquinas a unos 6 studs) sin mirar la altura, y ahí el terreno no puede bajar. Ahora, además de la distancia, una muestra nueva se rechaza si a menos de `LIVE_HEIGHT_RULE_RADIUS_STUDS` hay una muestra viva no vecina con una diferencia de altura mayor que `tan(TERRAIN_MAX_SLOPE_DEGREES − LIVE_HEIGHT_RULE_MARGIN_DEGREES) · max(0, distancia − ancho − 2 banquinas)`. El índice guarda la altura de cada muestra y usa celdas de la tercera parte del radio, con las vecinas a tres celdas guardadas en una lista que se reutiliza mientras no cambie la celda de la consulta. El radio sale de la altura máxima que pueden sacarse dos pasadas (las lomas suman 175 studs como máximo) dividida por la pendiente de la regla.
 - **Generación por pasos (`RoadPath`, `RoadPieceSequencer`).** `generateStep()` avanza un paso acotado: sortear una pieza (`RoadPieceChooser`), probar la próxima alternativa (`RoadPieceAlternatives` las entrega de a una, en el mismo orden y con el mismo consumo de azar) o retroceder. Devuelve el tramo cuando se completa. `generateNextSegment` y `generateNextPiece` lo repiten, y el resultado de la semilla no cambia.
 - **Lomas sin repetición (#57).** `HillProfile` recorre el plano (x, y) del ruido en diagonal (`HILL_NOISE_DIRECTION_DEGREES`) para que el perfil no se repita cada 256 longitudes de onda. Ver `docs/bugs/2026-10-16-lomas-repetidas.md`.
+
+**Nota del WP-16 (2026-10-16): camino de 20 studs.** Nico pidió calles más anchas y Beni decidió 20 (el auto mide unos 6, así que quedan unos 7 studs por lado; con 16 eran unos 5). `ROAD_WIDTH_STUDS` pasa de 16 a 20 y `LIVE_NEAR_CLEARANCE_STUDS` de 30 a 34, para que entre dos banquinas de pasadas cercanas siga habiendo 6 studs (hoy 20 + 2 × 4 = 28, contra 34). `LIVE_CLEARANCE_STUDS` (60) no cambia, y la regla de altura usa el ancho y las banquinas de `WorldConfig`, así que se ajusta sola. La banquina sigue en 4 studs. Ver `docs/decisiones.md` y `docs/wp/WP-16-camino-ancho.md`.
 
 **División en WPs (actualizada):**
 1. ~~WP de la ruta~~ (WP-2, en `main`).

@@ -16,8 +16,8 @@ Runner.test("a segment is a whole number of integration steps", function()
 	Runner.expectEqual(steps, math.floor(steps))
 end)
 
-Runner.test("the road is 16 studs wide and the world starts at the origin heading to +x", function()
-	Runner.expectEqual(WorldConfig.ROAD_WIDTH_STUDS, 16)
+Runner.test("the road is 20 studs wide and the world starts at the origin heading to +x", function()
+	Runner.expectEqual(WorldConfig.ROAD_WIDTH_STUDS, 20)
 	Runner.expectEqual(WorldConfig.START_POSITION.x, 0)
 	Runner.expectEqual(WorldConfig.START_POSITION.z, 0)
 	Runner.expectEqual(WorldConfig.START_HEADING_DEGREES, 0)
@@ -27,6 +27,15 @@ Runner.test("the live clearance is bigger than the full width of the road with b
 	local fullWidth = WorldConfig.ROAD_WIDTH_STUDS + WIDTH_SIDES * WorldConfig.SHOULDER_WIDTH_STUDS
 	Runner.expectEqual(WorldConfig.LIVE_CLEARANCE_STUDS > fullWidth, true)
 end)
+
+Runner.test(
+	"the near clearance is bigger than the road plus both shoulders, so the shoulders of two passes never touch",
+	function()
+		local roadWithShoulders = WorldConfig.ROAD_WIDTH_STUDS + WIDTH_SIDES * WorldConfig.SHOULDER_WIDTH_STUDS
+		Runner.expectEqual(WorldConfig.LIVE_NEAR_CLEARANCE_STUDS > roadWithShoulders, true)
+		Runner.expectEqual(WorldConfig.LIVE_CLEARANCE_STUDS > WorldConfig.LIVE_NEAR_CLEARANCE_STUDS, true)
+	end
+)
 
 Runner.test("the guide clearance leaves room for the live clearance and the tunnel on both sides", function()
 	local needed = WorldConfig.LIVE_CLEARANCE_STUDS + WIDTH_SIDES * WorldConfig.LOCAL_DEVIATION_MAX_STUDS
