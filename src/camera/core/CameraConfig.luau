@@ -18,8 +18,8 @@ return table.freeze({
 	LOOK_INTO_VELOCITY_MIN_SPEED = 10,
 	LOOK_INTO_SMOOTH_RATE = 5,
 	-- Lo mismo hacia el punto del camino que viene.
-	LOOK_INTO_CURVE = 0,
-	LOOK_INTO_CURVE_MAX_DEGREES = 25,
+	LOOK_INTO_CURVE = 0.4,
+	LOOK_INTO_CURVE_MAX_DEGREES = 15,
 
 	-- Mirar alrededor: límites de la cabeza respecto del frente del auto.
 	LOOK_MAX_YAW_DEGREES = 100,
