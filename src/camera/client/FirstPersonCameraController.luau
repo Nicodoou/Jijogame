@@ -1,10 +1,14 @@
 --!strict
 -- Posiciona la cámara de Roblox con lo que calcula el núcleo de la cámara. Hasta que haya auto, no la toca.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local CameraConfig = require(ReplicatedStorage.camera.core.CameraConfig)
 local FirstPersonCamera = require(ReplicatedStorage.camera.core.FirstPersonCamera)
+local TuningOverrides = require(ReplicatedStorage.vehicle.shared.TuningOverrides)
 
+type CameraConfig = typeof(CameraConfig)
 type CameraState = FirstPersonCamera.CameraState
 type LookRates = FirstPersonCamera.LookRates
 type VehicleView = FirstPersonCamera.VehicleView
@@ -18,6 +22,7 @@ FirstPersonCameraController.__index = FirstPersonCameraController
 export type FirstPersonCameraController = typeof(setmetatable(
 	{} :: {
 		_camera: Camera,
+		_tuning: TuningOverrides.TuningOverrides<CameraConfig>,
 		_state: CameraState?,
 		_lastHeadPosition: vector?,
 	},
@@ -25,7 +30,12 @@ export type FirstPersonCameraController = typeof(setmetatable(
 ))
 
 function FirstPersonCameraController.new(camera: Camera): FirstPersonCameraController
-	return setmetatable({ _camera = camera, _state = nil, _lastHeadPosition = nil }, FirstPersonCameraController)
+	return setmetatable({
+		_camera = camera,
+		_tuning = TuningOverrides.new(CameraConfig, Workspace, RunService:IsStudio()),
+		_state = nil,
+		_lastHeadPosition = nil,
+	}, FirstPersonCameraController)
 end
 
 local function toVector3(value: vector): Vector3
@@ -56,10 +66,12 @@ function FirstPersonCameraController.step(
 		self._state, self._lastHeadPosition = nil, nil
 		return
 	end
-	local state, pose = FirstPersonCamera.step(currentState(self, vehicleView), vehicleView, look, isLookingBack, dt)
+	local config = self._tuning:getConfig()
+	local state, pose =
+		FirstPersonCamera.step(currentState(self, vehicleView), vehicleView, look, isLookingBack, dt, config)
 	self._state, self._lastHeadPosition = state, vehicleView.headPosition
 	self._camera.CameraType = Enum.CameraType.Scriptable
-	self._camera.FieldOfView = CameraConfig.FIELD_OF_VIEW_DEGREES
+	self._camera.FieldOfView = config.FIELD_OF_VIEW_DEGREES
 	self._camera.CFrame = CFrame.fromMatrix(toVector3(pose.position), toVector3(pose.right), toVector3(pose.up))
 end
 

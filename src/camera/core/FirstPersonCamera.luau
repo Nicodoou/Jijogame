@@ -1,6 +1,7 @@
 --!strict
 -- Cámara en primera persona (CP-11, CP-12 y CP-2). La cabeza va en el asiento del conductor: mira
 -- alrededor dentro de un límite y se mueve con la aceleración del auto, con un resorte por eje.
+local CameraAim = require("./CameraAim")
 local CameraConfig = require("./CameraConfig")
 local CameraFrame = require("./CameraFrame")
 local HeadSpring = require("./HeadSpring")
@@ -11,6 +12,8 @@ export type VehicleView = {
 	forward: vector,
 	headPosition: vector,
 	linearVelocity: vector,
+	-- Punto del camino adelante del auto (nil si no hay), para mirar hacia la curva.
+	curveTarget: vector?,
 }
 
 -- Velocidades de giro de la cabeza en rad/s: yaw hacia la derecha y pitch hacia arriba.
@@ -22,6 +25,7 @@ export type LookRates = {
 export type CameraState = {
 	lookYawRadians: number,
 	lookPitchRadians: number,
+	aimYaw: number,
 	previousVelocity: vector?,
 	travelledStuds: number,
 	swayRight: HeadSpring.HeadSpring,
@@ -36,6 +40,8 @@ export type CameraPose = {
 	up: vector,
 	forward: vector,
 }
+
+type Config = typeof(CameraConfig)
 
 local FirstPersonCamera = {}
 
@@ -60,6 +66,7 @@ function FirstPersonCamera.newState(): CameraState
 	return {
 		lookYawRadians = 0,
 		lookPitchRadians = 0,
+		aimYaw = 0,
 		previousVelocity = nil,
 		travelledStuds = 0,
 		swayRight = HeadSpring.new(),
@@ -125,15 +132,17 @@ local function verticalVibration(state: CameraState, view: VehicleView): number
 	return waves * speedFactor * CameraConfig.HEAD_VIBRATION_AMPLITUDE_STUDS
 end
 
-local function buildPose(state: CameraState, view: VehicleView, isLookingBack: boolean): CameraPose
-	local frame: CameraFrame.Frame = { right = view.right, up = view.up, forward = view.forward }
-	frame = CameraFrame.pitch(CameraFrame.roll(frame, state.tiltRoll.offset), state.tiltPitch.offset)
-	frame = CameraFrame.yaw(frame, state.lookYawRadians + if isLookingBack then math.pi else 0)
+local function buildPose(state: CameraState, view: VehicleView, isLookingBack: boolean, config: Config): CameraPose
+	local chassis: CameraFrame.Frame = { right = view.right, up = view.up, forward = view.forward }
+	local frame = CameraAim.levelFrame(chassis, config.HORIZON_LOCK)
+	local tilt = config.HEAD_TILT
+	frame = CameraFrame.pitch(CameraFrame.roll(frame, state.tiltRoll.offset * tilt), state.tiltPitch.offset * tilt)
+	frame = CameraFrame.yaw(frame, state.lookYawRadians + state.aimYaw + if isLookingBack then math.pi else 0)
 	frame = CameraFrame.pitch(frame, state.lookPitchRadians)
 	local position = view.headPosition
-		+ view.right * state.swayRight.offset
-		+ view.forward * state.swayForward.offset
-		+ view.up * verticalVibration(state, view)
+		+ view.right * (state.swayRight.offset * config.HEAD_SWAY)
+		+ view.forward * (state.swayForward.offset * config.HEAD_SWAY)
+		+ view.up * (verticalVibration(state, view) * config.HEAD_VIBRATION)
 	return { position = position, right = frame.right, up = frame.up, forward = frame.forward }
 end
 
@@ -142,14 +151,18 @@ function FirstPersonCamera.step(
 	view: VehicleView,
 	look: LookRates,
 	isLookingBack: boolean,
-	dt: number
+	dt: number,
+	config: Config?
 ): (CameraState, CameraPose)
+	local settings = config or CameraConfig
 	if not isFiniteNumber(dt) or dt <= 0 then
-		return state, buildPose(state, view, isLookingBack)
+		return state, buildPose(state, view, isLookingBack, settings)
 	end
 	local stepSeconds = math.min(dt, CameraConfig.MAX_STEP_SECONDS)
 	local nextState = stepHead(stepLook(state, look, stepSeconds), view, stepSeconds)
-	return nextState, buildPose(nextState, view, isLookingBack)
+	local aimTarget = if isLookingBack then 0 else CameraAim.targetYaw(view, settings)
+	nextState.aimYaw = CameraAim.follow(state.aimYaw, aimTarget, stepSeconds, settings)
+	return nextState, buildPose(nextState, view, isLookingBack, settings)
 end
 
 return FirstPersonCamera

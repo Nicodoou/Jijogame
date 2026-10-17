@@ -19,6 +19,24 @@ local UP = vector.create(0, 1, 0)
 local FORWARD = vector.create(0, 0, -1)
 local NO_LOOK: LookRates = { yawRate = 0, pitchRate = 0 }
 
+-- Estas pruebas miden la cámara sin los ajustes del experimento: horizonte libre, multiplicadores en 1, sin girar el yaw.
+local CLASSIC: { [string]: any } = table.clone(CameraConfig :: any)
+local classicOverrides: { [string]: number } =
+	{ HORIZON_LOCK = 0, HEAD_SWAY = 1, HEAD_TILT = 1, HEAD_VIBRATION = 1, LOOK_INTO_VELOCITY = 0 }
+for key, value in classicOverrides do
+	CLASSIC[key] = value
+end
+
+local function classicStep(
+	state: CameraState,
+	view: VehicleView,
+	look: LookRates,
+	isLookingBack: boolean,
+	dt: number
+): (CameraState, CameraPose)
+	return FirstPersonCamera.step(state, view, look, isLookingBack, dt, CLASSIC :: any)
+end
+
 local function viewMoving(velocity: vector): VehicleView
 	return { right = RIGHT, up = UP, forward = FORWARD, headPosition = HEAD, linearVelocity = velocity }
 end
@@ -41,7 +59,7 @@ local function simulate(
 	for index = 1, frames(seconds) do
 		local time = index * FRAME_SECONDS
 		local pose
-		state, pose = FirstPersonCamera.step(state, viewAt(time), look, false, FRAME_SECONDS)
+		state, pose = classicStep(state, viewAt(time), look, false, FRAME_SECONDS)
 		observe(pose, time)
 	end
 	return state
@@ -100,15 +118,15 @@ Runner.test("the head follows the position it is given", function()
 		headPosition = vector.create(-5, 8, 40),
 		linearVelocity = vector.zero,
 	}
-	local _, pose = FirstPersonCamera.step(FirstPersonCamera.newState(), moved, NO_LOOK, false, FRAME_SECONDS)
+	local _, pose = classicStep(FirstPersonCamera.newState(), moved, NO_LOOK, false, FRAME_SECONDS)
 	Runner.expectEqual(pose.position, vector.create(-5, 8, 40))
 end)
 
 Runner.test("a positive yaw rate looks right and a positive pitch rate looks up", function()
 	local state = FirstPersonCamera.newState()
-	local _, pose = FirstPersonCamera.step(state, STILL, { yawRate = 1, pitchRate = 0 }, false, FRAME_SECONDS)
+	local _, pose = classicStep(state, STILL, { yawRate = 1, pitchRate = 0 }, false, FRAME_SECONDS)
 	Runner.expectEqual(vector.dot(pose.forward, RIGHT) > 0, true)
-	_, pose = FirstPersonCamera.step(state, STILL, { yawRate = 0, pitchRate = 1 }, false, FRAME_SECONDS)
+	_, pose = classicStep(state, STILL, { yawRate = 0, pitchRate = 1 }, false, FRAME_SECONDS)
 	Runner.expectEqual(vector.dot(pose.forward, UP) > 0, true)
 end)
 
@@ -162,18 +180,18 @@ end)
 
 Runner.test("looking back turns 180 degrees at once and looking forward again is also at once", function()
 	local state = FirstPersonCamera.newState()
-	local back, pose = FirstPersonCamera.step(state, STILL, NO_LOOK, true, FRAME_SECONDS)
+	local back, pose = classicStep(state, STILL, NO_LOOK, true, FRAME_SECONDS)
 	Runner.expectNear(vector.dot(pose.forward, FORWARD), -1, TOLERANCE)
 	Runner.expectNear(vector.dot(pose.right, RIGHT), -1, TOLERANCE)
 	Runner.expectNear(vector.dot(pose.up, UP), 1, TOLERANCE)
-	local _, facingForward = FirstPersonCamera.step(back, STILL, NO_LOOK, false, FRAME_SECONDS)
+	local _, facingForward = classicStep(back, STILL, NO_LOOK, false, FRAME_SECONDS)
 	Runner.expectNear(vector.dot(facingForward.forward, FORWARD), 1, TOLERANCE)
 end)
 
 Runner.test("looking back keeps the look limit relative to the back", function()
 	local state = FirstPersonCamera.newState()
 	for _ = 1, frames(5) do
-		state = FirstPersonCamera.step(state, STILL, { yawRate = 3, pitchRate = 0 }, true, FRAME_SECONDS)
+		state = classicStep(state, STILL, { yawRate = 3, pitchRate = 0 }, true, FRAME_SECONDS)
 	end
 	Runner.expectNear(state.lookYawRadians, math.rad(CameraConfig.LOOK_MAX_YAW_DEGREES), 1e-9)
 end)
@@ -371,7 +389,7 @@ Runner.test("the vibration depends on the distance travelled, not on the frame r
 		local view = viewMoving(FORWARD * 80)
 		local pose
 		for _ = 1, math.floor(1 / frameSeconds + 0.5) do
-			state, pose = FirstPersonCamera.step(state, view, NO_LOOK, false, frameSeconds)
+			state, pose = classicStep(state, view, NO_LOOK, false, frameSeconds)
 		end
 		return offsetAlong(pose, UP)
 	end
@@ -383,7 +401,7 @@ Runner.test("an invalid dt leaves the state as it was", function()
 		return viewMoving(FORWARD * (100 - 50 * time))
 	end, { yawRate = 1, pitchRate = 1 }, ignore)
 	for _, dt in { 0, -1, 0 / 0, math.huge, -math.huge } do
-		local nextState, pose = FirstPersonCamera.step(state, STILL, { yawRate = 5, pitchRate = 5 }, false, dt)
+		local nextState, pose = classicStep(state, STILL, { yawRate = 5, pitchRate = 5 }, false, dt)
 		Runner.expectEqual(nextState, state)
 		Runner.expectEqual(isFinitePose(pose), true)
 	end
@@ -392,9 +410,8 @@ end)
 Runner.test("a very long frame counts as the longest allowed step", function()
 	local view = viewMoving(FORWARD * 20)
 	local look = { yawRate = 1, pitchRate = 0 }
-	local longStep = FirstPersonCamera.step(FirstPersonCamera.newState(), view, look, false, 30)
-	local maxStep =
-		FirstPersonCamera.step(FirstPersonCamera.newState(), view, look, false, CameraConfig.MAX_STEP_SECONDS)
+	local longStep = classicStep(FirstPersonCamera.newState(), view, look, false, 30)
+	local maxStep = classicStep(FirstPersonCamera.newState(), view, look, false, CameraConfig.MAX_STEP_SECONDS)
 	Runner.expectEqual(longStep.lookYawRadians, maxStep.lookYawRadians)
 	Runner.expectEqual(longStep.travelledStuds, maxStep.travelledStuds)
 end)
@@ -406,10 +423,10 @@ Runner.test("NaN and infinite velocity or look rates never produce NaN", functio
 		local view = viewMoving(vector.create(value, 1, value))
 		local look = { yawRate = value, pitchRate = value }
 		local pose
-		state, pose = FirstPersonCamera.step(state, view, look, false, FRAME_SECONDS)
+		state, pose = classicStep(state, view, look, false, FRAME_SECONDS)
 		Runner.expectEqual(isFinitePose(pose), true)
 	end
-	local _, pose = FirstPersonCamera.step(state, viewMoving(FORWARD * 10), NO_LOOK, false, FRAME_SECONDS)
+	local _, pose = classicStep(state, viewMoving(FORWARD * 10), NO_LOOK, false, FRAME_SECONDS)
 	Runner.expectEqual(isFinitePose(pose), true)
 end)
 
@@ -424,7 +441,7 @@ Runner.test("an overturned car gives a finite pose that follows the car frame", 
 	local state = FirstPersonCamera.newState()
 	local pose
 	for _ = 1, 120 do
-		state, pose = FirstPersonCamera.step(state, upsideDown, { yawRate = 1, pitchRate = 1 }, false, FRAME_SECONDS)
+		state, pose = classicStep(state, upsideDown, { yawRate = 1, pitchRate = 1 }, false, FRAME_SECONDS)
 		Runner.expectEqual(isFinitePose(pose), true)
 	end
 	Runner.expectEqual(vector.dot(pose.up, -UP) > 0.8, true)
@@ -437,7 +454,7 @@ Runner.test("the arguments are not modified", function()
 	table.freeze(view)
 	local look = { yawRate = 1, pitchRate = 1 }
 	table.freeze(look)
-	local nextState = FirstPersonCamera.step(state, view, look, true, FRAME_SECONDS)
+	local nextState = classicStep(state, view, look, true, FRAME_SECONDS)
 	Runner.expectEqual(state.lookYawRadians, 0)
 	Runner.expectEqual(nextState.lookYawRadians > 0, true)
 	Runner.expectEqual(state.previousVelocity, nil)

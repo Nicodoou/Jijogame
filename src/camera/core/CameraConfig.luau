@@ -3,7 +3,23 @@
 -- Los iniciales se ajustan después en las pruebas de juego. 1 g equivale a 196,2 studs/s².
 
 return table.freeze({
-	FIELD_OF_VIEW_DEGREES = 80,
+	FIELD_OF_VIEW_DEGREES = 70,
+
+	-- Horizonte: 1 = siempre a nivel (solo sigue el yaw del auto), 0 = pegado al chasis.
+	HORIZON_LOCK = 1,
+	-- Multiplicadores (0 a 1) del balanceo, la inclinación y la vibración de la cabeza.
+	HEAD_SWAY = 0.5,
+	HEAD_TILT = 0.5,
+	HEAD_VIBRATION = 0.3,
+	-- Mirar hacia donde va el auto: fracción (0 a 1) del ángulo entre el frente y la velocidad, con tope, por encima de
+	-- una velocidad mínima (studs/s). LOOK_INTO_SMOOTH_RATE suaviza el giro (1/s).
+	LOOK_INTO_VELOCITY = 0.3,
+	LOOK_INTO_VELOCITY_MAX_DEGREES = 25,
+	LOOK_INTO_VELOCITY_MIN_SPEED = 10,
+	LOOK_INTO_SMOOTH_RATE = 5,
+	-- Lo mismo hacia el punto del camino que viene.
+	LOOK_INTO_CURVE = 0,
+	LOOK_INTO_CURVE_MAX_DEGREES = 25,
 
 	-- Mirar alrededor: límites de la cabeza respecto del frente del auto.
 	LOOK_MAX_YAW_DEGREES = 100,
