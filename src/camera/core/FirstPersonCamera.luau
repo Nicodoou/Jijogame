@@ -26,6 +26,8 @@ export type CameraState = {
 	lookYawRadians: number,
 	lookPitchRadians: number,
 	aimYaw: number,
+	-- Segundos seguidos sin entrada de mirada (tope: la espera configurada).
+	lookIdleSeconds: number,
 	previousVelocity: vector?,
 	travelledStuds: number,
 	swayRight: HeadSpring.HeadSpring,
@@ -67,6 +69,7 @@ function FirstPersonCamera.newState(): CameraState
 		lookYawRadians = 0,
 		lookPitchRadians = 0,
 		aimYaw = 0,
+		lookIdleSeconds = 0,
 		previousVelocity = nil,
 		travelledStuds = 0,
 		swayRight = HeadSpring.new(),
@@ -76,12 +79,12 @@ function FirstPersonCamera.newState(): CameraState
 	}
 end
 
--- Con entrada gira a la velocidad pedida hasta el límite; sin entrada vuelve al frente.
-local function moveLookAngle(angle: number, rate: number, limit: number, dt: number): number
-	if rate == 0 then
-		return angle * math.exp(-CameraConfig.LOOK_RETURN_RATE * dt)
+-- Con entrada gira a la velocidad pedida hasta el límite; sin entrada, pasada la espera, vuelve al frente.
+local function moveLookAngle(angle: number, rate: number, limit: number, isReturning: boolean, dt: number): number
+	if rate ~= 0 then
+		return math.clamp(angle + rate * dt, -limit, limit)
 	end
-	return math.clamp(angle + rate * dt, -limit, limit)
+	return if isReturning then angle * math.exp(-CameraConfig.LOOK_RETURN_RATE * dt) else angle
 end
 
 -- Aceleración del auto en su propio marco (derecha, adelante), a partir de la velocidad anterior.
@@ -101,10 +104,16 @@ local function speedOf(view: VehicleView): number
 	return vector.magnitude(view.linearVelocity)
 end
 
-local function stepLook(state: CameraState, look: LookRates, dt: number): CameraState
+-- Cualquier entrada de mirada (yaw o pitch) reinicia la cuenta de la espera antes de volver al frente.
+local function stepLook(state: CameraState, look: LookRates, dt: number, delay: number): CameraState
+	local yawRate, pitchRate = finiteOrZero(look.yawRate), finiteOrZero(look.pitchRate)
 	local nextState = table.clone(state)
-	nextState.lookYawRadians = moveLookAngle(state.lookYawRadians, finiteOrZero(look.yawRate), MAX_LOOK_YAW, dt)
-	nextState.lookPitchRadians = moveLookAngle(state.lookPitchRadians, finiteOrZero(look.pitchRate), MAX_LOOK_PITCH, dt)
+	nextState.lookIdleSeconds = if yawRate == 0 and pitchRate == 0
+		then math.min(state.lookIdleSeconds + dt, delay)
+		else 0
+	local isReturning = nextState.lookIdleSeconds >= delay
+	nextState.lookYawRadians = moveLookAngle(state.lookYawRadians, yawRate, MAX_LOOK_YAW, isReturning, dt)
+	nextState.lookPitchRadians = moveLookAngle(state.lookPitchRadians, pitchRate, MAX_LOOK_PITCH, isReturning, dt)
 	return nextState
 end
 
@@ -159,7 +168,11 @@ function FirstPersonCamera.step(
 		return state, buildPose(state, view, isLookingBack, settings)
 	end
 	local stepSeconds = math.min(dt, CameraConfig.MAX_STEP_SECONDS)
-	local nextState = stepHead(stepLook(state, look, stepSeconds), view, stepSeconds)
+	local nextState = stepHead(
+		stepLook(state, look, stepSeconds, math.max(finiteOrZero(settings.LOOK_RETURN_DELAY_SECONDS), 0)),
+		view,
+		stepSeconds
+	)
 	local aimTarget = if isLookingBack then 0 else CameraAim.targetYaw(view, settings)
 	nextState.aimYaw = CameraAim.follow(state.aimYaw, aimTarget, stepSeconds, settings)
 	return nextState, buildPose(nextState, view, isLookingBack, settings)

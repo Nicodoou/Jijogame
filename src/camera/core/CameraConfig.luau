@@ -26,6 +26,8 @@ return table.freeze({
 	LOOK_MAX_PITCH_DEGREES = 35,
 	-- Qué tan rápido vuelve al frente sin entrada (exponencial, 1/s): llega al 95% en unos 0,75 s.
 	LOOK_RETURN_RATE = 4,
+	-- Segundos sin mover la mirada antes de que empiece a volver al frente (0 = vuelve enseguida).
+	LOOK_RETURN_DELAY_SECONDS = 0.8,
 
 	-- Resorte de la cabeza (rad/s y razón de amortiguación). Casi crítico: vuelve sin rebotar de más.
 	HEAD_SPRING_FREQUENCY = 8,

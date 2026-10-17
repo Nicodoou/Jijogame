@@ -21,8 +21,14 @@ local NO_LOOK: LookRates = { yawRate = 0, pitchRate = 0 }
 
 -- Estas pruebas miden la cámara sin los ajustes del experimento: horizonte libre, multiplicadores en 1, sin girar el yaw.
 local CLASSIC: { [string]: any } = table.clone(CameraConfig :: any)
-local classicOverrides: { [string]: number } =
-	{ HORIZON_LOCK = 0, HEAD_SWAY = 1, HEAD_TILT = 1, HEAD_VIBRATION = 1, LOOK_INTO_VELOCITY = 0 }
+local classicOverrides: { [string]: number } = {
+	HORIZON_LOCK = 0,
+	HEAD_SWAY = 1,
+	HEAD_TILT = 1,
+	HEAD_VIBRATION = 1,
+	LOOK_INTO_VELOCITY = 0,
+	LOOK_RETURN_DELAY_SECONDS = 0,
+}
 for key, value in classicOverrides do
 	CLASSIC[key] = value
 end
@@ -394,6 +400,50 @@ Runner.test("the vibration depends on the distance travelled, not on the frame r
 		return offsetAlong(pose, UP)
 	end
 	Runner.expectNear(offsetAfterDistance(1 / 60), offsetAfterDistance(1 / 30), 1e-9)
+end)
+
+-- Mira a la derecha hasta el tope y deja pasar `idleSeconds` sin entrada, con la espera configurada.
+local function lookedThenIdle(idleSeconds: number): CameraState
+	local state = FirstPersonCamera.newState()
+	for _ = 1, frames(2) do
+		state = FirstPersonCamera.step(state, STILL, { yawRate = 3, pitchRate = 0 }, false, FRAME_SECONDS)
+	end
+	for _ = 1, frames(idleSeconds) do
+		state = FirstPersonCamera.step(state, STILL, NO_LOOK, false, FRAME_SECONDS)
+	end
+	return state
+end
+
+Runner.test("the look does not return before the delay and returns after it", function()
+	local limit = math.rad(CameraConfig.LOOK_MAX_YAW_DEGREES)
+	local before = lookedThenIdle(CameraConfig.LOOK_RETURN_DELAY_SECONDS - 0.1)
+	Runner.expectNear(before.lookYawRadians, limit, 1e-9)
+	local after = lookedThenIdle(CameraConfig.LOOK_RETURN_DELAY_SECONDS + 1)
+	Runner.expectEqual(after.lookYawRadians < 0.1 * limit, true)
+end)
+
+Runner.test("new look input restarts the delay", function()
+	local limit = math.rad(CameraConfig.LOOK_MAX_YAW_DEGREES)
+	local state = lookedThenIdle(CameraConfig.LOOK_RETURN_DELAY_SECONDS - 0.1)
+	state = FirstPersonCamera.step(state, STILL, { yawRate = -0.01, pitchRate = 0 }, false, FRAME_SECONDS)
+	for _ = 1, frames(CameraConfig.LOOK_RETURN_DELAY_SECONDS - 0.1) do
+		state = FirstPersonCamera.step(state, STILL, NO_LOOK, false, FRAME_SECONDS)
+	end
+	Runner.expectEqual(state.lookYawRadians > limit - 0.01, true)
+end)
+
+Runner.test("looking back is unaffected by the return delay", function()
+	local delayed = FirstPersonCamera.step(FirstPersonCamera.newState(), STILL, NO_LOOK, true, FRAME_SECONDS)
+	local _, pose = FirstPersonCamera.step(delayed, STILL, NO_LOOK, true, FRAME_SECONDS)
+	Runner.expectNear(vector.dot(pose.forward, FORWARD), -1, TOLERANCE)
+end)
+
+Runner.test("an invalid dt does not advance the return delay", function()
+	local state = lookedThenIdle(0.3)
+	for _, dt in { 0, -1, 0 / 0, math.huge } do
+		local nextState = FirstPersonCamera.step(state, STILL, NO_LOOK, false, dt)
+		Runner.expectEqual(nextState.lookIdleSeconds, state.lookIdleSeconds)
+	end
 end)
 
 Runner.test("an invalid dt leaves the state as it was", function()
