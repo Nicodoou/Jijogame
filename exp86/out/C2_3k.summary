@@ -1,0 +1,15 @@
+== C2_3k variant=localDev=120 seeds=1-3000 segs=400 wall=1129s
+ENCLOSED seed=90 segment=361 kind=SEQ
+ENCLOSED seed=232 segment=210 kind=SEQ
+ENCLOSED seed=364 segment=65 kind=SEQ
+ENCLOSED seed=454 segment=397 kind=SEQ
+ENCLOSED seed=460 segment=42 kind=SEQ
+ENCLOSED seed=475 segment=371 kind=SEQ
+ENCLOSED seed=979 segment=396 kind=SEQ
+ENCLOSED seed=1807 segment=119 kind=GUIDE
+ENCLOSED seed=2028 segment=389 kind=SEQ
+ENCLOSED seed=2519 segment=294 kind=SEQ
+ENCLOSED seed=2639 segment=142 kind=SEQ
+ENCLOSED seed=2668 segment=228 kind=SEQ
+seedsWithMaxFailOver10/30/100/300=276/48/14/12
+TOTAL enclosed=12 exposureSegments=1198202 worstStepMs=61.52 maxFailBeforeAdvance=601 maxRetractedAtOnce=16

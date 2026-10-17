@@ -122,7 +122,11 @@ function RoadGuideModule.new(random: SeededRandom.SeededRandom): RoadGuide
 
 	local function discardLastWaypoints(requested: number, keptWaypointCount: number)
 		local discarded = math.min(requested, #waypoints - keptWaypointCount)
-		if discarded < 1 or failStreak > WorldConfig.GUIDE_FAIL_LIMIT then
+		if discarded < 1 or failStreak > (require("./Exp86").guideFailLimit or WorldConfig.GUIDE_FAIL_LIMIT) then
+			local Exp86 = require("./Exp86")
+			if Exp86.onGuideStuck then
+				Exp86.onGuideStuck({ waypoints = waypoints, keptWaypointCount = keptWaypointCount, failStreak = failStreak, discarded = discarded, requested = requested })
+			end
 			error("the road guide has no way out", 3)
 		end
 		for _ = 1, discarded do
@@ -136,7 +140,7 @@ function RoadGuideModule.new(random: SeededRandom.SeededRandom): RoadGuide
 
 	local function ensureCovers(arcLength: number)
 		local usedWaypointCount = math.floor(arcLength / STEP_STUDS) + 1
-		local wantedWaypointCount = usedWaypointCount + 1 + WorldConfig.GUIDE_AHEAD_WAYPOINTS
+		local wantedWaypointCount = usedWaypointCount + 1 + (require("./Exp86").guideAhead or WorldConfig.GUIDE_AHEAD_WAYPOINTS)
 		while #waypoints < wantedWaypointCount do
 			if tryToGrow() then
 				if #waypoints > longestCount then
@@ -145,6 +149,8 @@ function RoadGuideModule.new(random: SeededRandom.SeededRandom): RoadGuide
 				end
 			else
 				failStreak += 1
+				local st = require("./Exp86").stats
+				if failStreak > st.guideMaxFail then st.guideMaxFail = failStreak end
 				discardLastWaypoints(
 					1 + failStreak // WorldConfig.GUIDE_BACKTRACK_FAILS_PER_EXTRA_WAYPOINT,
 					usedWaypointCount
@@ -191,6 +197,18 @@ function RoadGuideModule.new(random: SeededRandom.SeededRandom): RoadGuide
 	end
 
 	return {
+		debugWaypoints = function() return waypoints end,
+		debugResetFailStreak = function() failStreak = 0 end,
+		debugReroll = function(keepCount: number)
+			keepCount = math.max(2, keepCount)
+			while #waypoints > keepCount do
+				table.remove(waypoints)
+				table.remove(headings)
+			end
+			if #headings >= 2 then
+				lastTurnSide = if RoadFrame.wrapAngleRadians(headings[#headings] - headings[#headings - 1]) >= 0 then 1 else -1
+			end
+		end,
 		ensureCovers = ensureCovers,
 		project = project,
 		getPointAt = getPointAt,

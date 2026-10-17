@@ -1,0 +1,5 @@
+out/*.png
+out/*.[0-9].txt
+out/*.[0-9][0-9].txt
+out/seed*.txt
+out/h.*

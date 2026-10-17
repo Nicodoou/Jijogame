@@ -1,0 +1,17 @@
+seed=255 últimos 4000 studs: gentleCurve=4 sCurve=2 sharpCurve=55 straight=5 | giran-hacia-atrás=0
+seed=398 últimos 4000 studs: gentleCurve=9 sCurve=10 sharpCurve=44 straight=11 | giran-hacia-atrás=0
+seed=703 últimos 4000 studs: gentleCurve=14 sCurve=9 sharpCurve=115 straight=32 | giran-hacia-atrás=0
+seed=717 últimos 4000 studs: gentleCurve=2 sharpCurve=64 straight=19 uTurn=15 | giran-hacia-atrás=15
+seed=1010 últimos 4000 studs: gentleCurve=13 sCurve=6 sharpCurve=88 straight=7 uTurn=15 | giran-hacia-atrás=15
+seed=1282 últimos 4000 studs: gentleCurve=5 sCurve=10 sharpCurve=67 straight=29 | giran-hacia-atrás=0
+seed=1723 últimos 4000 studs: sharpCurve=18 straight=3 | giran-hacia-atrás=0
+seed=1819 últimos 4000 studs: gentleCurve=8 sCurve=12 sharpCurve=61 straight=16 | giran-hacia-atrás=0
+seed=1901 últimos 4000 studs: gentleCurve=9 sCurve=10 sharpCurve=85 straight=12 | giran-hacia-atrás=0
+seed=1925 últimos 4000 studs: gentleCurve=9 sCurve=14 sharpCurve=133 straight=31 | giran-hacia-atrás=0
+seed=2106 últimos 4000 studs: gentleCurve=10 hairpinPair=8 sCurve=18 sharpCurve=135 straight=32 | giran-hacia-atrás=8
+seed=2216 últimos 4000 studs: gentleCurve=16 hairpinPair=2 sCurve=19 sharpCurve=135 straight=17 | giran-hacia-atrás=2
+seed=2260 últimos 4000 studs: sharpCurve=1 | giran-hacia-atrás=0
+seed=2349 últimos 4000 studs: gentleCurve=7 hairpinPair=1 sCurve=12 sharpCurve=96 straight=28 | giran-hacia-atrás=1
+seed=2435 últimos 4000 studs: gentleCurve=10 sCurve=8 sharpCurve=140 straight=22 uTurn=8 | giran-hacia-atrás=8
+seed=2478 últimos 4000 studs: gentleCurve=6 sCurve=2 sharpCurve=70 straight=36 | giran-hacia-atrás=0
+semillas encerradas con al menos una horquilla/U en los últimos 4000 studs: 6/16

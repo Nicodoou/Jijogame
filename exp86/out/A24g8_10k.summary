@@ -1,0 +1,3 @@
+== A24g8_10k variant=maxPieces=24,memory=20000,guideAhead=8 seeds=1-10000 segs=400 wall=2907s
+seedsWithMaxFailOver10/30/100/300=1122/174/0/0
+TOTAL enclosed=0 exposureSegments=4000000 worstStepMs=253.1 maxFailBeforeAdvance=84 maxRetractedAtOnce=15

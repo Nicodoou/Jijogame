@@ -99,15 +99,48 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 	}
 	index.add(state.x, state.y, state.z, 0)
 
+	-- EXP86: diagnóstico
+	local Exp86 = require("./Exp86")
+	local diag = Exp86.diag
+	local reasonCounts: { [string]: number } = {}
+	local eventLog: { any } = {}
+	local function logEvent(event: any)
+		table.insert(eventLog, event)
+		if #eventLog > 300 then
+			table.remove(eventLog, 1)
+		end
+	end
 	local function tryPiece(piece: RoadPiece): PreviewResult?
-		return (previewer.preview(state, piece, guideSegment))
+		local result, reason = previewer.preview(state, piece, guideSegment)
+		if diag and result == nil then
+			local key = piece.kind .. ":" .. tostring(reason)
+			reasonCounts[key] = (reasonCounts[key] or 0) + 1
+			reasonCounts["_" .. tostring(reason)] = (reasonCounts["_" .. tostring(reason)] or 0) + 1
+		end
+		return result
 	end
 
 	local function drawPiece()
 		local previousKind: RoadPieceCatalog.PieceKind? = if #checkpoints > 0
 			then checkpoints[#checkpoints].pieceKind
 			else nil
-		local choice = RoadPieceChooser.choose(guide, random, state, guideSegment, guideArcLength, previousKind)
+		local choice
+		if Exp86.guideRescue then
+			-- EXP86: si la guía se queda sin salida, la ruta retrocede (así la guía puede descartar más puntos)
+			local ok, result = pcall(RoadPieceChooser.choose, guide, random, state, guideSegment, guideArcLength, previousKind)
+			if not ok then
+				if not string.find(tostring(result), "guide") then
+					error(result, 0)
+				end
+				Exp86.stats.guideRescues += 1
+				guide.debugResetFailStreak()
+				phase = "takeBack"
+				return
+			end
+			choice = result
+		else
+			choice = RoadPieceChooser.choose(guide, random, state, guideSegment, guideArcLength, previousKind)
+		end
 		guideSegment, guideArcLength = choice.guideSegment, choice.guideArcLength
 		alternatives = RoadPieceAlternatives.new(choice.piece, choice.towardSign, random)
 		isUsingLastResort = false
@@ -135,17 +168,25 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 			guideArcLength = guideArcLength,
 			pieceKind = result.pieceKind,
 		})
-		if #checkpoints > WorldConfig.ROAD_BACKTRACK_MAX_PIECES then
+		if #checkpoints > (Exp86.maxPieces or WorldConfig.ROAD_BACKTRACK_MAX_PIECES) then
 			table.remove(checkpoints, 1)
 		end
 		for _, sample in result.samples do
 			index.add(sample.position.x, sample.position.y, sample.position.z, sample.arcLength)
+			if diag then
+				Exp86.live[math.floor(sample.arcLength / STEP_STUDS + 0.5)] = { sample.position.x, sample.position.z, sample.position.y }
+			end
 		end
 		state, guideSegment, guideArcLength = result.endState, result.guideSegment, result.guideArcLength
+		if diag then
+			local off, arc = guide.project(state.x, state.z, guideSegment)
+			logEvent({ ev = "commit", kind = result.pieceKind, x = state.x, z = state.z, y = state.y, h = state.heading, off = off, arc = arc, si = state.sampleIndex })
+		end
 		statistics.pieceCount += 1
 		statistics.pieceCountByKind[result.pieceKind] = (statistics.pieceCountByKind[result.pieceKind] or 0) + 1
 		statistics.arcLengthStuds = state.sampleIndex * STEP_STUDS
 		if statistics.arcLengthStuds > bestArcLength then
+			Exp86.stats.maxFail = math.max(Exp86.stats.maxFail, failStreak)
 			bestArcLength = statistics.arcLengthStuds
 			failStreak = 0
 		end
@@ -153,10 +194,21 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 
 	local function takeBack()
 		failStreak += 1
-		if #checkpoints == 0 or failStreak > WorldConfig.ROAD_FAIL_LIMIT then
+		if diag then
+			local off, arc = guide.project(state.x, state.z, guideSegment)
+			logEvent({ ev = "stuck", x = state.x, z = state.z, y = state.y, h = state.heading, off = off, arc = arc, si = state.sampleIndex, fs = failStreak, cp = #checkpoints })
+		end
+		if #checkpoints == 0 or failStreak > (Exp86.failLimit or WorldConfig.ROAD_FAIL_LIMIT) then
+			if diag then
+				local h = Exp86.onEnclosed
+				if h then
+					h({ log = eventLog, reasons = reasonCounts, best = bestArcLength, state = state, guide = guide, checkpoints = checkpoints, index = index, pieceCount = statistics.pieceCount })
+				end
+			end
 			error("the road is enclosed: no piece fits and there is nothing left to take back", 3)
 		end
-		local count = math.min(#checkpoints, 1 + failStreak // WorldConfig.ROAD_BACKTRACK_FAILS_PER_EXTRA_PIECE)
+		local count = math.min(math.max(1, #checkpoints - (Exp86.keepFloor or 0)), 1 + failStreak // (Exp86.failsPerExtra or WorldConfig.ROAD_BACKTRACK_FAILS_PER_EXTRA_PIECE))
+		Exp86.stats.maxCount = math.max(Exp86.stats.maxCount, count)
 		local checkpoint = checkpoints[#checkpoints - count + 1]
 		for _ = 1, count do
 			local retracted = table.remove(checkpoints) :: Checkpoint
@@ -164,7 +216,16 @@ function RoadPieceSequencerModule.new(seed: number): RoadPieceSequencer
 			statistics.pieceCountByKind[retracted.pieceKind] -= 1
 		end
 		state, guideSegment, guideArcLength = checkpoint.state, checkpoint.guideSegment, checkpoint.guideArcLength
+		if Exp86.rerollEvery and failStreak % Exp86.rerollEvery == 0 then
+			guide.debugReroll(guideSegment + 1 + (Exp86.rerollKeepAhead or 1))
+			Exp86.stats.rerolls += 1
+		end
 		index.removeAfter(state.sampleIndex * STEP_STUDS)
+		if diag then
+			for i = state.sampleIndex + 1, bestArcLength // STEP_STUDS + 10 do
+				Exp86.live[i] = nil
+			end
+		end
 		statistics.arcLengthStuds = state.sampleIndex * STEP_STUDS
 		statistics.backtrackCount += 1
 		statistics.retractedPieceCount += count

@@ -33,7 +33,8 @@ local CELL_STUDS = math.max(WorldConfig.LIVE_CLEARANCE_STUDS, WorldConfig.LIVE_H
 local KEY_STRIDE = WorldConfig.ROAD_QUERY_GRID_KEY_STRIDE
 local NEAR_ARC_STUDS = WorldConfig.LIVE_NEAR_ARC_STUDS
 local LOOKBACK_STUDS = WorldConfig.LIVE_LOOKBACK_STUDS
-local KEPT_ARC_STUDS = LOOKBACK_STUDS + WorldConfig.LIVE_BACKTRACK_MEMORY_STUDS
+local Exp86 = require("./Exp86")
+local KEPT_ARC_STUDS = LOOKBACK_STUDS + (Exp86.memory or WorldConfig.LIVE_BACKTRACK_MEMORY_STUDS)
 -- Anillo de muestras: cada una ocupa el lugar `id % RING_SIZE`, que ya se liberó cuando llega el id nuevo.
 local RING_SIZE = KEPT_ARC_STUDS // STEP_STUDS + 2
 

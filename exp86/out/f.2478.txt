@@ -1,0 +1,4 @@
+ENCLOSED seed=2478 segment=380 kind=SEQ
+rerolls=0
+variant=maxPieces=20,memory=17000 maxFailBeforeAdvance=601 maxRetractedAtOnce=16 seedsWithMaxFailOver10/30/100/300=1/1/1/1
+range 2478-2478 segs=400 enclosed=1 exposure=379 worstStepMs=57.41(seed 2478) time=33.9s

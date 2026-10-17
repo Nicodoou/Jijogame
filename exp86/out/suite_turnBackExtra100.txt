@@ -1,0 +1,7 @@
+variante=turnBackExtra=100 semillas=200 tiempo=884.52s
+encierros=1 violAntiCruce=0 violAltura=0 violMuestras=0 continuidad=0
+ultimoRecurso=8346 retrocesos=2176 piezasRetiradas=6362 retrocesosGuia=1689
+giroGrande>180(semillas)=200/200 cuadrantes=200/200 curvasCerradas/km=2.81 (>1) horquillas/km=0.65 (>0.3)
+ventanasGiro>180=23.82% (>=20) U/km=0.73 (>=0.9) rectaMax=210 (<=250) rectaMedia=36.36
+pendiente>10°=31.68% (>=25) largoSubida=100.52 (<150) ventanasLomas>60=6718/100448
+pendienteMax=60.94700155200843 distMinNoVecinas=60.34

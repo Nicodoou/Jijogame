@@ -15,6 +15,7 @@ local RoadPieceBuilder = require("./RoadPieceBuilder")
 local RoadPieceCatalog = require("./RoadPieceCatalog")
 local RoadPieceProfile = require("./RoadPieceProfile")
 local RoadPieceSelector = require("./RoadPieceSelector")
+local Exp86 = require("./Exp86")
 local WorldConfig = require("./WorldConfig")
 
 type IntegratorState = RoadIntegrator.IntegratorState
@@ -76,9 +77,9 @@ function RoadPiecePreviewModule.new(
 
 	local function getTunnel(piece: RoadPiece): number
 		if RoadPieceSelector.getDefinition(piece.kind).turnsBack then
-			return WorldConfig.LOCAL_DEVIATION_MAX_STUDS + WorldConfig.TURN_BACK_EXTRA_DEVIATION_STUDS
+			return (Exp86.localDev or WorldConfig.LOCAL_DEVIATION_MAX_STUDS) + (Exp86.turnBackExtra or WorldConfig.TURN_BACK_EXTRA_DEVIATION_STUDS)
 		end
-		return WorldConfig.LOCAL_DEVIATION_MAX_STUDS
+		return Exp86.localDev or WorldConfig.LOCAL_DEVIATION_MAX_STUDS
 	end
 
 	local function walk(
@@ -135,7 +136,7 @@ function RoadPiecePreviewModule.new(
 			getDeviationLimit(
 				finalState,
 				result.guideSegment,
-				WorldConfig.LOCAL_DEVIATION_MAX_STUDS,
+				Exp86.localDev or WorldConfig.LOCAL_DEVIATION_MAX_STUDS,
 				DEVIATION_TOLERANCE_STUDS
 			)
 		)

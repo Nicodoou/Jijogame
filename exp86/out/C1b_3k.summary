@@ -1,0 +1,12 @@
+== C1b_3k variant=turnBackExtra=100 seeds=1-3000 segs=400 wall=1408s
+ENCLOSED seed=84 segment=283 kind=SEQ
+ENCLOSED seed=376 segment=221 kind=SEQ
+ENCLOSED seed=402 segment=378 kind=GUIDE
+ENCLOSED seed=493 segment=158 kind=SEQ
+ENCLOSED seed=657 segment=139 kind=SEQ
+ENCLOSED seed=1277 segment=329 kind=SEQ
+ENCLOSED seed=1499 segment=162 kind=SEQ
+ENCLOSED seed=2562 segment=382 kind=SEQ
+ENCLOSED seed=2755 segment=370 kind=SEQ
+seedsWithMaxFailOver10/30/100/300=337/34/9/9
+TOTAL enclosed=9 exposureSegments=1198813 worstStepMs=91.31 maxFailBeforeAdvance=601 maxRetractedAtOnce=16

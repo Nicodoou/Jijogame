@@ -1,0 +1,7 @@
+variante=maxPieces=24,memory=20000,guideAhead=8 semillas=200 tiempo=990.74s
+encierros=0 violAntiCruce=0 violAltura=0 violMuestras=0 continuidad=0
+ultimoRecurso=7548 retrocesos=2119 piezasRetiradas=4075 retrocesosGuia=1522
+giroGrande>180(semillas)=200/200 cuadrantes=200/200 curvasCerradas/km=2.27 (>1) horquillas/km=0.98 (>0.3)
+ventanasGiro>180=22.92% (>=20) U/km=0.99 (>=0.9) rectaMax=286 (<=250) rectaMedia=37.03
+pendiente>10°=31.68% (>=25) largoSubida=100.51 (<150) ventanasLomas>60=6718/100600
+pendienteMax=60.93455031507661 distMinNoVecinas=60.02

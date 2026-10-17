@@ -1,0 +1,7 @@
+variante=base semillas=200 tiempo=898.08s
+encierros=0 violAntiCruce=0 violAltura=0 violMuestras=0 continuidad=0
+ultimoRecurso=8245 retrocesos=2450 piezasRetiradas=5802 retrocesosGuia=1564
+giroGrande>180(semillas)=200/200 cuadrantes=200/200 curvasCerradas/km=2.27 (>1) horquillas/km=0.98 (>0.3)
+ventanasGiro>180=22.93% (>=20) U/km=1.01 (>=0.9) rectaMax=232 (<=250) rectaMedia=37.07
+pendiente>10°=31.68% (>=25) largoSubida=100.51 (<150) ventanasLomas>60=6718/100600
+pendienteMax=60.93455031507661 distMinNoVecinas=60.02

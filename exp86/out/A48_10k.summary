@@ -1,0 +1,8 @@
+== A48_10k variant=maxPieces=48,memory=40000 seeds=1-10000 segs=400 wall=1094s
+ENCLOSED seed=3286 segment=115 kind=GUIDE
+ENCLOSED seed=4978 segment=133 kind=GUIDE
+ENCLOSED seed=5477 segment=192 kind=GUIDE
+ENCLOSED seed=7036 segment=154 kind=GUIDE
+ENCLOSED seed=8391 segment=135 kind=GUIDE
+seedsWithMaxFailOver10/30/100/300=1175/190/5/5
+TOTAL enclosed=5 exposureSegments=3998724 worstStepMs=30.44 maxFailBeforeAdvance=601 maxRetractedAtOnce=15
