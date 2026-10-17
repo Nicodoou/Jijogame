@@ -365,3 +365,7 @@ Decidió Nico, a partir de una pregunta suya sobre cómo meter cualquier modelo 
 ## Aprobación
 
 Arquitectura aprobada por **Nico** (2026-10-15, PR #34) y, en la parte de `src/app/`, por **Beni** (2026-10-15, PR #34). Revisada por el Agente B.
+
+### Freno motor, aire y freno de mano que sostiene (WP-17)
+
+Tres fuerzas más entran en `longitudinalRequest` (módulo `OpposingForces`) y respetan el tope común por paso. Simplificaciones aceptadas: en el aire no actúan; la resistencia del aire se aplica en el contacto de las ruedas, así que la recorta el círculo de fricción (en pendientes de 45° o más, con poca carga, no alcanza a acotar la velocidad hacia atrás en 20 s).

@@ -95,6 +95,14 @@ return table.freeze({
 	SHIFT_TORQUE_FRACTION = 0,
 	REVERSE_ENGAGE_SPEED = 1,
 
+	-- Freno motor (WP-17): desaceleración (studs/s²) en 1ra al corte con el acelerador suelto. En otras marchas escala con
+	-- la relación respecto de 1ra, y con las RPM entre el ralentí y el corte.
+	ENGINE_BRAKE_DECELERATION = 8,
+	-- Por debajo de estas RPM el embrague se abre y no hay freno motor.
+	ENGINE_BRAKE_MIN_RPM = 1500,
+	-- Resistencia del aire: desaceleración = esto · v² (studs/s² por (studs/s)²).
+	AIR_DRAG_PER_SPEED_SQUARED = 0.001,
+
 	-- Tracción: fracción de la fuerza que va al eje trasero.
 	REAR_BIAS = 0,
 
@@ -103,6 +111,12 @@ return table.freeze({
 	BRAKE_DECELERATION = 55,
 	BRAKE_FRONT_BIAS = 0.6,
 	HANDBRAKE_FORCE_PER_LOAD = 0.4,
+	-- Freno de mano que sostiene (WP-17): casi quieto y sin derrapar frena las cuatro ruedas con esta fuerza por unidad
+	-- de carga (alcanza para la pendiente más empinada que el auto sube) y se libera al soltar el freno de mano.
+	HANDBRAKE_HOLD_FORCE_PER_LOAD = 0.6,
+	-- Velocidad del chasis (studs/s) y deriva máxima (grados) por debajo de las cuales el freno de mano sostiene.
+	HANDBRAKE_HOLD_SPEED = 3,
+	HANDBRAKE_HOLD_MAX_DRIFT_DEGREES = 10,
 
 	-- Dirección.
 	STEER_MAX_LOW_SPEED_DEGREES = 36,
