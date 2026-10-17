@@ -15,6 +15,9 @@ local WorldConfig = require("../../src/world/core/WorldConfig")
 local VOXEL = WorldConfig.TERRAIN_VOXEL_STUDS
 local CHUNK_VOXELS = WorldConfig.CHUNK_SIZE_STUDS // VOXEL
 local ROAD_HALF_WIDTH = WorldConfig.ROAD_WIDTH_STUDS / 2
+-- Con el eje en el borde entre dos columnas, los centros quedan a 2, 6, 10... studs: las que no pasan de la mitad del ancho
+-- son camino (el borde cuenta como camino), a cada lado del eje.
+local ROAD_WIDTH_COLUMNS = 2 * math.floor(ROAD_HALF_WIDTH / VOXEL + 0.5)
 local SEGMENTS = 5
 local SEED = 12
 local STRAIGHT_CHUNK_X = 2
@@ -165,25 +168,27 @@ Runner.test(
 			{ { STRAIGHT_CHUNK_X, 0 }, { STRAIGHT_CHUNK_X, -1 } },
 			false
 		)
-		Runner.expectEqual(counts.Mud, 2 * 2 * CHUNK_VOXELS)
+		Runner.expectEqual(counts.Mud, ROAD_WIDTH_COLUMNS * CHUNK_VOXELS)
 		Runner.expectEqual(counts.Ground, nil)
-		Runner.expectEqual(counts.Rock, 2 * (CHUNK_VOXELS - 2) * CHUNK_VOXELS)
+		Runner.expectEqual(counts.Rock, (2 * CHUNK_VOXELS - ROAD_WIDTH_COLUMNS) * CHUNK_VOXELS)
 	end
 )
 
 Runner.test(
 	"a column whose center is exactly on the edge of the road is Mud, and the shoulder next to it is the biome",
 	function()
-		-- Con el eje en z = 2 los centros de las columnas quedan a 0, 4, 8, 12, 16...: el 8 cae justo en el borde del camino.
-		local startZ = 2
+		-- Con el eje en z = VOXEL los centros de las columnas quedan a 2, 2, 6, 10, 14... studs del eje: el 10 cae justo en el borde
+		-- del camino.
+		local startZ = VOXEL
+		local edgeColumn = (startZ + ROAD_HALF_WIDTH) / VOXEL + 0.5
 		local builder = createBuilder(createSegments(startZ, straightCurvature))
 		local result = buildChunk(builder, STRAIGHT_CHUNK_X, 0)
 		for column = 1, 6 do
 			local distance = math.abs((column - 0.5) * VOXEL - startZ)
 			Runner.expectEqual(findTopMaterial(result, 7, column), expectedMaterial(distance))
 		end
-		Runner.expectEqual(findTopMaterial(result, 7, 3), "Mud")
-		Runner.expectEqual(findTopMaterial(result, 7, 4), OFFROAD_MATERIAL)
+		Runner.expectEqual(findTopMaterial(result, 7, edgeColumn), "Mud")
+		Runner.expectEqual(findTopMaterial(result, 7, edgeColumn + 1), OFFROAD_MATERIAL)
 	end
 )
 

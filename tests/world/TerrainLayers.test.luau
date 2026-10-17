@@ -17,6 +17,9 @@ local VOXEL = WorldConfig.TERRAIN_VOXEL_STUDS
 local CHUNK_VOXELS = WorldConfig.CHUNK_SIZE_STUDS // VOXEL
 local TOP_LAYER = WorldConfig.TERRAIN_TOP_LAYER_STUDS
 local ROAD_HALF_WIDTH = WorldConfig.ROAD_WIDTH_STUDS / 2
+-- Los centros de las columnas quedan a 2, 6, 10... studs del eje: las que no pasan de la mitad del ancho son camino
+-- (el borde cuenta como camino) y la siguiente es banquina.
+local ROAD_COLUMNS = math.floor(ROAD_HALF_WIDTH / VOXEL + 0.5)
 local SEED = 12
 local SEGMENTS = 5
 -- Un chunk que queda entero sobre la recta de 5 tramos que arranca en x = 0.
@@ -166,7 +169,8 @@ Runner.test(
 				end
 			end
 		end
-		Runner.expectEqual(roadColumns, #ROAD_SLOPES_DEGREES * #BASE_HEIGHTS * 4 * CHUNK_VOXELS)
+		-- Las columnas de camino a los dos lados del eje, en los dos chunks que lo cruzan.
+		Runner.expectEqual(roadColumns, #ROAD_SLOPES_DEGREES * #BASE_HEIGHTS * 2 * ROAD_COLUMNS * CHUNK_VOXELS)
 		-- Hay vóxeles de las dos clases: no vale una prueba que juzga solo las columnas de un lado.
 		Runner.expectEqual(topVoxels >= 2 * roadColumns, true)
 		Runner.expectEqual(deepVoxels >= 2 * roadColumns, true)
@@ -180,8 +184,8 @@ Runner.test("on a ramp the shoulder columns have the material of the biome, not 
 		local builder = createBuilder(createRamp(20, baseHeight), catalog)
 		local result = buildChunk(builder, ROAD_CHUNK_X, 0)
 		for row = 1, CHUNK_VOXELS do
-			-- Los centros de las columnas quedan a 2, 6 y 10 studs del eje: la tercera es banquina.
-			checkColumn(result, row, 3, BIOME_SURFACE, BIOME_DEEP)
+			-- La primera columna después de las de camino es banquina.
+			checkColumn(result, row, ROAD_COLUMNS + 1, BIOME_SURFACE, BIOME_DEEP)
 			shoulderColumns += 1
 		end
 	end

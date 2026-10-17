@@ -416,7 +416,9 @@ Runner.test("the contracts answer from the live route: surface, nearest road poi
 	planner.updatePlan(pointOnStraight(16))
 	runUntilIdle(planner)
 	Runner.expectEqual(planner.getSurfaceAt(vector.create(500, ROAD_HEIGHT, 3)), "Road")
-	Runner.expectEqual(planner.getSurfaceAt(vector.create(500, ROAD_HEIGHT, -10)), "Shoulder")
+	-- Al medio de la banquina, que empieza en la mitad del ancho.
+	local shoulderZ = -(WorldConfig.ROAD_WIDTH_STUDS / 2 + WorldConfig.SHOULDER_WIDTH_STUDS / 2)
+	Runner.expectEqual(planner.getSurfaceAt(vector.create(500, ROAD_HEIGHT, shoulderZ)), "Shoulder")
 	local off = planner.getSurfaceAt(vector.create(500, ROAD_HEIGHT, 80))
 	Runner.expectEqual(off == "Grass" or off == "Mud", true)
 	Runner.expectEqual(planner.getSurfaceAt(vector.create(500, ROAD_HEIGHT, 50000)), nil)

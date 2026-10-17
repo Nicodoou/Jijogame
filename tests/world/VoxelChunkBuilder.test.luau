@@ -19,11 +19,13 @@ local TOTAL_STEPS = 1 + 2 * CHUNK_VOXELS
 local SEGMENTS = 5
 local SEED = 12
 local ROAD_CHUNK_X = 2
-local NEAR_COLUMNS = 3
--- Los centros de las columnas quedan a 2, 6 y 10 studs del eje: las dos primeras son camino (hasta 8) y la tercera banquina.
-local ROAD_COLUMNS = 2
 local ROAD_HALF_WIDTH = WorldConfig.ROAD_WIDTH_STUDS / 2
-local ROAD_WIDTH_COLUMNS = WorldConfig.ROAD_WIDTH_STUDS // VOXEL
+-- Los centros de las columnas quedan a 2, 6, 10, 14... studs del eje: las que no pasan de la mitad del ancho son camino
+-- (el borde cuenta como camino) y la siguiente es banquina.
+local ROAD_COLUMNS = math.floor(ROAD_HALF_WIDTH / VOXEL + 0.5)
+local NEAR_COLUMNS = ROAD_COLUMNS + 1
+-- A los dos lados del eje: el eje cae en el borde entre dos columnas.
+local ROAD_WIDTH_COLUMNS = 2 * ROAD_COLUMNS
 -- Con la superficie en 50,5 el relleno llega a 12,125 vóxeles: la capa de superficie (8 studs) arranca en el vóxel 10.
 local TOP_FLOOR_VOXEL = 10
 local TOLERANCE = 1e-9
