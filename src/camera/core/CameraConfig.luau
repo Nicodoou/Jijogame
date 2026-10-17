@@ -20,10 +20,6 @@ return table.freeze({
 	-- Lo mismo hacia el punto del camino que viene.
 	LOOK_INTO_CURVE = 0,
 	LOOK_INTO_CURVE_MAX_DEGREES = 25,
-	-- Suavizado del yaw de la cámara respecto del auto: frecuencia del resorte (1/s; 0 = sin suavizado, muy alta casi
-	-- igual) y retraso máximo permitido en grados.
-	CAMERA_YAW_SMOOTHING = 6,
-	CAMERA_YAW_MAX_LAG_DEGREES = 15,
 
 	-- Mirar alrededor: límites de la cabeza respecto del frente del auto.
 	LOOK_MAX_YAW_DEGREES = 100,

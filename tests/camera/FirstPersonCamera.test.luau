@@ -21,14 +21,8 @@ local NO_LOOK: LookRates = { yawRate = 0, pitchRate = 0 }
 
 -- Estas pruebas miden la cámara sin los ajustes del experimento: horizonte libre, multiplicadores en 1, sin girar el yaw.
 local CLASSIC: { [string]: any } = table.clone(CameraConfig :: any)
-local classicOverrides: { [string]: number } = {
-	HORIZON_LOCK = 0,
-	HEAD_SWAY = 1,
-	HEAD_TILT = 1,
-	HEAD_VIBRATION = 1,
-	LOOK_INTO_VELOCITY = 0,
-	CAMERA_YAW_SMOOTHING = 0,
-}
+local classicOverrides: { [string]: number } =
+	{ HORIZON_LOCK = 0, HEAD_SWAY = 1, HEAD_TILT = 1, HEAD_VIBRATION = 1, LOOK_INTO_VELOCITY = 0 }
 for key, value in classicOverrides do
 	CLASSIC[key] = value
 end
