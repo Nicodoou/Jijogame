@@ -2,6 +2,7 @@
 -- Las fuerzas de fricción de una rueda con su velocidad prevista al final del cuadro y el tope por paso. Lo usa
 -- `WheelForces`. El tope de las fuerzas longitudinales que se oponen al movimiento se calcula acá y en ningún otro lado.
 local Drivetrain = require("./Drivetrain")
+local OpposingForces = require("./OpposingForces")
 local Tire = require("./Tire")
 local VehicleMath = require("./VehicleMath")
 local VehicleTypes = require("./VehicleTypes")
@@ -38,46 +39,58 @@ function WheelFriction.expectedSpeeds(
 		vector.dot(velocity, sideAxis) + vector.dot(gravityPush, sideAxis)
 end
 
--- Lo que piden el freno y la resistencia al rodar de una rueda, sin sentido ni tope (siempre positivo).
+-- Lo que el tope común reparte y lo que hace falta para pedir cada rueda: el factor de escala y la resistencia del aire
+-- por unidad de carga (que depende de la carga apoyada total).
+export type LongitudinalPlan = { scale: number, airDragPerLoad: number }
+
+-- Lo que piden el freno, el freno motor, el freno de mano que sostiene, la resistencia del aire y la resistencia al
+-- rodar de una rueda, sin sentido ni tope (siempre positivo).
 local function longitudinalRequest(
 	context: StepContext,
 	wheel: WheelState,
 	isFront: boolean,
 	load: number,
-	driveState: VehicleState
+	driveState: VehicleState,
+	airDragPerLoad: number
 ): number
-	local brake = Drivetrain.brakeRequest(driveState, context.controls, context.mass, isFront, load, context.settings)
-	return brake + wheel.rollingResistance * load
+	local settings = context.settings
+	local brake = Drivetrain.brakeRequest(driveState, context.controls, context.mass, isFront, load, settings)
+	local engineBrake = OpposingForces.engineBrake(driveState, context.controls, context.mass, isFront, settings)
+	local hold = OpposingForces.handbrakeHold(context, isFront, load)
+	return brake + engineBrake + hold + (wheel.rollingResistance + airDragPerLoad) * load
 end
 
--- Única fuente del tope por paso de las fuerzas longitudinales que se oponen al movimiento (freno, freno de mano y
--- resistencia al rodar): sumadas en todas las ruedas no pueden superar lo que para la velocidad prevista del chasis
--- en un paso (`masa · |v prevista| / dt`). Devuelve el factor (de 0 a 1) por el que se escalan todas, o sea que el
--- tope se reparte en proporción a lo que pide cada rueda.
-function WheelFriction.longitudinalScale(
+-- Única fuente del tope por paso de las fuerzas longitudinales que se oponen al movimiento (freno, freno motor, freno de
+-- mano, resistencia del aire y resistencia al rodar): sumadas en todas las ruedas no pueden superar lo que para la
+-- velocidad prevista del chasis en un paso (`masa · |v prevista| / dt`). El factor `scale` (de 0 a 1) escala todas, o sea
+-- que el tope se reparte en proporción a lo que pide cada rueda.
+function WheelFriction.longitudinalPlan(
 	context: StepContext,
 	wheels: { WheelState },
 	loads: { number },
 	driveState: VehicleState
-): number
+): LongitudinalPlan
+	local totalLoad = 0
+	for index, wheel in wheels do
+		totalLoad += if wheel.isGrounded then loads[index] else 0
+	end
+	local airDragPerLoad =
+		OpposingForces.airDragPerLoad(context.forwardSpeed, context.mass, totalLoad, context.settings)
 	local requested = 0
 	for index, wheel in wheels do
 		if wheel.isGrounded then
 			local isFront = context.settings.WHEELS[index].isFront
-			requested += longitudinalRequest(context, wheel, isFront, loads[index], driveState)
+			requested += longitudinalRequest(context, wheel, isFront, loads[index], driveState, airDragPerLoad)
 		end
 	end
 	local chassisForward, chassisSide = WheelFriction.wheelAxes(context.chassis, context.contactUp, 0)
 	local expectedSpeed =
 		WheelFriction.expectedSpeeds(context, context.chassis.linearVelocity, chassisForward, chassisSide)
 	local limit = VehicleMath.opposingForceLimit(context.mass, 1, expectedSpeed, context.stepSeconds)
-	if requested <= limit then
-		return 1
-	end
-	return limit / requested
+	return { scale = if requested <= limit then 1 else limit / requested, airDragPerLoad = airDragPerLoad }
 end
 
--- Freno y resistencia al rodar de una rueda: van contra su velocidad prevista y se escalan con el tope común.
+-- Lo que opone una rueda al movimiento (todo menos la tracción): va contra su velocidad prevista y se escala con el tope común.
 function WheelFriction.opposingLongitudinal(
 	context: StepContext,
 	wheel: WheelState,
@@ -85,9 +98,10 @@ function WheelFriction.opposingLongitudinal(
 	longitudinalSpeed: number,
 	load: number,
 	driveState: VehicleState,
-	scale: number
+	plan: LongitudinalPlan
 ): number
-	return -math.sign(longitudinalSpeed) * longitudinalRequest(context, wheel, isFront, load, driveState) * scale
+	local request = longitudinalRequest(context, wheel, isFront, load, driveState, plan.airDragPerLoad)
+	return -math.sign(longitudinalSpeed) * request * plan.scale
 end
 
 -- Agarre del eje: el trasero baja por su multiplicador y por el freno de mano.
