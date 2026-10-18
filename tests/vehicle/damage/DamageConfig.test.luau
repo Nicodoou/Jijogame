@@ -97,6 +97,10 @@ Runner.test("the hitbox and debris values are read only and make sense", functio
 	Runner.expectEqual(hitbox.GROUND_IMPACT_SPEED > SPECS.bonnet.impactThreshold, true)
 	Runner.expectEqual(hitbox.BOTTOM_FACE_NORMAL_Y > 0 and hitbox.BOTTOM_FACE_NORMAL_Y <= 1, true)
 	Runner.expectEqual(hitbox.HIT_COOLDOWN_SECONDS > 0 and hitbox.REPORT_INTERVAL_SECONDS > 0, true)
+	Runner.expectEqual(
+		hitbox.REPORT_ACCEPT_SECONDS > 0 and hitbox.REPORT_ACCEPT_SECONDS < hitbox.REPORT_INTERVAL_SECONDS,
+		true
+	)
 	Runner.expectEqual(debris.MAX_COUNT >= 1 and debris.LIFETIME_SECONDS > debris.GHOST_SECONDS, true)
 	Runner.expectError(function()
 		(DamageConfig.HITBOX :: any).MIN_THICKNESS_STUDS = 1

@@ -5,7 +5,8 @@ local DamageTypes = require("./DamageTypes")
 
 type PieceSpec = DamageTypes.PieceSpec
 
-export type Cooldowns = { [string]: number }
+-- La clave es lo que identifica al par (por ejemplo, la otra parte del choque); cada caja lleva su propia tabla.
+export type Cooldowns = { [any]: number }
 
 local HITBOX = DamageConfig.HITBOX
 
@@ -27,7 +28,7 @@ end
 
 -- Anota el golpe del par y dice si cuenta: un mismo par cuenta una vez cada `HIT_COOLDOWN_SECONDS`.
 -- Borra de la tabla los pares que ya vencieron, para que no crezca.
-function HitFilter.registerHit(cooldowns: Cooldowns, pairKey: string, nowSeconds: number): boolean
+function HitFilter.registerHit(cooldowns: Cooldowns, pairKey: any, nowSeconds: number): boolean
 	for key, hitSeconds in cooldowns do
 		if nowSeconds - hitSeconds >= HITBOX.HIT_COOLDOWN_SECONDS then
 			cooldowns[key] = nil

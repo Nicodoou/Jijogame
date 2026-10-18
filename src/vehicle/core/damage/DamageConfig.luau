@@ -113,6 +113,9 @@ return table.freeze({
 		HIT_COOLDOWN_SECONDS = 0.25,
 		-- Cada cuánto, como mucho, se manda el estado de daño al servidor.
 		REPORT_INTERVAL_SECONDS = 2,
+		-- El servidor acepta un reporte si pasó al menos esto desde el anterior: menos que el intervalo del cliente, por
+		-- la variación de la red.
+		REPORT_ACCEPT_SECONDS = 1,
 	}),
 
 	DEBRIS = table.freeze({
