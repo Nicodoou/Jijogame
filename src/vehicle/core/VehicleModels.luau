@@ -84,9 +84,9 @@ local Fiat147: VehicleModelSheet = {
 	rearAxleMeshes = table.freeze({}),
 	wheelCenters = table.freeze({
 		FL = vector.create(2.02, 2.02, 3.05),
-		FR = vector.create(-2.09, 2.02, 3.05),
+		FR = vector.create(-2.02, 2.02, 3.05),
 		RL = vector.create(2.02, 2.02, -3.04),
-		RR = vector.create(-1.95, 2.02, -3.04),
+		RR = vector.create(-2.02, 2.02, -3.04),
 	}),
 	damageMeshes = table.freeze({
 		bonnet = refs({ "Capot", "Capot2" }),
