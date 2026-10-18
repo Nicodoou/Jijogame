@@ -2,10 +2,12 @@
 -- Arma el auto anclado: las cajas físicas (Body, ruedas y lastre) y, encima, el modelo visual. Los nombres son los de VehicleParts.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Fiat147Hitbox = require(ReplicatedStorage.vehicle.core.damage.Fiat147Hitbox)
 local VectorConversion = require(ReplicatedStorage.vehicle.shared.VectorConversion)
 local VehicleParts = require(ReplicatedStorage.vehicle.shared.VehicleParts)
 local VehicleModels = require(ReplicatedStorage.vehicle.core.VehicleModels)
 local VehicleTypes = require(ReplicatedStorage.vehicle.core.VehicleTypes)
+local HitboxBuilder = require("./HitboxBuilder")
 local VehicleVisualModel = require("./VehicleVisualModel")
 
 type VehicleSettings = VehicleTypes.VehicleSettings
@@ -146,6 +148,7 @@ function VehicleModelBuilder.build(userId: number, bodyCFrame: CFrame, config: V
 	end
 	createBallast(model, body, config)
 	VehicleVisualModel.attach(model, body, VehicleModels.Fiat147, config, VehicleModelBuilder.markMassless)
+	HitboxBuilder.build(model, body, VehicleModels.Fiat147, Fiat147Hitbox, config)
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	return model
 end
