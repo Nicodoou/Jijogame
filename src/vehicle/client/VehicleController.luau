@@ -50,6 +50,8 @@ export type Dependencies = {
 	getNearestRoadPoint: RoadPoint.GetNearestRoadPoint,
 	simulator: Simulator,
 	config: VehicleSettings,
+	-- Aplica el daño del auto a la configuración que ve el simulador (sin daño devuelve la misma).
+	adjustConfig: (VehicleSettings) -> VehicleSettings,
 }
 
 export type VehicleView = {
@@ -164,7 +166,7 @@ local function waitForWorld(self: VehicleController, body: BasePart)
 end
 
 local function drive(self: VehicleController, session: Session, controls: VehicleControls, dt: number)
-	local config = self._tuning:getConfig()
+	local config = self._deps.adjustConfig(self._tuning:getConfig())
 	local rig = session.rig
 	local chassis = VehicleRig.readChassis(rig.body)
 	self._road = self._lookahead:sample(chassis, config)

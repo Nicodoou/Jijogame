@@ -5,10 +5,13 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local InputSmoother = require(ReplicatedStorage.input.core.InputSmoother)
+local DamageConfig = require(ReplicatedStorage.vehicle.core.damage.DamageConfig)
 local VehicleConfig = require(ReplicatedStorage.vehicle.core.VehicleConfig)
 local VehicleSimulator = require(ReplicatedStorage.vehicle.core.VehicleSimulator)
 local FirstPersonCameraController = require("../camera/FirstPersonCameraController")
 local InputReader = require("../input/InputReader")
+local DamageClient = require("../vehicle/DamageClient")
+local DamageController = require("../vehicle/DamageController")
 local VehicleController = require("../vehicle/VehicleController")
 local RearAxleVisual = require("../vehicle/RearAxleVisual")
 local WorldClient = require("../world/WorldClient")
@@ -23,6 +26,7 @@ local world = WorldClient.new({
 	end,
 })
 
+local damageController = DamageController.new(DamageConfig.PIECES)
 local inputReader = InputReader.new()
 controller = VehicleController.new({
 	getSurfaceAt = world.getSurfaceAt,
@@ -31,9 +35,15 @@ controller = VehicleController.new({
 	getNearestRoadPoint = world.getNearestRoadPoint,
 	simulator = VehicleSimulator,
 	config = VehicleConfig,
+	adjustConfig = function(settings)
+		return damageController:adjustConfig(settings)
+	end,
 })
 local cameraController = FirstPersonCameraController.new(Workspace.CurrentCamera)
 local rearAxleVisual = RearAxleVisual.new(Players.LocalPlayer.UserId)
+local damageClient = DamageClient.new(damageController, DamageConfig.PIECES, function()
+	return controller:getModel()
+end, os.clock)
 local inputState = InputSmoother.newState()
 
 controller:start()
@@ -45,6 +55,7 @@ end)
 RunService.PreSimulation:Connect(function(dt)
 	inputState = InputSmoother.step(inputState, inputReader:read(), dt)
 	controller:step(inputState, dt)
+	damageClient:step()
 end)
 
 -- La mirada se suaviza en PreRender con el dt del cuadro: el mouse entrega píxeles por cuadro de render,
