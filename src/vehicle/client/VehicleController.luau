@@ -7,12 +7,16 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local RoadPoint = require(ReplicatedStorage.shared.contracts.RoadPoint)
+local RoadSteerLimit = require(ReplicatedStorage.vehicle.core.RoadSteerLimit)
 local Surface = require(ReplicatedStorage.shared.contracts.Surface)
 local WorldReady = require(ReplicatedStorage.shared.contracts.WorldReady)
+local ModelPlacement = require(ReplicatedStorage.vehicle.core.ModelPlacement)
+local VehicleModels = require(ReplicatedStorage.vehicle.core.VehicleModels)
 local VectorConversion = require(ReplicatedStorage.vehicle.shared.VectorConversion)
 local VehicleParts = require(ReplicatedStorage.vehicle.shared.VehicleParts)
 local VehicleTypes = require(ReplicatedStorage.vehicle.core.VehicleTypes)
 local TuningOverrides = require(ReplicatedStorage.vehicle.shared.TuningOverrides)
+local RoadLookahead = require("./RoadLookahead")
 local VehicleRig = require("./VehicleRig")
 local WheelRays = require("./WheelRays")
 local WheelVisuals = require("./WheelVisuals")
@@ -34,7 +38,8 @@ export type Simulator = {
 		chassis: ChassisSample,
 		contacts: { WheelContact? },
 		dt: number,
-		config: VehicleSettings?
+		config: VehicleSettings?,
+		road: RoadSteerLimit.RoadAhead?
 	) -> (VehicleState, { WheelOutput }, VehicleFeedback),
 }
 
@@ -42,14 +47,19 @@ export type Dependencies = {
 	getSurfaceAt: Surface.GetSurfaceAt,
 	isWorldReadyAt: WorldReady.IsWorldReadyAt,
 	getSpawnPoint: RoadPoint.GetSpawnPoint,
+	getNearestRoadPoint: RoadPoint.GetNearestRoadPoint,
 	simulator: Simulator,
 	config: VehicleSettings,
 }
 
 export type VehicleView = {
-	position: vector,
+	right: vector,
+	up: vector,
 	forward: vector,
+	headPosition: vector,
 	linearVelocity: vector,
+	-- Punto del camino adelante del auto, para que la cámara mire hacia la curva (nil sin camino).
+	curveTarget: vector?,
 }
 
 type Session = {
@@ -67,7 +77,9 @@ VehicleController.__index = VehicleController
 export type VehicleController = typeof(setmetatable(
 	{} :: {
 		_deps: Dependencies,
-		_tuning: TuningOverrides.TuningOverrides,
+		_tuning: TuningOverrides.TuningOverrides<VehicleSettings>,
+		_lookahead: RoadLookahead.RoadLookahead,
+		_road: RoadSteerLimit.RoadAhead?,
 		_remote: RemoteEvent?,
 		_session: Session?,
 		_state: VehicleState,
@@ -81,6 +93,8 @@ function VehicleController.new(deps: Dependencies): VehicleController
 	return setmetatable({
 		_deps = deps,
 		_tuning = TuningOverrides.new(deps.config, Workspace, RunService:IsStudio()),
+		_lookahead = RoadLookahead.new(deps.getNearestRoadPoint),
+		_road = nil,
 		_remote = nil,
 		_session = nil,
 		_state = deps.simulator.newState(deps.config),
@@ -115,31 +129,27 @@ function VehicleController.getVehicleView(self: VehicleController): VehicleView?
 	if session == nil then
 		return nil
 	end
+	local headInBody = VectorConversion.toVector3(
+		ModelPlacement.headInBodyFrame(VehicleModels.Fiat147, self._tuning:getConfig(), Workspace.Gravity)
+	)
 	local body = session.rig.body
 	return {
-		position = VectorConversion.toVector(body.Position),
+		right = VectorConversion.toVector(body.CFrame.RightVector),
+		up = VectorConversion.toVector(body.CFrame.UpVector),
 		forward = VectorConversion.toVector(body.CFrame.LookVector),
+		headPosition = VectorConversion.toVector(body.CFrame:PointToWorldSpace(headInBody)),
 		linearVelocity = VectorConversion.toVector(body.AssemblyLinearVelocity),
+		curveTarget = if self._road ~= nil then self._road.ahead.position else nil,
 	}
+end
+
+function VehicleController.getModel(self: VehicleController): Model?
+	local session = self._session
+	return if session ~= nil then session.rig.model else nil
 end
 
 function VehicleController.getFeedback(self: VehicleController): VehicleFeedback?
 	return self._feedback
-end
-
-local function readChassis(body: BasePart): ChassisSample
-	local cframe = body.CFrame
-	return {
-		origin = VectorConversion.toVector(body.Position),
-		position = VectorConversion.toVector(body.AssemblyCenterOfMass),
-		right = VectorConversion.toVector(cframe.RightVector),
-		up = VectorConversion.toVector(cframe.UpVector),
-		forward = VectorConversion.toVector(cframe.LookVector),
-		linearVelocity = VectorConversion.toVector(body.AssemblyLinearVelocity),
-		angularVelocity = VectorConversion.toVector(body.AssemblyAngularVelocity),
-		mass = body.AssemblyMass,
-		gravity = Workspace.Gravity,
-	}
 end
 
 local function waitForWorld(self: VehicleController, body: BasePart)
@@ -156,9 +166,11 @@ end
 local function drive(self: VehicleController, session: Session, controls: VehicleControls, dt: number)
 	local config = self._tuning:getConfig()
 	local rig = session.rig
+	local chassis = VehicleRig.readChassis(rig.body)
+	self._road = self._lookahead:sample(chassis, config)
 	local contacts = WheelRays.cast(rig.body.CFrame, rig.mounts, session.rayParams, self._deps.getSurfaceAt, config)
 	local nextState, outputs, feedback =
-		self._deps.simulator.step(self._state, controls, readChassis(rig.body), contacts, dt, config)
+		self._deps.simulator.step(self._state, controls, chassis, contacts, dt, config, self._road)
 	self._state = nextState
 	self._feedback = feedback
 	for index, output in outputs do

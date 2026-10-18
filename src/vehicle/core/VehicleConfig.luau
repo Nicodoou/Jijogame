@@ -7,12 +7,12 @@
 return table.freeze({
 	-- Orden fijo: FL, FR, RL, RR.
 	WHEELS = table.freeze({
-		table.freeze({ name = "FL", offset = vector.create(-2.34, -1, -2.88), isFront = true, isLeft = true }),
-		table.freeze({ name = "FR", offset = vector.create(2.34, -1, -2.88), isFront = true, isLeft = false }),
-		table.freeze({ name = "RL", offset = vector.create(-2.34, -1, 3.06), isFront = false, isLeft = true }),
-		table.freeze({ name = "RR", offset = vector.create(2.34, -1, 3.06), isFront = false, isLeft = false }),
+		table.freeze({ name = "FL", offset = vector.create(-2.02, -1, -3.05), isFront = true, isLeft = true }),
+		table.freeze({ name = "FR", offset = vector.create(2.02, -1, -3.05), isFront = true, isLeft = false }),
+		table.freeze({ name = "RL", offset = vector.create(-2.02, -1, 3.04), isFront = false, isLeft = true }),
+		table.freeze({ name = "RR", offset = vector.create(2.02, -1, 3.04), isFront = false, isLeft = false }),
 	}),
-	WHEEL_RADIUS_STUDS = 0.81,
+	WHEEL_RADIUS_STUDS = 0.795,
 
 	-- Peso: solo los lee el adaptador para armar el lastre (CP-6); el núcleo saca el reparto del centro de masa real.
 	-- Fracción del peso sobre el eje delantero.
@@ -95,6 +95,14 @@ return table.freeze({
 	SHIFT_TORQUE_FRACTION = 0,
 	REVERSE_ENGAGE_SPEED = 1,
 
+	-- Freno motor (WP-17): desaceleración (studs/s²) en 1ra al corte con el acelerador suelto. En otras marchas escala con
+	-- la relación respecto de 1ra, y con las RPM entre el ralentí y el corte.
+	ENGINE_BRAKE_DECELERATION = 8,
+	-- Por debajo de estas RPM el embrague se abre y no hay freno motor.
+	ENGINE_BRAKE_MIN_RPM = 1500,
+	-- Resistencia del aire: desaceleración = esto · v² (studs/s² por (studs/s)²).
+	AIR_DRAG_PER_SPEED_SQUARED = 0.001,
+
 	-- Tracción: fracción de la fuerza que va al eje trasero.
 	REAR_BIAS = 0,
 
@@ -103,6 +111,12 @@ return table.freeze({
 	BRAKE_DECELERATION = 55,
 	BRAKE_FRONT_BIAS = 0.6,
 	HANDBRAKE_FORCE_PER_LOAD = 0.4,
+	-- Freno de mano que sostiene (WP-17): casi quieto y sin derrapar frena las cuatro ruedas con esta fuerza por unidad
+	-- de carga (alcanza para la pendiente más empinada que el auto sube) y se libera al soltar el freno de mano.
+	HANDBRAKE_HOLD_FORCE_PER_LOAD = 0.6,
+	-- Velocidad del chasis (studs/s) y deriva máxima (grados) por debajo de las cuales el freno de mano sostiene.
+	HANDBRAKE_HOLD_SPEED = 3,
+	HANDBRAKE_HOLD_MAX_DRIFT_DEGREES = 10,
 
 	-- Dirección.
 	STEER_MAX_LOW_SPEED_DEGREES = 36,
@@ -118,6 +132,24 @@ return table.freeze({
 	COUNTER_STEER_STRENGTH = 1,
 	COUNTER_STEER_MAX_DEGREES = 15,
 	COUNTER_STEER_MIN_SPEED = 10,
+
+	-- Límite de dirección según la curva (experimento): recorta la dirección que pasa del ángulo que pide el tramo
+	-- más un margen. Con ROAD_STEER_LIMIT_ENABLED en false queda apagado.
+	ROAD_STEER_LIMIT_ENABLED = true,
+	-- Margen sobre el ángulo que pide la curva (en recta, el límite es solo este margen).
+	ROAD_STEER_MARGIN_DEGREES = 8,
+	-- Distancia hacia adelante, en studs, a la que se mide la curva.
+	ROAD_STEER_LOOKAHEAD = 15,
+	-- Por debajo de esta velocidad hacia adelante (studs/s) el límite no actúa.
+	ROAD_STEER_MIN_SPEED = 10,
+	-- Si el auto está más lejos que esto del eje del camino (studs), el límite no actúa.
+	ROAD_STEER_MAX_DISTANCE = 15,
+	-- Si el auto mira a más de este ángulo del camino, el límite no actúa.
+	ROAD_STEER_MAX_HEADING_DEGREES = 60,
+	-- Un punto del camino cuyo arcLength salta más de esto (studs) respecto del último aceptado se descarta (U cerradas).
+	ROAD_STEER_MAX_ARC_JUMP = 40,
+	-- Fuera del camino y apuntando afuera, doblar hacia él es libre solo si el auto está a más de esto del eje (studs).
+	ROAD_STEER_RETURN_DISTANCE = 3,
 
 	-- Feedback.
 	DRIFT_ANGLE_THRESHOLD_DEGREES = 10,

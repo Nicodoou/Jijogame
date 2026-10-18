@@ -6,7 +6,7 @@ local VehicleModels = require("../../src/vehicle/core/VehicleModels")
 local WHEEL_TOLERANCE_STUDS = 0.05
 -- El eje trasero del modelo está 0,05 más abajo que las ruedas delanteras (medido en el modelo).
 local GROUND_TOLERANCE_STUDS = 0.06
-local MESH_COUNT = 33
+local MESH_COUNT = 44
 
 local function contains(list: { string }, name: string): boolean
 	return table.find(list, name) ~= nil
@@ -29,7 +29,7 @@ end)
 
 Runner.test("the meshes named by the sheet exist in the declared list", function()
 	local sheet = VehicleModels.Fiat147
-	for meshName, wheelName in sheet.frontWheelMeshes do
+	for meshName, wheelName in sheet.wheelMeshes do
 		Runner.expectEqual(contains(sheet.meshNames, meshName), true)
 		Runner.expectEqual(typeof(sheet.wheelCenters[wheelName]), "vector")
 	end

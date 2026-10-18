@@ -1,8 +1,12 @@
 --!strict
 -- Ángulo de dirección que baja con la velocidad (CP-10). Las dos ruedas delanteras giran igual (sin Ackermann).
+local Assists = require("./Assists")
+local RoadSteerLimit = require("./RoadSteerLimit")
 local VehicleConfig = require("./VehicleConfig")
 local VehicleTypes = require("./VehicleTypes")
 
+type ChassisSample = VehicleTypes.ChassisSample
+type VehicleControls = VehicleTypes.VehicleControls
 type VehicleSettings = VehicleTypes.VehicleSettings
 
 local Steering = {}
@@ -33,6 +37,32 @@ end
 
 function Steering.angle(steerInput: number, speed: number, config: VehicleSettings?): number
 	return steerInput * Steering.maxAngle(speed, config)
+end
+
+-- Ángulo pedido: el del conductor (con el límite según la curva) más las asistencias, dentro del máximo que corresponda.
+function Steering.requestedAngle(
+	controls: VehicleControls,
+	chassis: ChassisSample,
+	forwardSpeed: number,
+	driftAngle: number,
+	gear: number,
+	road: RoadSteerLimit.RoadAhead?,
+	config: VehicleSettings?
+): number
+	local settings = config or VehicleConfig
+	local speed = vector.magnitude(chassis.linearVelocity)
+	local isReversing = gear < 0
+	local maxSteer = if isReversing
+		then Steering.reverseMaxAngle(settings)
+		else Steering.maxAngleWhileDrifting(speed, driftAngle, settings)
+	local driverSteer = if isReversing
+		then controls.steer * maxSteer
+		else Steering.angle(controls.steer, speed, settings)
+	local limited = RoadSteerLimit.limit(driverSteer, chassis, forwardSpeed, driftAngle, road, settings)
+	local requested = limited
+		+ Assists.counterSteer(driftAngle, forwardSpeed, settings)
+		+ math.rad(settings.STEER_OFFSET_DEGREES)
+	return math.clamp(requested, -maxSteer, maxSteer)
 end
 
 return Steering

@@ -55,7 +55,7 @@ local function groundedWheel(
 	load: number,
 	driveShare: number,
 	driveState: VehicleState,
-	scale: number
+	plan: WheelFriction.LongitudinalPlan
 ): (WheelOutput, WheelFeedback)
 	local settings = context.settings
 	local isFront = settings.WHEELS[index].isFront
@@ -65,7 +65,7 @@ local function groundedWheel(
 	local longitudinalSpeed, lateralSpeed = WheelFriction.expectedSpeeds(context, velocity, forwardAxis, sideAxis)
 	local slipAngle = Tire.slipAngle(lateralSpeed, longitudinalSpeed, settings)
 	local brakeAndRolling =
-		WheelFriction.opposingLongitudinal(context, wheel, isFront, longitudinalSpeed, load, driveState, scale)
+		WheelFriction.opposingLongitudinal(context, wheel, isFront, longitudinalSpeed, load, driveState, plan)
 	local grip = wheel.gripMultiplier
 		* WheelFriction.axleGripMultiplier(context, isFront)
 		* settings.WHEEL_GRIP_MULTIPLIERS[index]
@@ -97,12 +97,12 @@ function WheelForces.simulateWheels(
 	driveShares: { number }
 ): ({ WheelOutput }, { WheelFeedback })
 	local outputs, feedbacks = {}, {}
-	local scale = WheelFriction.longitudinalScale(context, wheels, loads, driveState)
+	local plan = WheelFriction.longitudinalPlan(context, wheels, loads, driveState)
 	for index, wheel in wheels do
 		local steerAngle = if context.settings.WHEELS[index].isFront then context.steerAngle else 0
 		local output, feedback
 		if wheel.isGrounded then
-			output, feedback = groundedWheel(context, index, wheel, loads[index], driveShares[index], driveState, scale)
+			output, feedback = groundedWheel(context, index, wheel, loads[index], driveShares[index], driveState, plan)
 		else
 			output, feedback = airborneWheel(context, wheel, steerAngle)
 		end
