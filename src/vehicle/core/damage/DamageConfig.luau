@@ -102,6 +102,30 @@ return table.freeze({
 		MAX_PROTECTION_DEPTH = 4,
 	}),
 
+	HITBOX = table.freeze({
+		-- Espesor mínimo de cada caja, en studs: una malla fina como la parrilla (0,2) no atraviesa un poste.
+		MIN_THICKNESS_STUDS = 0.2,
+		-- Un golpe de la cara de abajo contra el terreno por debajo de esta velocidad (studs/s) es el auto apoyándose.
+		GROUND_IMPACT_SPEED = 40,
+		-- Desde esta componente vertical de la normal (en valor absoluto) un contacto es de la cara de abajo.
+		BOTTOM_FACE_NORMAL_Y = 0.7,
+		-- Un mismo par de partes cuenta un golpe cada tanto: el motor reporta el mismo contacto en varios cuadros.
+		HIT_COOLDOWN_SECONDS = 0.25,
+		-- Cada cuánto, como mucho, se manda el estado de daño al servidor.
+		REPORT_INTERVAL_SECONDS = 2,
+	}),
+
+	DEBRIS = table.freeze({
+		-- Cuánto vive la pieza suelta antes de borrarse.
+		LIFETIME_SECONDS = 10,
+		-- Máximo de piezas sueltas a la vez: al pasarse se borran las más viejas.
+		MAX_COUNT = 12,
+		-- La pieza suelta no choca con nada durante este tiempo (el golpe medido en el frame del evento, exp/hitbox).
+		GHOST_SECONDS = 0.2,
+		-- Cuánto se aparta la pieza suelta del auto al caer, en studs, hacia afuera.
+		SEPARATION_STUDS = 1,
+	}),
+
 	EFFECTS = table.freeze({
 		-- La potencia que queda con el radiador al 100% de daño (con 0 de daño, 1).
 		RADIATOR_MIN_POWER = 0.5,

@@ -59,6 +59,12 @@ export type DamageEvent = {
 	damage: number,
 }
 
+-- La caja de una malla en el marco del modelo (centro y tamaño, sin rotar).
+export type MeshBox = { center: vector, size: vector }
+
+-- La caja de una pieza en el marco del Body.
+export type PieceHitbox = { pieceId: string, offset: vector, size: vector }
+
 -- Las fichas de las piezas, por id.
 export type PieceSpecs = { [string]: PieceSpec }
 
