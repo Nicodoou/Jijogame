@@ -105,10 +105,13 @@ Runner.test("the box of a piece contains the box of each of its meshes in the Bo
 		for _, ref in refs do
 			local mesh = Fiat147Hitbox[ref :: string]
 			local center = ModelPlacement.toBodyFrame(SHEET, VehicleConfig, GRAVITY, mesh.center)
-			-- El giro es de 180°: los tamaños no cambian de eje.
+			-- El giro es de 180°: los tamaños no cambian de eje. De una rueda solo cuenta la mitad de arriba.
+			local isWheel = DamageConfig.PIECES[pieceId].kind == "wheel"
+			local centerY = if isWheel then center.y + mesh.size.y / 4 else center.y
+			local sizeY = if isWheel then mesh.size.y / 2 else mesh.size.y
 			local axes = {
 				{ center.x, hitbox.offset.x, mesh.size.x, hitbox.size.x },
-				{ center.y, hitbox.offset.y, mesh.size.y, hitbox.size.y },
+				{ centerY, hitbox.offset.y, sizeY, hitbox.size.y },
 				{ center.z, hitbox.offset.z, mesh.size.z, hitbox.size.z },
 			}
 			for _, axis in axes do
@@ -166,5 +169,20 @@ Runner.test("a box thinner than the minimum is grown around its center", functio
 	local center = ModelPlacement.toBodyFrame(SHEET, VehicleConfig, GRAVITY, box.center)
 	Runner.expectNear(thin.offset.y, center.y, TOLERANCE)
 end)
+
+Runner.test(
+	"the bottom of each wheel box is not below the axle and the rest of the pieces keep their full height",
+	function()
+		local hitboxes = byPiece(layout(SHEET, Fiat147Hitbox))
+		for _, name in { "FL", "FR", "RL", "RR" } do
+			local mesh = Fiat147Hitbox[(SHEET.damageMeshes["wheel_" .. name][1]) :: string]
+			local axle = ModelPlacement.toBodyFrame(SHEET, VehicleConfig, GRAVITY, mesh.center).y
+			local hitbox = hitboxes["wheel_" .. name]
+			Runner.expectEqual(hitbox.offset.y - hitbox.size.y / 2 >= axle - 1e-5, true)
+			Runner.expectNear(hitbox.size.y, mesh.size.y / 2, TOLERANCE)
+		end
+		Runner.expectNear(hitboxes.door_L.size.y, Fiat147Hitbox["Left Door"].size.y, TOLERANCE)
+	end
+)
 
 Runner.finish()

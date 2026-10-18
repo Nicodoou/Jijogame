@@ -16,6 +16,7 @@ type VehicleSettings = VehicleTypes.VehicleSettings
 local HitboxLayout = {}
 
 local MIN_THICKNESS = DamageConfig.HITBOX.MIN_THICKNESS_STUDS
+local WHEEL_BOTTOM_FRACTION = DamageConfig.HITBOX.WHEEL_BOX_BOTTOM_FRACTION
 
 -- Esquinas de la caja de una malla; con `side`, solo la mitad de ese lado, cortada por el centro de la malla en x.
 local function meshRange(box: MeshBox, side: "left" | "right"?): (vector, vector)
@@ -49,6 +50,15 @@ local function turnedSize(size: vector, turnDegrees: number): vector
 	return vector.create(cosine * size.x + sine * size.z, size.y, sine * size.x + cosine * size.z)
 end
 
+-- Solo las ruedas: la caja sube su fondo, porque la rueda llega al piso y la caja rígida no puede.
+local function raisedForWheel(pieceId: string, low: vector, high: vector): vector
+	local spec = DamageConfig.PIECES[pieceId]
+	if spec == nil or spec.kind ~= "wheel" then
+		return low
+	end
+	return vector.create(low.x, low.y + (high.y - low.y) * WHEEL_BOTTOM_FRACTION, low.z)
+end
+
 local function sortedPieceIds(sheet: VehicleModelSheet): { string }
 	local ids = {}
 	for pieceId in sheet.damageMeshes do
@@ -71,6 +81,7 @@ function HitboxLayout.compute(
 	for _, pieceId in sortedPieceIds(sheet) do
 		local low, high = pieceRange(sheet.damageMeshes[pieceId], meshBoxes)
 		if low ~= nil and high ~= nil then
+			low = raisedForWheel(pieceId, low, high)
 			table.insert(hitboxes, {
 				pieceId = pieceId,
 				offset = ModelPlacement.toBodyFrame(sheet, config, gravity, (low + high) * 0.5),

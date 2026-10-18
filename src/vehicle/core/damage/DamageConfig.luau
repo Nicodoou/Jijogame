@@ -116,6 +116,9 @@ return table.freeze({
 		-- El servidor acepta un reporte si pasó al menos esto desde el anterior: menos que el intervalo del cliente, por
 		-- la variación de la red.
 		REPORT_ACCEPT_SECONDS = 1,
+		-- La caja de una rueda empieza a esta fracción de su altura (0,5 = el eje): más abajo tocaría el terreno al comprimirse
+		-- la suspensión y frenaría el auto (medido en Studio).
+		WHEEL_BOX_BOTTOM_FRACTION = 0.5,
 	}),
 
 	DEBRIS = table.freeze({
