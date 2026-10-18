@@ -30,7 +30,7 @@ local function weld(first: BasePart, second: BasePart)
 end
 
 local function physicalWheel(vehicle: Model, sheet: VehicleModelSheet, meshName: string): BasePart?
-	local wheelName = sheet.frontWheelMeshes[meshName]
+	local wheelName = sheet.wheelMeshes[meshName]
 	local wheel = if wheelName ~= nil then vehicle:FindFirstChild(VehicleParts.wheelName(wheelName)) else nil
 	return if wheel ~= nil and wheel:IsA("BasePart") then wheel else nil
 end

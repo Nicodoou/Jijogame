@@ -7,12 +7,12 @@
 return table.freeze({
 	-- Orden fijo: FL, FR, RL, RR.
 	WHEELS = table.freeze({
-		table.freeze({ name = "FL", offset = vector.create(-2.34, -1, -2.88), isFront = true, isLeft = true }),
-		table.freeze({ name = "FR", offset = vector.create(2.34, -1, -2.88), isFront = true, isLeft = false }),
-		table.freeze({ name = "RL", offset = vector.create(-2.34, -1, 3.06), isFront = false, isLeft = true }),
-		table.freeze({ name = "RR", offset = vector.create(2.34, -1, 3.06), isFront = false, isLeft = false }),
+		table.freeze({ name = "FL", offset = vector.create(-2.02, -1, -3.05), isFront = true, isLeft = true }),
+		table.freeze({ name = "FR", offset = vector.create(2.02, -1, -3.05), isFront = true, isLeft = false }),
+		table.freeze({ name = "RL", offset = vector.create(-2.02, -1, 3.04), isFront = false, isLeft = true }),
+		table.freeze({ name = "RR", offset = vector.create(2.02, -1, 3.04), isFront = false, isLeft = false }),
 	}),
-	WHEEL_RADIUS_STUDS = 0.81,
+	WHEEL_RADIUS_STUDS = 0.795,
 
 	-- Peso: solo los lee el adaptador para armar el lastre (CP-6); el núcleo saca el reparto del centro de masa real.
 	-- Fracción del peso sobre el eje delantero.
