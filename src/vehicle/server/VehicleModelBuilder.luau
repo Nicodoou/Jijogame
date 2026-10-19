@@ -34,8 +34,6 @@ local function createBody(): Part
 	return body
 end
 
--- Densidad por defecto de Roblox: fija la masa total del auto (la del Body entero), que el lastre solo reparte.
-local DEFAULT_DENSITY = 0.7
 local BALLAST_NAME = "Ballast"
 local MIN_BALLAST_MASS_FRACTION = 0.01
 local PHYSICAL_FRICTION = 0.3
@@ -82,7 +80,9 @@ end
 -- Con una pieza chica la inercia baja a la mitad y el giro a baja velocidad se vuelve inestable (bug 2026-10-16).
 -- El Body tiene su masa en su centro, así que el lastre va a cmObjetivo · (masaBody + masaLastre) / masaLastre.
 local function createBallast(model: Model, body: Part, config: VehicleSettings)
-	local totalMass = volumeOf(BODY_SIZE) * DEFAULT_DENSITY
+	-- La masa total sale de la configuración (chasis + motor); si los tamaños no la dan, se ajusta la densidad y no los
+	-- tamaños, por el bug de vibración del WP-7. Con el 147 da 84, la misma que antes.
+	local totalMass = config.TOTAL_MASS
 	local ballastFraction =
 		math.clamp(config.BALLAST_MASS_FRACTION, MIN_BALLAST_MASS_FRACTION, 1 - MIN_BALLAST_MASS_FRACTION)
 	local ballastMass = totalMass * ballastFraction
