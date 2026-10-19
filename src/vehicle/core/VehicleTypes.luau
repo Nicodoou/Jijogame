@@ -1,12 +1,13 @@
 --!strict
 -- Tipos compartidos del núcleo del auto. Las ruedas van siempre en el orden FL, FR, RL, RR.
 local Surface = require("../../shared/contracts/Surface")
+local VehicleSettingsType = require("./specs/VehicleSettingsType")
 
 export type SurfaceKind = Surface.SurfaceKind
 
--- Los módulos reciben la configuración como último parámetro opcional (por defecto, VehicleConfig)
+-- Los módulos reciben la configuración como último parámetro opcional (por defecto, VehicleConfig, que arma `VehicleBuild`)
 -- para que las pruebas puedan probar valores extremos sin tocar la configuración compartida.
-export type VehicleSettings = typeof(require("./VehicleConfig"))
+export type VehicleSettings = VehicleSettingsType.VehicleSettings
 
 export type VehicleControls = {
 	steer: number,

@@ -1,6 +1,7 @@
 --!strict
 -- Motor, reparto de tracción y frenos (CP-4, CP-9 y T1); la caja automática está en `Gearbox`. Sin inercia de rueda:
 -- la fuerza longitudinal sale del motor y del freno, y el círculo de fricción del neumático la recorta.
+local TorqueCurve = require("./TorqueCurve")
 local VehicleConfig = require("./VehicleConfig")
 local VehicleTypes = require("./VehicleTypes")
 
@@ -32,21 +33,7 @@ local function resolvePedals(gear: number, controls: VehicleControls): (number, 
 end
 
 function Drivetrain.torqueFraction(rpm: number, config: VehicleSettings?): number
-	local curve = (config or VehicleConfig).TORQUE_CURVE
-	local first = curve[1]
-	local last = curve[#curve]
-	if rpm <= first.rpm then
-		return first.fraction
-	end
-	for index = 2, #curve do
-		local upper = curve[index]
-		if rpm <= upper.rpm then
-			local lower = curve[index - 1]
-			local blend = (rpm - lower.rpm) / (upper.rpm - lower.rpm)
-			return lower.fraction + (upper.fraction - lower.fraction) * blend
-		end
-	end
-	return last.fraction
+	return TorqueCurve.fractionAt((config or VehicleConfig).TORQUE_CURVE, rpm)
 end
 
 -- RPM que tendría el motor en esa marcha, sin recortar al ralentí ni al corte.
